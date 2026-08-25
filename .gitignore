@@ -1,0 +1,59 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Localisation générée (flutter gen-l10n) — régénérée automatiquement depuis
+# lib/l10n/*.arb à chaque `flutter pub get`/build (voir l10n.yaml,
+# `generate: true` dans pubspec.yaml). Les ARB sont la source de vérité.
+/lib/l10n/generated/
+
+# ── Secrets de signature et de configuration ────────────────────────────────
+# Déjà exclus par android/.gitignore ; répétés ici en défense en profondeur —
+# ces fichiers permettraient, s'ils fuitaient, de signer une fausse mise à
+# jour de l'application. Voir PRODUCTION_READINESS.md.
+*.jks
+*.keystore
+android/key.properties
+android/app/google-services.json

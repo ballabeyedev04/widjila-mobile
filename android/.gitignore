@@ -1,0 +1,24 @@
+gradle-wrapper.jar
+/.gradle
+/captures/
+/gradlew
+/gradlew.bat
+/local.properties
+GeneratedPluginRegistrant.java
+.cxx/
+
+# Remember to never publicly share your keystore.
+# See https://flutter.dev/to/reference-keystore
+key.properties
+**/*.keystore
+**/*.jks
+# Keystore de release de CETTE application, stocke dans le projet (voir
+# key.properties -> storeFile). Deja couvert par `**/*.jks` ci-dessus :
+# repete explicitement parce qu'une fuite de ce fichier + des mots de passe
+# permettrait de signer une fausse mise a jour de Widjila.
+widjila-upload.jks
+
+# Config Firebase specifique a l'environnement (project ID + cle API
+# Android) — jamais committee, distribuee via CI/secret manager comme
+# key.properties ci-dessus. Voir PRODUCTION_READINESS.md.
+app/google-services.json

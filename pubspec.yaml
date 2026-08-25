@@ -1,0 +1,204 @@
+name: suivie_chantier_mobile
+description: |
+  Widjila transforme votre téléphone en carnet de chantier : relevez une réserve en quelques secondes, photographiez-la, suivez sa levée jusqu'à la clôture — et continuez à travailler même sans réseau.
+
+  Pensé pour les équipes du BTP : chefs de projet, conducteurs de travaux, bureaux de contrôle, maîtres d'ouvrage et maîtres d'œuvre, entreprises, pilotes et sous-traitants.
+
+  ▸ DES RÉSERVES RELEVÉES EN QUELQUES SECONDES
+  Création guidée pas à pas : titre, description, catégorie (maçonnerie, gros œuvre, plomberie, électricité, carrelage, peinture, menuiserie, étanchéité, isolation…), sévérité, échéance et localisation précise — bâtiment, étage, zone, lot.
+  Ajoutez des photos prises sur place ou choisies dans la galerie, assignez la réserve à l'intervenant concerné et échangez en commentaires.
+
+  ▸ UN CYCLE DE VIE COMPLET, TRAÇABLE
+  Créée, affectée, prise en charge, en cours, corrigée, à vérifier, levée, refusée, rouverte, en retard, clôturée : chaque changement de statut est enregistré avec son auteur et sa date. L'historique complet de la réserve reste consultable, et un refus doit être motivé.
+
+  ▸ ÇA MARCHE SANS RÉSEAU
+  Sous-sol, zone blanche, chantier isolé : l'application reste utilisable. Vos chantiers et vos réserves sont mis en cache, et les actions faites hors ligne — création de réserve, changement de statut, ajout de photo — sont mises en file d'attente. Dès que la connexion revient, tout part automatiquement. Un écran dédié affiche les tâches en attente, celles qui ont échoué, et permet de les relancer d'un geste.
+
+  ▸ PLANS ET DOCUMENTS DU CHANTIER
+  Importez et consultez vos plans (PDF et images) directement depuis le mobile, avec zoom et repères des réserves rattachées.
+  Retrouvez au même endroit les photos, vidéos et documents du chantier : contrats, DOE, comptes rendus, rapports, notices, PV.
+
+  ▸ TABLEAU DE BORD ET AVANCEMENT
+  Vue d'ensemble immédiate : total des réserves, ouvertes, levées, en retard. Répartition par statut et par sévérité, courbe d'évolution, et le détail chantier par chantier. Les mêmes chiffres, en temps réel, sur le terrain comme au bureau.
+
+  ▸ VOTRE ÉQUIPE, VOS RÔLES
+  Membres et intervenants de l'organisation, avec leur rôle et leur statut. Chacun voit et fait ce que son rôle autorise.
+
+  ▸ NOTIFICATIONS
+  Alertes en temps réel sur les réserves qui vous concernent, les changements de statut et les échéances. Centre de notifications avec filtres lues / non lues et recherche.
+
+  ▸ SÉCURITÉ ET CONFIDENTIALITÉ
+  Connexion chiffrée, double authentification (2FA) par application d'authentification, liste de vos sessions actives, historique des connexions et déconnexion à distance de tous les appareils.
+  Conforme RGPD : aperçu et export de vos données personnelles, suppression de compte depuis l'application.
+
+  ▸ EN 4 LANGUES
+  Français, English, Español, Deutsch — changement de langue instantané.
+
+  Widjila fonctionne avec un compte rattaché à une organisation. Créez la vôtre directement depuis l'application : vous en devenez administrateur et pouvez ensuite inviter vos équipes.
+
+  Moins d'allers-retours entre le chantier et le bureau, plus de photos perdues dans une galerie, plus de réserves oubliées dans un carnet : tout est daté, localisé, assigné et suivi.
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # État / architecture
+  flutter_bloc: ^9.1.1
+  equatable: ^2.0.7
+  get_it: ^8.2.0
+  dartz: ^0.10.1
+  go_router: ^16.2.4
+
+  # Réseau
+  dio: ^5.8.0+1
+  connectivity_plus: ^7.3.1
+
+  # Stockage / session
+  shared_preferences: ^2.5.5
+  flutter_secure_storage: ^9.2.4
+  jwt_decode: ^0.3.1
+
+  # UI
+  intl: ^0.20.2
+  google_fonts: ^6.3.0
+  cached_network_image: ^3.4.1
+  flutter_svg: ^2.2.0
+  shimmer: ^3.0.0
+  # awesome_dialog retiré temporairement (audit build) : sa dépendance rive/
+  # rive_native télécharge des binaires natifs pendant le build et a fait
+  # planter le daemon Gradle par manque de mémoire sur cette machine (8 Go
+  # au total, 197 Mo libres au moment du crash). Pas encore utilisé dans le
+  # code (SnackBar/AlertDialog standard suffisent pour l'instant) — à
+  # réintégrer si vraiment nécessaire, sur une machine avec plus de marge.
+  toastification: ^3.0.3
+  pull_to_refresh_flutter3: ^2.0.2
+
+  # Fichiers / médias (photos réserves-inspections, documents, plans PDF)
+  # NOTE path_provider (mise a jour apres verification de l'arbre de deps) :
+  # il n'est PAS declare ici, mais il est bel et bien present dans le build en
+  # dependance transitive de `google_fonts` et `cached_network_image`
+  # (verifie avec `flutter pub deps`). Le retirer de la liste directe n'a donc
+  # jamais suffi a ecarter `path_provider_foundation` -> `objective_c`.
+  # Consequence pratique : le stockage local hors ligne utilise `sqflite`, qui
+  # resout son chemin de fichier nativement (`getDatabasesPath()`) et ne
+  # DEPEND pas de path_provider -- on n'aggrave donc pas la situation, mais on
+  # ne peut pas non plus s'en servir comme argument pour dire que le build iOS
+  # est protege. A retester au premier build iOS reel.
+  # path_provider : DÉCLARÉ EN DIRECT depuis l'ouverture des documents.
+  #
+  # Cela n'ajoute STRICTEMENT RIEN au build : `flutter pub deps` le montre
+  # déjà résolu en 2.1.6 comme dépendance transitive de `flutter_cache_manager`
+  # (via cached_network_image) et de `flutter_secure_storage_windows`. La
+  # chaîne `path_provider_foundation -> objective_c` était donc présente que
+  # cette ligne existe ou non — c'est exactement ce que constate la note
+  # ci-dessus. Le retirer de la liste directe empêchait seulement de S'EN
+  # SERVIR, sans protéger le build iOS pour autant.
+  #
+  # Il est requis pour écrire un fichier téléchargé dans un dossier temporaire
+  # avant de le confier à `open_file` : /uploads/* exige le jeton
+  # d'authentification, un lien direct confié au système répondrait 401.
+  # Déverrouillage biométrique de l'ouverture de l'application.
+  # Plugin à canal de plateforme simple (Kotlin/Swift) — comme `file_picker`,
+  # il n'entraîne pas `objective_c` et n'expose donc pas au problème de build
+  # "native assets" évoqué plus haut.
+  local_auth: ^2.3.0
+  path_provider: ^2.1.6
+  image_picker: ^1.2.2
+  # Sélecteur de fichiers de l'appareil — requis par l'import de plan :
+  # un plan est le plus souvent un PDF, qu'`image_picker` ne sait pas ouvrir.
+  # Plugin à canal de plateforme simple (Kotlin/Swift), sans dépendance à
+  # `objective_c` — il n'expose donc pas au problème de build "native
+  # assets" qui a fait retirer path_provider ci-dessus.
+  file_picker: ^8.1.7
+
+  # Notifications push (FCM) + suivi des crashs.
+  #  - firebase_core / firebase_messaging : réception des alertes ;
+  #  - flutter_local_notifications : AFFICHAGE quand l'application est au
+  #    premier plan. Android n'affiche rien tout seul dans ce cas — c'est ce
+  #    paquet qui dessine la bannière, et qui déclare le canal
+  #    « suivi_chantier_alertes » visé par le back.
+  #  - firebase_crashlytics : seule source de visibilité sur les crashs REELS
+  #    une fois publié — voir `main.dart` (FlutterError.onError,
+  #    PlatformDispatcher.instance.onError, runZonedGuarded).
+  #  - Ces trois-là exigent `android/app/google-services.json`, à télécharger
+  #    depuis la console Firebase. SANS CE FICHIER, LE BUILD ANDROID ÉCHOUE.
+  firebase_core: ^3.8.0
+  firebase_messaging: ^15.1.5
+  firebase_crashlytics: ^4.3.10
+  flutter_local_notifications: ^18.0.1
+  open_file: ^3.5.10
+  flutter_pdfview: ^1.3.2
+
+  # Graphes — les chiffres viennent toujours du back (endpoints
+  # `/dashboard/...`), fl_chart ne fait que les dessiner côté mobile (donut
+  # de répartition, courbe d'évolution). Pure Dart, aucun code natif : pas
+  # de risque de reproduire le crash de build rencontré avec rive_native.
+  fl_chart: ^0.69.2
+
+  # Divers
+  package_info_plus: ^8.1.2
+  url_launcher: ^6.1.14
+  country_picker: ^2.0.28
+  sqflite: ^2.4.3
+  uuid: ^4.6.0
+  # Construction de chemins de fichiers, portable entre plateformes — utilisé
+  # par le stockage local des photos hors ligne (stockage_medias.dart). Déjà
+  # présent en dépendance transitive (via sqflite), mais un import direct doit
+  # être une dépendance DIRECTE.
+  path: ^1.9.0
+  # `sqflite` natif (Android/iOS) n'a pas d'équivalent sur le web — un
+  # navigateur n'a pas de système de fichiers SQLite. Cette implémentation
+  # bascule sur IndexedDB, uniquement pour permettre de lancer l'app avec
+  # `flutter run -d chrome` en développement (pas de device/émulateur
+  # disponible). Voir `main.dart` pour l'aiguillage par plateforme.
+  sqflite_common_ffi_web: ^1.1.2
+  sqflite_common: ^2.5.11
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  bloc_test: ^10.0.0
+  mocktail: ^1.0.4
+  flutter_launcher_icons: ^0.14.4
+  sqflite_common_ffi: ^2.4.2+1
+
+flutter:
+  uses-material-design: true
+  generate: true
+  assets:
+    # Images embarquées dans l'app (fond de connexion, logo).
+    # `assets/launcher/` est volontairement ABSENT : ces fichiers ne servent
+    # qu'à générer les icônes natives (voir ci-dessous), les embarquer dans le
+    # bundle alourdirait l'APK pour rien.
+    - assets/images/
+
+# ── Icônes de l'application (écran d'accueil / liste des apps) ───────────────
+# Régénérer après toute modification du logo :
+#     dart run flutter_launcher_icons
+#
+# Sources dans `assets/launcher/` :
+#   • app-icon.png            — logo sur fond blanc, SANS canal alpha
+#                               (iOS rejette toute transparence sur l'icône).
+#   • app-icon-foreground.png — calque avant de l'icône adaptative Android,
+#                               fond transparent et logo réduit à ~58 % pour
+#                               rester dans la zone de sécurité : Android
+#                               rogne l'icône (rond, squircle, goutte…) selon
+#                               le lanceur, un logo pleine taille serait coupé.
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/launcher/app-icon.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/launcher/app-icon-foreground.png"
+  remove_alpha_ios: true

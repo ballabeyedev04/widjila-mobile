@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Icone de notification dans la barre d'etat (petite icone).
+
+  Android IGNORE les couleurs de cette ressource : il n'en garde que la
+  silhouette, qu'il teinte avec `couleur_notification`. Elle doit donc etre
+  entierement opaque en blanc sur fond transparent — une icone en couleurs
+  apparaitrait comme un carre blanc plein.
+
+  Motif : un casque de chantier, l'identite du produit reduite a une forme
+  reconnaissable a 24 dp.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Coque du casque -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,3.2c-0.62,0 -1.12,0.5 -1.12,1.12v2.06c-2.6,0.5 -4.6,2.63 -4.94,5.29l-0.2,1.53h12.52l-0.2,-1.53c-0.34,-2.66 -2.34,-4.79 -4.94,-5.29V4.32C13.12,3.7 12.62,3.2 12,3.2z" />
+
+    <!-- Bandeau frontal -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M3.4,15.1h17.2c0.55,0 1,0.45 1,1v1.1c0,0.55 -0.45,1 -1,1H3.4c-0.55,0 -1,-0.45 -1,-1v-1.1C2.4,15.55 2.85,15.1 3.4,15.1z" />
+</vector>

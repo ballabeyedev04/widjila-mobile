@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- Teinte de l'icone de notification dans la barre d'etat.
+         Identique a AppColors.primary (lib/core/theme/app_colors.dart)
+         et a la variable CSS primary de l'admin web. -->
+    <color name="couleur_notification">#F2600C</color>
+</resources>
