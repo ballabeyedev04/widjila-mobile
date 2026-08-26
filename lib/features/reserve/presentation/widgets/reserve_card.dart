@@ -113,7 +113,11 @@ class ReserveCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      reserve.titre,
+                      // Repli sur le numéro si le titre manque : le serveur
+                      // impose `titre` NOT NULL, mais une carte sans AUCUN
+                      // texte est illisible — on ne peut ni la reconnaître ni
+                      // la citer. Mieux vaut « R-0001 » que rien.
+                      reserve.titre.trim().isEmpty ? reserve.numeroAffiche(l10n) : reserve.titre,
                       style: const TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 16,

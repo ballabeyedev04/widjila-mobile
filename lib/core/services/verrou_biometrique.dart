@@ -22,10 +22,24 @@ class VerrouBiometrique extends ChangeNotifier {
         _auth = auth ?? LocalAuthentication();
 
   static const _kCle = 'verrou_biometrique_actif';
+  static const _kCleProposition = 'verrou_biometrique_propose';
 
   /// Désactivé par défaut : un verrou qu'on n'a pas demandé et qu'on ne sait
   /// pas retirer transformerait une application de travail en piège.
   bool get actif => _prefs.getBool(_kCle) ?? false;
+
+  /// L'offre d'activation a-t-elle déjà été présentée ?
+  ///
+  /// Le réglage vit dans les paramètres, où personne ne va le chercher : on
+  /// le propose donc une fois, à l'arrivée dans l'application. UNE fois —
+  /// reposer la question à chaque ouverture à quelqu'un qui a répondu « plus
+  /// tard » transformerait une commodité en harcèlement, et la réponse
+  /// deviendrait un réflexe de rejet.
+  bool get propositionFaite => _prefs.getBool(_kCleProposition) ?? false;
+
+  Future<void> marquerPropositionFaite() async {
+    await _prefs.setBool(_kCleProposition, true);
+  }
 
   /// L'appareil propose-t-il une biométrie ENREGISTRÉE ?
   ///

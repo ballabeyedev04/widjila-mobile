@@ -21,6 +21,7 @@ class UserModel extends User {
     super.dernierConnexion,
     super.emailVerifie,
     super.mdpTemporaire,
+    super.mfaActive,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -42,6 +43,7 @@ class UserModel extends User {
           : null,
       emailVerifie: json['email_verifie'] as bool? ?? false,
       mdpTemporaire: json['mdp_temporaire'] as bool? ?? false,
+      mfaActive: json['mfaActive'] as bool? ?? false,
     );
   }
 
@@ -63,5 +65,6 @@ class UserModel extends User {
         'dernierConnexion': dernierConnexion?.toIso8601String(),
         'email_verifie': emailVerifie,
         'mdp_temporaire': mdpTemporaire,
+        'mfaActive': mfaActive,
       };
 }

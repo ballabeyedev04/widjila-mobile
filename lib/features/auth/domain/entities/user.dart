@@ -21,6 +21,11 @@ class User extends Equatable {
   final bool emailVerifie;
   final bool mdpTemporaire;
 
+  /// Double authentification (TOTP) activée sur le compte. Envoyée par
+  /// `formatUser()` sous la clé `mfaActive` — l'affichage de la fiche de
+  /// profil s'appuie dessus.
+  final bool mfaActive;
+
   const User({
     required this.id,
     this.organisationId,
@@ -37,6 +42,7 @@ class User extends Equatable {
     this.dernierConnexion,
     this.emailVerifie = false,
     this.mdpTemporaire = false,
+    this.mfaActive = false,
   });
 
   String get nomComplet => '$prenom $nom'.trim();
@@ -95,5 +101,6 @@ class User extends Equatable {
         dernierConnexion,
         emailVerifie,
         mdpTemporaire,
+        mfaActive,
       ];
 }

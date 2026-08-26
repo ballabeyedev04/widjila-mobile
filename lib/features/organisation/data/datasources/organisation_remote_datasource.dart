@@ -2,9 +2,17 @@ import 'package:dio/dio.dart';
 
 import '../../../../core/network/dio_exception_mapper.dart';
 import '../../domain/entities/membre.dart';
+import '../../domain/entities/organisation.dart';
 import '../../domain/entities/partenaire.dart';
 
 abstract class OrganisationRemoteDataSource {
+  /// Organisation de l'utilisateur connecté — `GET /organisation`.
+  Future<Organisation> getMonOrganisation();
+
+  /// Mise à jour de l'identité de l'organisation — `PUT /organisation`,
+  /// réservé aux rôles GESTION côté serveur.
+  Future<Organisation> modifierOrganisation(Map<String, dynamic> payload);
+
   Future<List<Membre>> getMembres();
   Future<AjouterMembreResult> ajouterMembre(Map<String, dynamic> payload);
   Future<Membre> modifierMembre(String membreId, Map<String, dynamic> payload);
@@ -19,6 +27,26 @@ class OrganisationRemoteDataSourceImpl implements OrganisationRemoteDataSource {
 
   Map<String, dynamic> _data(Response response) =>
       (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+
+  @override
+  Future<Organisation> getMonOrganisation() async {
+    try {
+      final response = await dio.get('/organisation');
+      return Organisation.fromJson(_data(response)['organisation'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<Organisation> modifierOrganisation(Map<String, dynamic> payload) async {
+    try {
+      final response = await dio.put('/organisation', data: payload);
+      return Organisation.fromJson(_data(response)['organisation'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
 
   @override
   Future<List<Membre>> getMembres() async {

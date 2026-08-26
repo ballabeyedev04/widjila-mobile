@@ -99,6 +99,9 @@ import 'features/organisation/domain/usecases/ajouter_membre.dart';
 import 'features/organisation/domain/usecases/changer_statut_partenaire.dart';
 import 'features/organisation/domain/usecases/changer_statut_membre.dart';
 import 'features/organisation/domain/usecases/creer_partenaire.dart';
+import 'features/organisation/domain/usecases/get_mon_organisation.dart';
+import 'features/organisation/domain/usecases/modifier_organisation.dart';
+import 'features/organisation/presentation/cubit/mon_organisation_cubit.dart';
 import 'features/organisation/domain/usecases/get_membres.dart';
 import 'features/organisation/domain/usecases/get_partenaires.dart';
 import 'features/organisation/presentation/cubit/membres_cubit.dart';
@@ -324,12 +327,15 @@ Future<void> init() async {
   //================================================
   sl.registerLazySingleton<OrganisationRemoteDataSource>(() => OrganisationRemoteDataSourceImpl(dio: sl()));
   sl.registerLazySingleton<OrganisationRepository>(() => OrganisationRepositoryImpl(sl()));
+  sl.registerLazySingleton(() => GetMonOrganisation(sl()));
+  sl.registerLazySingleton(() => ModifierOrganisation(sl()));
   sl.registerLazySingleton(() => GetMembres(sl()));
   sl.registerLazySingleton(() => ChangerStatutMembre(sl()));
   sl.registerLazySingleton(() => AjouterMembre(sl()));
   sl.registerLazySingleton(() => GetPartenaires(sl()));
   sl.registerLazySingleton(() => CreerPartenaire(sl()));
   sl.registerLazySingleton(() => ChangerStatutPartenaire(sl()));
+  sl.registerFactory(() => MonOrganisationCubit(getMonOrganisation: sl(), modifierOrganisationUsecase: sl()));
   sl.registerFactory(() => MembresCubit(getMembres: sl(), ajouterMembreUsecase: sl(), changerStatutMembreUsecase: sl()));
   sl.registerFactory(() => PartenairesCubit(
         getPartenaires: sl(),

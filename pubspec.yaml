@@ -39,7 +39,7 @@ description: |
   Moins d'allers-retours entre le chantier et le bureau, plus de photos perdues dans une galerie, plus de réserves oubliées dans un carnet : tout est daté, localisé, assigné et suivi.
 publish_to: 'none'
 
-version: 1.0.1+2
+version: 1.0.2+3
 
 environment:
   sdk: ^3.12.2

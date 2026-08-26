@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../config/user_role.dart';
 import '../routes/app_router.dart';
+import '../services/verrou_biometrique.dart';
 import '../theme/app_colors.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../features/notification/presentation/cubit/notifications_cubit.dart';
@@ -43,6 +44,10 @@ const double _diametreFab = 58;
 ///    barre du bas : a cette largeur un rail de 200 dp mangerait un tiers de
 ///    l'ecran.
 const double _seuilTablette = 700;
+
+/// Durée de l'ouverture ET de la fermeture de l'éventail d'actions. La
+/// navigation qui suit un choix attend ce délai — voir [_ouvrirEventail].
+const Duration _dureeEventail = Duration(milliseconds: 260);
 const double _largeurRail = 200;
 
 /// Coquille applicative — barre de navigation basse et bouton d'action
@@ -63,6 +68,97 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   bool _menuOuvert = false;
+
+  /// Empêche de relancer la proposition de verrou si la coquille se
+  /// reconstruit (changement d'onglet, rotation) avant la fin du premier
+  /// passage — `propositionFaite` n'est écrit qu'À LA FIN du dialogue.
+  bool _propositionEnCours = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Après la première image : `showDialog` a besoin d'un arbre monté, et
+    // `disponible` interroge le système d'authentification de l'appareil.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _proposerVerrouSiPertinent());
+  }
+
+  /// Propose UNE fois le déverrouillage biométrique, à l'arrivée dans
+  /// l'application.
+  ///
+  /// La coquille est le seul point de passage obligé de tous les rôles :
+  /// l'accueil diffère (tableau de bord pour les uns, liste des chantiers
+  /// pour Entreprise et Client — voir `accueilEstListeChantiers`), mais tout
+  /// le monde entre par ici. Poser la question sur chaque écran d'accueil
+  /// aurait dupliqué la logique et laissé des rôles de côté.
+  ///
+  /// Le réglage lui-même existe déjà dans les paramètres ; ce dialogue ne
+  /// fait que le rendre découvrable — sans lui, personne ne l'active jamais.
+  Future<void> _proposerVerrouSiPertinent() async {
+    if (_propositionEnCours) return;
+    final verrou = sl<VerrouBiometrique>();
+    if (verrou.actif || verrou.propositionFaite) return;
+    // Un appareil sans biométrie ENREGISTRÉE ne peut pas honorer le réglage :
+    // proposer serait promettre ce qu'on ne peut pas tenir.
+    if (!await verrou.disponible) return;
+    if (!mounted) return;
+
+    _propositionEnCours = true;
+    final l10n = context.l10n;
+    final accepte = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.fingerprint_rounded, size: 34, color: AppColors.primary),
+        title: Text(l10n.bioProposerTitre),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(l10n.bioProposerTexte, textAlign: TextAlign.center),
+            const SizedBox(height: 10),
+            Text(
+              l10n.bioProposerReglages,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.bioProposerPlusTard),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.bioProposerActiver),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+
+    if (accepte != true) {
+      // Refus explicite (ou dialogue fermé) : on ne repose plus la question.
+      await verrou.marquerPropositionFaite();
+      _propositionEnCours = false;
+      return;
+    }
+
+    // `definirActif` redemande la biométrie pour confirmer — c'est elle qui
+    // fait apparaître la boîte du système (empreinte, visage, ou code de
+    // l'appareil en repli).
+    final active = await verrou.definirActif(true, motif: l10n.bioInvite);
+
+    // Marqué SEULEMENT si l'activation a abouti : un capteur qui n'a pas lu
+    // le doigt du premier coup ne doit pas coûter l'offre définitivement.
+    if (active) await verrou.marquerPropositionFaite();
+    _propositionEnCours = false;
+
+    if (!mounted || active) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(
+      SnackBar(content: Text(l10n.bioEchec), backgroundColor: AppColors.danger),
+    );
+  }
 
   /// Posée sur l'onglet « Plus » pour mesurer sa position à l'ouverture du
   /// menu (voir [_ouvrirMenuPlus]).
@@ -140,16 +236,6 @@ class _AppShellState extends State<AppShell> {
         dansCoquille: false,
         route: (String? id) => '/chantiers/$id/tableau-de-bord',
       ),
-      if (role.peutGererOrganisation)
-        (
-          icon: Icons.groups_rounded,
-          label: l10n.actionEquipe,
-          couleur: AppColors.accentDark,
-          // Transversale à l'organisation : aucun chantier à choisir.
-          besoinChantier: false,
-          dansCoquille: true,
-          route: (String? _) => AppRoutes.equipe,
-        ),
       if (role.estOperationnelOuControle)
         (
           icon: Icons.folder_open_rounded,
@@ -162,17 +248,31 @@ class _AppShellState extends State<AppShell> {
     ];
   }
 
-  /// Entrées de l'onglet « Plus ».
+  /// Entrées de l'onglet « Plus » — la NAVIGATION vers les écrans qui n'ont
+  /// pas d'onglet dédié.
   ///
-  /// Deux seulement, et vérifiées contre le reste de la navigation pour
-  /// éviter les doublons : « Chantiers » et « Intervenants » n'apparaissent
-  /// nulle part ailleurs. « Équipe », qui figurait autrefois à la fois ici et
-  /// dans l'éventail du bouton « + », ne reste que dans ce dernier ; « Mon
-  /// profil » a rejoint le menu de l'en-tête du tableau de bord.
+  /// « Équipe » vit ici et NON dans l'éventail du bouton « + » : cet éventail
+  /// regroupe des actions de création (« nouvelle réserve », « nouveau
+  /// document »), tandis que gérer les membres est un écran qu'on ouvre.
+  /// L'y avoir déplacé le rendait introuvable — on cherche naturellement une
+  /// destination dans « Plus », pas derrière un bouton de création.
   ///
-  /// Aucun filtre de rôle : les deux écrans sont en lecture, et leurs routes
-  /// côté serveur n'exigent aucun rôle particulier.
-  List<ActionRapide> _entreesPlus(AppLocalizations l10n) => [
+  /// Seule « Équipe » est filtrée par rôle : elle mène aux routes
+  /// `/organisation/membres`, réservées à GESTION côté serveur
+  /// (`backend/src/config/roles.js`). Chantiers et Intervenants sont en
+  /// lecture et n'exigent aucun rôle. « Mon profil » reste dans le menu de
+  /// l'en-tête du tableau de bord.
+  List<ActionRapide> _entreesPlus(AppLocalizations l10n, UserRole? role) => [
+        if (role?.peutGererOrganisation ?? false)
+          (
+            icon: Icons.groups_rounded,
+            label: l10n.actionEquipe,
+            couleur: AppColors.accentDark,
+            // Transversale à l'organisation : aucun chantier à choisir.
+            besoinChantier: false,
+            dansCoquille: true,
+            route: (String? _) => AppRoutes.equipe,
+          ),
         (
           icon: Icons.construction_rounded,
           label: l10n.actionChantiers,
@@ -222,7 +322,7 @@ class _AppShellState extends State<AppShell> {
       barrierDismissible: true,
       barrierLabel: context.l10n.actionsFermerLabel,
       barrierColor: Colors.black.withValues(alpha: 0.35),
-      transitionDuration: const Duration(milliseconds: 260),
+      transitionDuration: _dureeEventail,
       pageBuilder: (_, _, _) => const SizedBox.shrink(),
       transitionBuilder: (context, animation, _, _) => EventailActions(
         animation: animation,
@@ -236,6 +336,21 @@ class _AppShellState extends State<AppShell> {
     );
     if (mounted) setState(() => _menuOuvert = false);
     if (action == null || !mounted) return;
+
+    // ATTENDRE la fin de l'animation de fermeture avant de naviguer.
+    //
+    // `showGeneralDialog` rend la main dès l'appel à `pop`, pas à la fin de sa
+    // transition de sortie : naviguer tout de suite déclenchait un
+    // `context.go` PENDANT que la route de l'éventail se refermait encore. La
+    // coquille n'étant alors pas la route du dessus, ses tickers sont mis en
+    // sourdine (`TickerMode`) — l'AnimatedSwitcher de `_TransitionOnglet`
+    // démarrait donc sa transition sans jamais l'avancer, et la nouvelle page
+    // restait à une opacité nulle : écran BLANC jusqu'à ce qu'un toucher
+    // provoque enfin une nouvelle image. Symptôme observé sur « Chantiers » et
+    // « Intervenants », les deux seules destinations atteintes depuis
+    // l'éventail.
+    await Future<void>.delayed(_dureeEventail);
+    if (!mounted) return;
 
     // Deux familles d'écrans, deux façons d'y aller :
     //
@@ -282,10 +397,18 @@ class _AppShellState extends State<AppShell> {
     //  - rail lateral : « Plus » est a GAUCHE, arc symetrique vers le
     //    haut-droit, pour la meme raison.
     final surRail = largeur >= _seuilTablette;
+    final role = context.read<AuthBloc>().state.utilisateur?.role;
+    final entrees = _entreesPlus(context.l10n, role);
+    // Un angle par entrée : la liste varie selon le rôle (« Équipe » n'est
+    // proposée qu'à GESTION). Une liste d'angles plus courte que les entrées
+    // ferait sortir la dernière pastille de l'arc.
+    final angles = surRail
+        ? const [30.0, 80.0, 130.0]
+        : const [150.0, 100.0, 50.0];
     _ouvrirEventail(
-      _entreesPlus(context.l10n),
+      entrees,
       ancrageX: ancrage,
-      angles: surRail ? const [30.0, 80.0] : const [150.0, 100.0],
+      angles: angles.take(entrees.length).toList(),
     );
   }
 

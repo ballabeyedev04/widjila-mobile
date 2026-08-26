@@ -4,6 +4,7 @@ import '../../../../core/config/user_role.dart';
 import '../../../../core/errors/exception_to_failure.dart';
 import '../../../../core/errors/failure.dart';
 import '../../domain/entities/membre.dart';
+import '../../domain/entities/organisation.dart';
 import '../../domain/entities/partenaire.dart';
 import '../../domain/repositories/organisation_repository.dart';
 import '../datasources/organisation_remote_datasource.dart';
@@ -11,6 +12,52 @@ import '../datasources/organisation_remote_datasource.dart';
 class OrganisationRepositoryImpl implements OrganisationRepository {
   final OrganisationRemoteDataSource remoteDataSource;
   OrganisationRepositoryImpl(this.remoteDataSource);
+
+  @override
+  Future<Either<Failure, Organisation>> getMonOrganisation() async {
+    try {
+      return Right(await remoteDataSource.getMonOrganisation());
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Organisation>> modifierOrganisation({
+    String? nom,
+    String? raisonSociale,
+    String? siret,
+    String? numTva,
+    String? rccm,
+    String? ninea,
+    String? telephone,
+    String? email,
+    String? adresse,
+    String? ville,
+    String? pays,
+  }) async {
+    try {
+      // Seules les clés RENSEIGNÉES partent : le schéma Joi valide avec
+      // `stripUnknown` et traite chaque champ comme optionnel, mais envoyer
+      // `null` sur un champ non touché l'effacerait en base.
+      final payload = <String, dynamic>{
+        'nom': ?nom,
+        'raison_sociale': ?raisonSociale,
+        'siret': ?siret,
+        'num_tva': ?numTva,
+        'rccm': ?rccm,
+        'ninea': ?ninea,
+        'telephone': ?telephone,
+        'email': ?email,
+        'adresse': ?adresse,
+        'ville': ?ville,
+        'pays': ?pays,
+      };
+      return Right(await remoteDataSource.modifierOrganisation(payload));
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
 
   @override
   Future<Either<Failure, List<Membre>>> getMembres() async {

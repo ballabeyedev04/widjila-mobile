@@ -12,6 +12,7 @@ import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/mfa_page.dart';
 import '../../features/auth/presentation/pages/register_page.dart';
 import '../../features/auth/presentation/pages/reset_password_page.dart';
+import '../../features/auth/presentation/pages/bienvenue_page.dart';
 import '../../features/auth/presentation/pages/splash_page.dart';
 import '../../features/account/presentation/pages/profil_page.dart';
 import '../../features/account/presentation/pages/settings_page.dart';
@@ -39,6 +40,11 @@ class AppRoutes {
   AppRoutes._();
 
   static const splash = '/';
+
+  /// Écran d'accueil du visiteur non connecté : la marque et les deux portes
+  /// d'entrée (connexion, inscription). Toute session absente y aboutit —
+  /// voir `redirect` plus bas.
+  static const bienvenue = '/bienvenue';
   static const login = '/login';
   static const mfa = '/mfa';
   static const register = '/register';
@@ -112,7 +118,8 @@ class AppRouter {
       final authState = authBloc.state;
       final loc = state.matchedLocation;
 
-      final estSurEcranPublic = loc == AppRoutes.login ||
+      final estSurEcranPublic = loc == AppRoutes.bienvenue ||
+          loc == AppRoutes.login ||
           loc == AppRoutes.register ||
           loc == AppRoutes.mfa ||
           loc == AppRoutes.forgotPassword ||
@@ -129,8 +136,12 @@ class AppRouter {
         return loc == AppRoutes.mfa ? null : AppRoutes.mfa;
       }
 
+      // Sans session, on arrive sur l'ACCUEIL et non sur le formulaire de
+      // connexion : un premier visiteur doit pouvoir choisir « créer un
+      // compte » sans avoir à repérer un lien sous un champ email. Les écrans
+      // publics (dont login et register) restent atteignables depuis là.
       if (authState.status == AuthStatus.nonAuthentifie) {
-        return estSurEcranPublic ? null : AppRoutes.login;
+        return estSurEcranPublic ? null : AppRoutes.bienvenue;
       }
 
       // Authentifié : ne jamais rester sur un écran public / splash.
@@ -157,6 +168,7 @@ class AppRouter {
     },
     routes: [
       GoRoute(path: AppRoutes.splash, builder: (_, _) => const SplashPage()),
+      GoRoute(path: AppRoutes.bienvenue, builder: (_, _) => const BienvenuePage()),
       GoRoute(path: AppRoutes.login, builder: (_, _) => const LoginPage()),
       GoRoute(path: AppRoutes.mfa, builder: (_, _) => const MfaPage()),
       GoRoute(path: AppRoutes.register, builder: (_, _) => const RegisterPage()),
