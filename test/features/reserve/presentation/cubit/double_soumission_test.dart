@@ -4,6 +4,10 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:suivie_chantier_mobile/core/errors/failure.dart';
+import 'package:suivie_chantier_mobile/features/corps_etat/domain/entities/corps_etat.dart';
+import 'package:suivie_chantier_mobile/features/corps_etat/domain/usecases/get_corps_etat_actifs.dart';
+import 'package:suivie_chantier_mobile/features/phase/domain/entities/phase_referentiel.dart';
+import 'package:suivie_chantier_mobile/features/phase/domain/usecases/get_phases_actives.dart';
 import 'package:suivie_chantier_mobile/features/reserve/domain/entities/reserve.dart';
 import 'package:suivie_chantier_mobile/features/reserve/domain/usecases/ajouter_media_reserve.dart';
 import 'package:suivie_chantier_mobile/features/reserve/domain/usecases/changer_statut_reserve.dart';
@@ -17,6 +21,10 @@ import 'package:suivie_chantier_mobile/features/reserve/presentation/cubit/reser
 class MockCreerReserve extends Mock implements CreerReserve {}
 
 class MockGetChantierStructure extends Mock implements GetChantierStructure {}
+
+class MockGetCorpsEtatActifs extends Mock implements GetCorpsEtatActifs {}
+
+class MockGetPhasesActives extends Mock implements GetPhasesActives {}
 
 class MockGetReserveDetail extends Mock implements GetReserveDetail {}
 
@@ -61,9 +69,20 @@ void main() {
             dateLimite: any(named: 'dateLimite'),
           )).thenAnswer((_) => enVol.future);
 
+      // Le catalogue des métiers est une dépendance du wizard depuis qu'il
+      // remplace l'énumération figée. Il n'est pas le sujet de ce test : on
+      // rend une liste vide, ce qui laisse le verrou de double soumission
+      // strictement inchangé.
+      final getCorpsEtat = MockGetCorpsEtatActifs();
+      when(() => getCorpsEtat()).thenAnswer((_) async => Right<Failure, List<CorpsEtat>>(const []));
+      final getPhases = MockGetPhasesActives();
+      when(() => getPhases()).thenAnswer((_) async => Right<Failure, List<PhaseReferentiel>>(const []));
+
       final cubit = ReserveWizardCubit(
         getChantierStructure: getStructure,
         creerReserve: creerReserve,
+        getCorpsEtatActifs: getCorpsEtat,
+        getPhasesActives: getPhases,
         chantierId: 'c1',
       );
       cubit.changerTitre('Fissure');

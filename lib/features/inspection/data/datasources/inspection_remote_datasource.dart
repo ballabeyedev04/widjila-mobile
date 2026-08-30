@@ -8,7 +8,10 @@ abstract class InspectionRemoteDataSource {
   Future<Inspection> getInspection(String id);
   Future<Inspection> creerInspection({
     required String chantierId,
-    required InspectionType type,
+    /// CODE du type, issu du référentiel administrable
+    /// (`/types-inspection/actifs`). Une énumération figée ici
+    /// empêcherait d'utiliser un type ajouté par l'administrateur.
+    required String typeCode,
     DateTime? dateVisite,
     List<String> libellesChecklist,
   });
@@ -63,14 +66,17 @@ class InspectionRemoteDataSourceImpl implements InspectionRemoteDataSource {
   @override
   Future<Inspection> creerInspection({
     required String chantierId,
-    required InspectionType type,
+    /// CODE du type, issu du référentiel administrable
+    /// (`/types-inspection/actifs`). Une énumération figée ici
+    /// empêcherait d'utiliser un type ajouté par l'administrateur.
+    required String typeCode,
     DateTime? dateVisite,
     List<String> libellesChecklist = const [],
   }) async {
     try {
       final response = await dio.post('/chantiers/$chantierId/inspections', data: {
         'chantierId': chantierId,
-        'type': type.raw,
+        'type': typeCode,
         // `date_visite` est un DATEONLY côté serveur : on n'envoie que la
         // partie date, sinon Joi reçoit un instant avec fuseau et la visite
         // peut basculer d'un jour selon l'heure de saisie.

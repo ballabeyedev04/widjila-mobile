@@ -61,7 +61,7 @@ void main() {
     test('succès : renvoie Right avec le partenaire créé', () async {
       when(() => remoteDataSource.creerPartenaire(any())).thenAnswer((_) async => _partenaire('p1'));
 
-      final resultat = await repository.creerPartenaire(nom: 'Sénégal BTP', type: PartenaireType.sousTraitant);
+      final resultat = await repository.creerPartenaire(nom: 'Sénégal BTP', typeCode: 'sous_traitant');
 
       expect(resultat, Right<Failure, Partenaire>(_partenaire('p1')));
     });
@@ -70,7 +70,7 @@ void main() {
       when(() => remoteDataSource.creerPartenaire(any()))
           .thenThrow(const ServerException(message: 'Nom déjà utilisé', statusCode: 409));
 
-      final resultat = await repository.creerPartenaire(nom: 'Sénégal BTP', type: PartenaireType.sousTraitant);
+      final resultat = await repository.creerPartenaire(nom: 'Sénégal BTP', typeCode: 'sous_traitant');
 
       expect(resultat.isLeft(), isTrue);
       resultat.fold(

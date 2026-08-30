@@ -299,8 +299,12 @@ class _DetailBody extends StatelessWidget {
                 _InfoRow(icon: Icons.category_outlined, label: l10n.reserveDetailCategorie, valeur: reserve.categorie.label(l10n)),
                 if (reserve.dateLimite != null)
                   _InfoRow(icon: Icons.event_outlined, label: l10n.reserveDetailEcheance, valeur: df.format(reserve.dateLimite!)),
-                if (reserve.entreprise != null)
-                  _InfoRow(icon: Icons.business_outlined, label: l10n.roleEntreprise, valeur: reserve.entreprise!.nom),
+                if (reserve.partenaire != null || reserve.entreprise != null)
+                  _InfoRow(
+                    icon: Icons.business_outlined,
+                    label: l10n.roleEntreprise,
+                    valeur: (reserve.partenaire ?? reserve.entreprise)!.nom,
+                  ),
                 if (reserve.assigne != null)
                   _InfoRow(icon: Icons.assignment_ind_outlined, label: l10n.reserveDetailAssigneeA, valeur: reserve.assigne!.nomComplet, dernier: true),
               ],

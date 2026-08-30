@@ -43,7 +43,10 @@ class InspectionsListCubit extends Cubit<InspectionsListState> {
   /// Planifie une visite. La visite créée est insérée en tête sans recharger :
   /// le back renvoie l'objet complet, une seconde requête n'apprendrait rien.
   Future<void> planifier({
-    required InspectionType type,
+    /// CODE du type, issu du référentiel administrable
+    /// (`/types-inspection/actifs`). Une énumération figée ici
+    /// empêcherait d'utiliser un type ajouté par l'administrateur.
+    required String typeCode,
     DateTime? dateVisite,
     List<String> libellesChecklist = const [],
   }) async {
@@ -55,7 +58,7 @@ class InspectionsListCubit extends Cubit<InspectionsListState> {
 
     final result = await creerInspection(
       chantierId: chantierId,
-      type: type,
+      typeCode: typeCode,
       dateVisite: dateVisite,
       libellesChecklist: libellesChecklist,
     );

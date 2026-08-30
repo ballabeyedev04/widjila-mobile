@@ -20,7 +20,10 @@ abstract class InspectionRepository {
 
   Future<Either<Failure, Inspection>> creerInspection({
     required String chantierId,
-    required InspectionType type,
+    /// CODE du type, issu du référentiel administrable
+    /// (`/types-inspection/actifs`). Une énumération figée ici
+    /// empêcherait d'utiliser un type ajouté par l'administrateur.
+    required String typeCode,
     DateTime? dateVisite,
     List<String> libellesChecklist,
   });

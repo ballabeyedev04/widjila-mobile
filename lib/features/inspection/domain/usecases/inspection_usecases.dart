@@ -35,13 +35,16 @@ class CreerInspection {
 
   Future<Either<Failure, Inspection>> call({
     required String chantierId,
-    required InspectionType type,
+    /// CODE du type, issu du référentiel administrable
+    /// (`/types-inspection/actifs`). Une énumération figée ici
+    /// empêcherait d'utiliser un type ajouté par l'administrateur.
+    required String typeCode,
     DateTime? dateVisite,
     List<String> libellesChecklist = const [],
   }) =>
       repository.creerInspection(
         chantierId: chantierId,
-        type: type,
+        typeCode: typeCode,
         dateVisite: dateVisite,
         libellesChecklist: libellesChecklist,
       );

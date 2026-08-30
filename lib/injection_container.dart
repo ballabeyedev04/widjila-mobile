@@ -81,6 +81,27 @@ import 'features/notification/domain/usecases/marquer_notifications_lues.dart';
 import 'features/notification/presentation/cubit/notifications_cubit.dart';
 
 // Plan
+import 'features/corps_etat/data/datasources/corps_etat_remote_datasource.dart';
+import 'features/corps_etat/data/repositories/corps_etat_repository_impl.dart';
+import 'features/corps_etat/domain/repositories/corps_etat_repository.dart';
+import 'features/corps_etat/domain/usecases/get_corps_etat_actifs.dart';
+import 'features/corps_etat/presentation/cubit/corps_etat_cubit.dart';
+import 'features/phase/data/datasources/phase_remote_datasource.dart';
+import 'features/phase/data/repositories/phase_repository_impl.dart';
+import 'features/phase/domain/repositories/phase_repository.dart';
+import 'features/phase/domain/usecases/get_phases_actives.dart';
+import 'features/abonnement/data/datasources/abonnement_remote_datasource.dart';
+import 'features/abonnement/data/repositories/abonnement_repository_impl.dart';
+import 'features/abonnement/domain/repositories/abonnement_repository.dart';
+import 'features/abonnement/domain/usecases/get_droits.dart';
+import 'features/abonnement/domain/usecases/get_formules.dart';
+import 'features/abonnement/presentation/cubit/abonnement_cubit.dart';
+import 'features/referentiel/data/datasources/referentiel_remote_datasource.dart';
+import 'features/referentiel/data/repositories/referentiel_repository_impl.dart';
+import 'features/referentiel/domain/entities/type_referentiel.dart';
+import 'features/referentiel/domain/repositories/referentiel_repository.dart';
+import 'features/referentiel/domain/usecases/get_types_actifs.dart';
+import 'features/referentiel/presentation/cubit/types_referentiel_cubit.dart';
 import 'features/plan/data/datasources/plan_remote_datasource.dart';
 import 'features/plan/data/repositories/plan_repository_impl.dart';
 import 'features/plan/domain/repositories/plan_repository.dart';
@@ -291,6 +312,8 @@ Future<void> init() async {
     (chantierId, _) => ReserveWizardCubit(
       getChantierStructure: sl(),
       creerReserve: sl(),
+      getCorpsEtatActifs: sl(),
+      getPhasesActives: sl(),
       chantierId: chantierId,
     ),
   );
@@ -321,6 +344,60 @@ Future<void> init() async {
   sl.registerLazySingleton(() => UploaderPlan(sl()));
   sl.registerFactory(() => PlansListCubit(getTousPlans: sl(), getPlansChantier: sl(), uploaderPlan: sl()));
   sl.registerFactory(() => PlanDetailCubit(getPlanDetail: sl()));
+
+  //================================================
+  // FEATURE — CORPS D'ÉTAT (catalogue des métiers BTP)
+  //================================================
+  // Le REPOSITORY est un singleton, et c'est délibéré : c'est lui qui porte
+  // le cache du catalogue (donnée de référence, relue à chaque ouverture du
+  // formulaire de réserve). En faire une factory le recréerait — donc le
+  // viderait — à chaque injection, et le cache ne servirait jamais.
+  sl.registerLazySingleton<CorpsEtatRemoteDataSource>(() => CorpsEtatRemoteDataSourceImpl(dio: sl()));
+  sl.registerLazySingleton<CorpsEtatRepository>(() => CorpsEtatRepositoryImpl(sl()));
+  sl.registerLazySingleton(() => GetCorpsEtatActifs(sl()));
+  sl.registerFactory(() => CorpsEtatCubit(getCorpsEtatActifs: sl()));
+
+  //================================================
+  // FEATURE — PHASES (référentiel de chantier)
+  //================================================
+  // Repository en SINGLETON, comme le catalogue des métiers : c'est lui qui
+  // porte le cache, et la phase étant obligatoire, ce cache est ce qui permet
+  // encore de créer une réserve quand le réseau tombe.
+  sl.registerLazySingleton<PhaseRemoteDataSource>(() => PhaseRemoteDataSourceImpl(dio: sl()));
+  sl.registerLazySingleton<PhaseRepository>(() => PhaseRepositoryImpl(sl()));
+  sl.registerLazySingleton(() => GetPhasesActives(sl()));
+
+  //================================================
+  // FEATURE — ABONNEMENT (offres, droits, consommation)
+  //================================================
+  // Repository en SINGLETON : il garde les derniers droits reçus, ce qui
+  // permet à l'interface de rester cohérente hors ligne. Ce cache n'AUTORISE
+  // rien — le serveur reste seul juge, il évite seulement d'afficher un écran
+  // vide sur un chantier sans réseau.
+  sl.registerLazySingleton<AbonnementRemoteDataSource>(() => AbonnementRemoteDataSourceImpl(dio: sl()));
+  sl.registerLazySingleton<AbonnementRepository>(() => AbonnementRepositoryImpl(sl()));
+  sl.registerLazySingleton(() => GetFormules(sl()));
+  sl.registerLazySingleton(() => GetDroits(sl()));
+  sl.registerFactory(() => AbonnementCubit(getFormules: sl(), getDroits: sl()));
+
+  //================================================
+  // FEATURE — RÉFÉRENTIELS DE TYPE (documents, intervenants, inspections)
+  //================================================
+  // Repository en SINGLETON : c'est lui qui porte le cache des trois
+  // catalogues. En faire une factory le recréerait — donc le viderait — à
+  // chaque injection, et le cache ne servirait jamais.
+  sl.registerLazySingleton<ReferentielRemoteDataSource>(
+    () => ReferentielRemoteDataSourceImpl(dio: sl()),
+  );
+  sl.registerLazySingleton<ReferentielRepository>(() => ReferentielRepositoryImpl(sl()));
+  sl.registerLazySingleton(() => GetTypesActifs(sl()));
+
+  // Un cubit PAR référentiel, choisi au moment de l'injection : les trois
+  // listes sont indépendantes, et les réunir obligerait à charger les trois
+  // pour en afficher une.
+  sl.registerFactoryParam<TypesReferentielCubit, ReferentielType, void>(
+    (referentiel, _) => TypesReferentielCubit(getTypesActifs: sl(), referentiel: referentiel),
+  );
 
   //================================================
   // FEATURE — ORGANISATION (membres)

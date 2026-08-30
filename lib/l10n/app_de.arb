@@ -1,6 +1,5 @@
 {
   "@@locale": "de",
-
   "commonCancel": "Abbrechen",
   "commonConfirm": "Bestätigen",
   "commonSave": "Speichern",
@@ -27,24 +26,47 @@
   "commonContinue": "Weiter",
   "commonModify": "Bearbeiten",
   "commonOptional": "Optional",
-
   "chantierPickerSousTitre": "Welche Baustelle?",
   "chantierPickerRechercheHint": "Baustelle suchen…",
   "chantierAucun": "Keine Baustelle",
   "chantierAucunSousTitre": "Erstellen Sie zuerst eine Baustelle über das Verwaltungsportal.",
   "chantierAucunRecherche": "Keine Baustelle entspricht Ihrer Suche.",
   "chantierReservesOuvertesSur": "{count, plural, one{{count} offener Mangel von {total}} other{{count} offene Mängel von {total}}}",
-  "@chantierReservesOuvertesSur": { "placeholders": { "count": { "type": "int" }, "total": { "type": "int" } } },
+  "@chantierReservesOuvertesSur": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "chantierDetailTitre": "Baustellendetails",
   "chantierDetailCode": "Code: {code}",
-  "@chantierDetailCode": { "placeholders": { "code": { "type": "String" } } },
+  "@chantierDetailCode": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
   "chantierDetailAdresse": "Adresse",
   "chantierDetailResponsable": "Verantwortlicher",
   "chantierDetailDebut": "Beginn",
   "chantierDetailFinPrevue": "Voraussichtliches Ende",
   "commonDescription": "Beschreibung",
   "chantierDetailReservesSousTitre": "{count, plural, one{{count} offen von {total}} other{{count} offen von {total}}}",
-  "@chantierDetailReservesSousTitre": { "placeholders": { "count": { "type": "int" }, "total": { "type": "int" } } },
+  "@chantierDetailReservesSousTitre": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "chantierDetailReservesSousTitreDefaut": "Mängelverfolgung dieser Baustelle",
   "chantierDetailTableauBord": "Dashboard",
   "chantierDetailTableauBordSousTitre": "Verteilung nach Status und Verlauf",
@@ -53,7 +75,6 @@
   "chantierSectionsAVenirTexte": "Diese Bereiche kommen mit einem zukünftigen Update.",
   "chantierSectionStructure": "Struktur",
   "chantierSectionRapports": "Berichte",
-
   "reserveRechercheHint": "Mangel suchen…",
   "reserveAucune": "Keine Mängel",
   "reserveAucuneCriteres": "Kein Mangel entspricht diesen Kriterien.",
@@ -63,8 +84,16 @@
   "reserveAucuneDescription": "Auf Ihren Baustellen erstellte Mängel werden hier angezeigt.",
   "reserveCreerBouton": "Mangel erstellen",
   "reserveReference": "#{numero} · Erstellt am {date}",
-  "@reserveReference": { "placeholders": { "numero": { "type": "String" }, "date": { "type": "String" } } },
-
+  "@reserveReference": {
+    "placeholders": {
+      "numero": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "reserveDetailTitreDefaut": "Mangel",
   "reserveNumeroProvisoire": "Synchronisierung ausstehend",
   "reserveDetailChangerStatut": "Status ändern",
@@ -72,7 +101,13 @@
   "reserveDetailMotifRefusTitre": "Ablehnungsgrund",
   "reserveDetailMotifRefusHint": "Erklären Sie, warum dieser Mangel abgelehnt wird…",
   "reserveDetailStatutMisAJour": "Status aktualisiert: {statut}",
-  "@reserveDetailStatutMisAJour": { "placeholders": { "statut": { "type": "String" } } },
+  "@reserveDetailStatutMisAJour": {
+    "placeholders": {
+      "statut": {
+        "type": "String"
+      }
+    }
+  },
   "reserveDetailCreeeLe": "Erstellt am",
   "reserveDetailSignaleePar": "Gemeldet von",
   "reserveDetailPriorite": "Priorität",
@@ -80,15 +115,26 @@
   "reserveDetailEcheance": "Fälligkeit",
   "reserveDetailAssigneeA": "Zugewiesen an",
   "reserveDetailPhotosCount": "Fotos ({count})",
-  "@reserveDetailPhotosCount": { "placeholders": { "count": { "type": "int" } } },
+  "@reserveDetailPhotosCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "reserveDetailAucunePhoto": "Noch keine Fotos",
   "reserveDetailHistorique": "Verlauf",
   "reserveDetailPrendrePhoto": "Foto aufnehmen",
   "reserveDetailChoisirGalerie": "Aus Galerie wählen",
   "reserveDetailPhotoAjoutee": "Foto hinzugefügt",
   "reserveDetailPar": "Von {nom}",
-  "@reserveDetailPar": { "placeholders": { "nom": { "type": "String" } } },
-
+  "@reserveDetailPar": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "historiqueCreation": "Mangel erstellt",
   "historiqueModification": "Mangel geändert",
   "historiqueStatut": "Status geändert",
@@ -96,12 +142,17 @@
   "historiqueValidation": "Mangel freigegeben",
   "historiqueRefus": "Mangel abgelehnt",
   "historiqueSuppression": "Mangel gelöscht",
-
   "wizardEtapeInformations": "Angaben",
   "wizardEtapeRecapitulatif": "Zusammenfassung",
   "wizardCreerReserve": "Mangel erstellen",
   "wizardReserveCreee": "Mangel {numero} erstellt",
-  "@wizardReserveCreee": { "placeholders": { "numero": { "type": "String" } } },
+  "@wizardReserveCreee": {
+    "placeholders": {
+      "numero": {
+        "type": "String"
+      }
+    }
+  },
   "wizardChampTitre": "Titel *",
   "wizardTitreHint": "Z. B.: Wandanstrich ausbessern",
   "wizardChampCategorie": "Kategorie *",
@@ -122,13 +173,11 @@
   "wizardChampLocalisation": "Standort",
   "wizardNonRenseignee": "Nicht angegeben",
   "wizardPhotosApresCreation": "Sie können Fotos hinzufügen, sobald der Mangel erstellt ist.",
-
   "chantierDashboardRepartitionParStatut": "Verteilung nach Status",
   "chantierDashboardEvolution": "Entwicklung der Mängel",
   "chantierDashboardCreees": "Erstellt",
   "chantierDashboardPasAssezDeDonnees": "Noch nicht genügend Daten",
   "reserveNonLocalisee": "Kein Standort",
-
   "planImporterBouton": "Plan importieren",
   "planRechercheHint": "Plan suchen…",
   "planEssayerAutreMotCle": "Versuchen Sie ein anderes Stichwort.",
@@ -137,52 +186,83 @@
   "planAucunDescriptionSansDroit": "Über das Verwaltungsportal importierte Pläne werden hier angezeigt.",
   "planViewerErreurChargement": "Der Plan konnte nicht geladen werden.",
   "planViewerFormatTitre": "Format {format}",
-  "@planViewerFormatTitre": { "placeholders": { "format": { "type": "String" } } },
+  "@planViewerFormatTitre": {
+    "placeholders": {
+      "format": {
+        "type": "String"
+      }
+    }
+  },
   "planViewerFormatNonSupporte": "Dieses Format kann auf Mobilgeräten noch nicht geöffnet werden. Rufen Sie es über das Webportal auf.",
   "planViewerIndisponible": "Plan nicht verfügbar",
   "planViewerReperes": "{count, plural, one{{count} Markierung} other{{count} Markierungen}}",
-  "@planViewerReperes": { "placeholders": { "count": { "type": "int" } } },
+  "@planViewerReperes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "planViewerAucuneReserve": "Keine Mängel auf diesem Plan",
   "planViewerReservesSurPlan": "{count, plural, one{{count} Mangel auf diesem Plan} other{{count} Mängel auf diesem Plan}}",
-  "@planViewerReservesSurPlan": { "placeholders": { "count": { "type": "int" } } },
+  "@planViewerReservesSurPlan": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "planImportSheetNomLabel": "Name des Plans",
   "planImportSheetNomHint": "Z. B.: Lageplan — Ebene 2",
   "planImportSheetFormatLabel": "Format",
   "planImportSheetValiderBouton": "Importieren",
   "planImportSheetErreurCourt": "Der Name muss mindestens 2 Zeichen lang sein.",
   "planImportSheetErreurLong": "Der Name darf 200 Zeichen nicht überschreiten.",
-
   "alertSuccessTitle": "Erfolg",
   "alertErrorTitle": "Hoppla!",
   "errForbidden": "Sie sind nicht berechtigt, diese Aktion auszuführen.",
   "errRateLimit": "Zu viele Anfragen gesendet. Bitte warten Sie einen Moment.",
   "errServiceUnavailable": "Der Dienst ist vorübergehend nicht verfügbar. Versuchen Sie es später erneut.",
-
   "navAccueil": "Start",
   "navReserves": "Mängel",
   "navPlans": "Pläne",
   "navPlus": "Mehr",
   "navNotifications": "Benachrichtigungen",
-
   "actionTableauBordChantier": "Baustellen-Dashboard",
   "actionEquipe": "Team",
   "actionDocument": "Dokument",
   "actionChantiers": "Baustellen",
   "actionIntervenants": "Beteiligte",
   "actionsFermerLabel": "Schnellaktionen schließen",
-
   "bandeauHorsLigneAvecTravail": "Offline — Sie können weiterarbeiten. {count, plural, one{{count} Element wird automatisch gesendet, sobald die Verbindung wiederhergestellt ist.} other{{count} Elemente werden automatisch gesendet, sobald die Verbindung wiederhergestellt ist.}}",
-  "@bandeauHorsLigneAvecTravail": { "placeholders": { "count": { "type": "int" } } },
+  "@bandeauHorsLigneAvecTravail": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "bandeauHorsLigneSansTravail": "Offline — Sie können weiterarbeiten. Ihre Eingaben werden automatisch gesendet, sobald die Verbindung wiederhergestellt ist.",
   "bandeauSynchronisationEnCours": "Verbindung wiederhergestellt — Synchronisierung läuft…",
   "bandeauConfirmationSucces": "Verbunden — alles ist synchronisiert.",
   "bandeauEchecIntro": "Einige Aufgaben konnten nicht automatisch synchronisiert werden. Bitte synchronisieren Sie sie manuell.",
   "bandeauEchecCompteur": "{count, plural, one{{count} Aufgabe benötigt Ihre Aufmerksamkeit.} other{{count} Aufgaben benötigen Ihre Aufmerksamkeit.}} Die automatische Synchronisierung konnte einige Vorgänge nicht abschließen.",
-  "@bandeauEchecCompteur": { "placeholders": { "count": { "type": "int" } } },
+  "@bandeauEchecCompteur": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "bandeauVoirTachesBouton": "Alle Aufgaben anzeigen",
   "bandeauEnAttenteEnvoi": "{count, plural, one{{count} Element wartet auf Versand…} other{{count} Elemente warten auf Versand…}}",
-  "@bandeauEnAttenteEnvoi": { "placeholders": { "count": { "type": "int" } } },
-
+  "@bandeauEnAttenteEnvoi": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "syncTacheSuccesMessage": "Aufgabe erfolgreich synchronisiert.",
   "syncTacheEchecMessage": "Diese Aufgabe konnte nicht synchronisiert werden. Versuchen Sie es später erneut.",
   "syncToutSuccesMessage": "Synchronisierung erfolgreich abgeschlossen. Alle Daten sind aktuell.",
@@ -197,23 +277,39 @@
   "syncTypeAjouterPhoto": "Foto hinzugefügt",
   "syncNomNouvelleReserve": "Neuer Mangel",
   "syncNomChangerStatut": "Status ändern → {statut}",
-  "@syncNomChangerStatut": { "placeholders": { "statut": { "type": "String" } } },
+  "@syncNomChangerStatut": {
+    "placeholders": {
+      "statut": {
+        "type": "String"
+      }
+    }
+  },
   "syncNomPhoto": "Mangelfoto",
   "syncStatutEnCours": "🔄 Synchronisierung…",
   "syncStatutEchec": "🔴 Fehlgeschlagen",
   "syncStatutEnAttente": "🟠 Ausstehend",
-
   "commonPrevious": "Zurück",
   "commonMin2Caracteres": "Mindestens 2 Zeichen",
   "commonMax50Caracteres": "Maximal 50 Zeichen",
   "commonMax150Caracteres": "Maximal 150 Zeichen",
   "commonNumeroInvalide": "Ungültige Nummer",
-
   "authEmailRequis": "E-Mail ist erforderlich",
   "authEmailTropLong": "E-Mail zu lang",
   "authEmailInvalide": "Ungültige E-Mail",
   "authEtapeIndicateur": "Schritt {etape}/{total} — {libelle}",
-  "@authEtapeIndicateur": { "placeholders": { "etape": { "type": "int" }, "total": { "type": "int" }, "libelle": { "type": "String" } } },
+  "@authEtapeIndicateur": {
+    "placeholders": {
+      "etape": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "libelle": {
+        "type": "String"
+      }
+    }
+  },
   "bienvenueAccroche": "Mängel beheben,\nAufgaben verfolgen,\nExzellenz liefern.",
   "authSeConnecter": "Anmelden",
   "authCreerUnCompte": "Konto erstellen",
@@ -225,7 +321,6 @@
   "authMotDePasse8a128": "8 bis 128 Zeichen",
   "authMotDePasseComplexite": "Muss einen Groß-, einen Kleinbuchstaben und eine Ziffer enthalten",
   "authAideMotDePasse": "Mind. 8 Zeichen, ein Groß-, ein Kleinbuchstabe und eine Ziffer",
-
   "loginHeroTitre": "Ihre Baustellen,\ntäglich im Blick.",
   "loginHeroSousTitre": "Mängel, Prüfungen, Pläne und Dokumente — vor Ort wie im Büro.",
   "loginSousTitre": "Melden Sie sich an, um Ihre Baustellen, Mängel und Prüfungen zu verfolgen.",
@@ -233,7 +328,6 @@
   "loginIdentifiantRequis": "Dieses Feld ist erforderlich",
   "loginMotDePasseOublie": "Passwort vergessen?",
   "loginPasEncoreDeCompte": "Noch kein Konto?",
-
   "registerEtapeInfos": "Ihre Angaben",
   "registerEtapeOrganisation": "Ihr Unternehmen",
   "registerLienEchec": "Diese Seite konnte nicht geöffnet werden",
@@ -268,25 +362,27 @@
   "registerConsentementEt": " und die ",
   "registerPolitiqueConfidentialite": "Datenschutzrichtlinie",
   "registerConsentementErreur": "Die Zustimmung ist erforderlich, um ein Konto zu erstellen",
-
   "forgotVousSouvenez": "Erinnern Sie sich wieder?",
   "forgotTitre": "Passwort vergessen",
   "forgotSousTitre": "Geben Sie Ihre E-Mail-Adresse ein — ein Bestätigungscode wird Ihnen zugesendet.",
   "forgotBoutonEnvoyer": "Code senden",
-
   "resetNouveauMotDePasse": "Neues Passwort",
   "resetSousTitre": "Geben Sie den per E-Mail erhaltenen Code ein und wählen Sie ein neues Passwort.",
   "resetChampCode": "Per E-Mail erhaltener Code",
   "resetCode6Requis": "Ein 6-stelliger Code ist erforderlich",
   "resetBouton": "Zurücksetzen",
-
   "mfaCode6Chiffres": "Geben Sie die 6 Ziffern des Codes ein.",
   "mfaTitre": "Zwei-Faktor-Authentifizierung",
   "mfaInstructionsAvecPrenom": "{prenom}, geben Sie den 6-stelligen Code aus Ihrer Authentifizierungs-App ein.",
-  "@mfaInstructionsAvecPrenom": { "placeholders": { "prenom": { "type": "String" } } },
+  "@mfaInstructionsAvecPrenom": {
+    "placeholders": {
+      "prenom": {
+        "type": "String"
+      }
+    }
+  },
   "mfaInstructionsSansPrenom": "Geben Sie den 6-stelligen Code aus Ihrer Authentifizierungs-App ein.",
   "mfaBoutonVerifier": "Code überprüfen",
-
   "roleChefProjet": "Projektleiter",
   "roleConducteurTravaux": "Bauleiter",
   "roleBureauControle": "Prüfstelle",
@@ -297,15 +393,12 @@
   "rolePilote": "Baustellenkoordinator",
   "roleSousTraitant": "Subunternehmer",
   "roleInconnu": "Unbekannt",
-
   "profilTitre": "Profil",
   "profilDeconnexion": "Abmelden",
   "profilConfirmerDeconnexion": "Möchten Sie sich wirklich abmelden?",
   "profilTelephone": "Telefon",
   "profilFonction": "Funktion",
-
   "commonAutre": "Sonstiges",
-
   "statutCreee": "Erstellt",
   "statutAffectee": "Zugewiesen",
   "statutPriseEnCharge": "Angenommen",
@@ -317,12 +410,10 @@
   "statutRouverte": "Wiedereröffnet",
   "statutEnRetard": "Überfällig",
   "statutCloturee": "Abgeschlossen",
-
   "severiteFaible": "Niedrig",
   "severiteMoyenne": "Mittel",
   "severiteHaute": "Hoch",
   "severiteCritique": "Kritisch",
-
   "categorieMaconnerie": "Mauerwerk",
   "categorieGrosOeuvre": "Rohbau",
   "categoriePlomberie": "Sanitär",
@@ -333,13 +424,11 @@
   "categorieEtancheite": "Abdichtung",
   "categorieIsolation": "Dämmung",
   "categorieAutre": "Sonstiges",
-
   "chantierStatutEnPreparation": "In Vorbereitung",
   "chantierStatutEnCours": "In Bearbeitung",
   "chantierStatutEnPause": "Pausiert",
   "chantierStatutArchive": "Archiviert",
   "chantierStatutCloture": "Abgeschlossen",
-
   "documentTypePlan": "Plan",
   "documentTypeContrat": "Vertrag",
   "documentTypeDoe": "Bestandsunterlagen",
@@ -350,16 +439,46 @@
   "documentTypePhoto": "Foto",
   "documentTypeAutre": "Sonstiges",
   "documentTailleKo": "{value} KB",
-  "@documentTailleKo": { "placeholders": { "value": { "type": "String" } } },
+  "@documentTailleKo": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "documentTailleMo": "{value} MB",
-  "@documentTailleMo": { "placeholders": { "value": { "type": "String" } } },
+  "@documentTailleMo": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "documentPageTitre": "Fotos & Dokumente",
   "documentOngletPhotos": "Fotos ({count})",
-  "@documentOngletPhotos": { "placeholders": { "count": { "type": "int" } } },
+  "@documentOngletPhotos": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "documentOngletVideos": "Videos ({count})",
-  "@documentOngletVideos": { "placeholders": { "count": { "type": "int" } } },
+  "@documentOngletVideos": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "documentOngletDocuments": "Dokumente ({count})",
-  "@documentOngletDocuments": { "placeholders": { "count": { "type": "int" } } },
+  "@documentOngletDocuments": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "documentEnvoiEnCours": "Wird gesendet…",
   "documentFichierAjoute": "Datei hinzugefügt.",
   "documentEnvoiEchec": "Die Datei konnte nicht gesendet werden.",
@@ -375,24 +494,66 @@
   "documentTelechargementBientot": "Das Herunterladen von Dateien auf dem Mobilgerät ist bald verfügbar. Öffnen Sie dieses Dokument in der Zwischenzeit über das Webportal.",
   "notificationRechercheHint": "Benachrichtigung suchen…",
   "notificationFiltreToutes": "Alle ({count})",
-  "@notificationFiltreToutes": { "placeholders": { "count": { "type": "int" } } },
+  "@notificationFiltreToutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "notificationFiltreNonLues": "Ungelesen ({count})",
-  "@notificationFiltreNonLues": { "placeholders": { "count": { "type": "int" } } },
+  "@notificationFiltreNonLues": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "notificationFiltreLues": "Gelesen ({count})",
-  "@notificationFiltreLues": { "placeholders": { "count": { "type": "int" } } },
+  "@notificationFiltreLues": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "notificationToutLire": "Alle als gelesen markieren",
   "notificationAucune": "Keine Benachrichtigungen",
   "notificationAucuneDescription": "Meldungen zu Ihren Baustellen — Mängel, Begehungen, Fristen — werden hier angezeigt.",
   "notificationInstant": "Gerade eben",
   "notificationIlYAMinutes": "{count, plural, one{Vor {count} Min.} other{Vor {count} Min.}}",
-  "@notificationIlYAMinutes": { "placeholders": { "count": { "type": "int" } } },
+  "@notificationIlYAMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "notificationIlYAHeures": "{count, plural, one{Vor {count} Std.} other{Vor {count} Std.}}",
-  "@notificationIlYAHeures": { "placeholders": { "count": { "type": "int" } } },
+  "@notificationIlYAHeures": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "notificationIlYAJours": "{count, plural, one{Vor {count} Tag} other{Vor {count} Tagen}}",
-  "@notificationIlYAJours": { "placeholders": { "count": { "type": "int" } } },
+  "@notificationIlYAJours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "commonUneErreurSurvenue": "Ein Fehler ist aufgetreten.",
   "membreAjouteMessage": "{nom} wurde zu Ihrer Organisation hinzugefügt.",
-  "@membreAjouteMessage": { "placeholders": { "nom": { "type": "String" } } },
+  "@membreAjouteMessage": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "membreAucun": "Noch keine Mitglieder",
   "membreAucunDescription": "Fügen Sie die Mitarbeiter Ihrer Organisation über die Schaltfläche unten hinzu.",
   "membreStatutActif": "Aktiv",
@@ -400,7 +561,13 @@
   "membreStatutEnAttente": "Ausstehend",
   "membreDialogueTitre": "Mitglied hinzugefügt",
   "membreDialogueMessage": "{nom} wurde hinzugefügt. Teilen Sie ihm dieses temporäre Passwort mit (nur einmal angezeigt) — er muss es bei der ersten Anmeldung ändern.",
-  "@membreDialogueMessage": { "placeholders": { "nom": { "type": "String" } } },
+  "@membreDialogueMessage": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "membreDialogueBouton": "Verstanden",
   "membreFormTitre": "Neues Mitglied",
   "membreFormPrenom": "Vorname",
@@ -424,21 +591,54 @@
   "membreSectionContact": "Kontakt",
   "membreSectionAcces": "Rolle und Zugriff",
   "membreFormChampTropLong": "Maximal {max} Zeichen",
-  "@membreFormChampTropLong": { "placeholders": { "max": { "type": "int" } } },
+  "@membreFormChampTropLong": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
   "membreFormChampTropCourt": "Mindestens {min} Zeichen",
-  "@membreFormChampTropCourt": { "placeholders": { "min": { "type": "int" } } },
+  "@membreFormChampTropCourt": {
+    "placeholders": {
+      "min": {
+        "type": "int"
+      }
+    }
+  },
   "membreFormObligatoiresNote": "Mit * markierte Felder sind Pflichtfelder.",
   "equipeRechercheHint": "Mitglied suchen…",
   "equipeFiltrer": "Filtern",
   "equipeCompteur": "{count, plural, one{{count} Mitglied im Team} other{{count} Mitglieder im Team}}",
-  "@equipeCompteur": { "placeholders": { "count": { "type": "int" } } },
+  "@equipeCompteur": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "equipeDetailBouton": "Details",
   "equipeSlogan": "Gemeinsam arbeiten, besser bauen.",
   "reserveFiltrer": "Filtern",
   "reserveAffichageSur": "{affiches} von {total} Mängeln angezeigt",
-  "@reserveAffichageSur": { "placeholders": { "affiches": { "type": "int" }, "total": { "type": "int" } } },
+  "@reserveAffichageSur": {
+    "placeholders": {
+      "affiches": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "reserveProjet": "Projekt: {nom}",
-  "@reserveProjet": { "placeholders": { "nom": { "type": "String" } } },
+  "@reserveProjet": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "planMesPlans": "Meine Pläne",
   "planTousLesPlans": "Alle Pläne",
   "planFiltrer": "Filtern",
@@ -469,7 +669,13 @@
   "partenaireAucun": "Keine Partner",
   "partenaireAucunDescription": "Unternehmen, Subunternehmer und Prüfstellen werden hier angezeigt.",
   "partenaireResponsableLigne": "Ansprechpartner: {nom}",
-  "@partenaireResponsableLigne": { "placeholders": { "nom": { "type": "String" } } },
+  "@partenaireResponsableLigne": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "settingsTitre": "Einstellungen",
   "settingsSectionLangue": "Sprache",
   "settingsSectionSecurite": "Sicherheit",
@@ -498,9 +704,21 @@
   "settingsSessionsTitre": "Aktive Sitzungen",
   "settingsSessionsAucune": "Keine weiteren aktiven Sitzungen.",
   "settingsSessionOuverteLe": "Geöffnet am {date}",
-  "@settingsSessionOuverteLe": { "placeholders": { "date": { "type": "String" } } },
+  "@settingsSessionOuverteLe": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "settingsSessionExpireLe": "Läuft ab am {date}",
-  "@settingsSessionExpireLe": { "placeholders": { "date": { "type": "String" } } },
+  "@settingsSessionExpireLe": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "settingsSessionRevoquerTout": "Von allen Geräten abmelden",
   "settingsSessionRevoquerToutConfirmTitre": "Von allen Geräten abmelden?",
   "settingsSessionRevoquerToutConfirmMessage": "Alle Ihre Sitzungen werden beendet, einschließlich dieser. Sie müssen sich erneut anmelden.",
@@ -513,7 +731,16 @@
   "settingsConnexionTypeRefresh": "Sitzung erneuert",
   "settingsStockageDescription": "Offline aufgerufene Baustellen und Mängel werden auf diesem Gerät für einen schnellen Zugriff gespeichert.",
   "settingsStockageResume": "{chantiers} Baustellen · {reserves} Mängel im Cache",
-  "@settingsStockageResume": { "placeholders": { "chantiers": { "type": "int" }, "reserves": { "type": "int" } } },
+  "@settingsStockageResume": {
+    "placeholders": {
+      "chantiers": {
+        "type": "int"
+      },
+      "reserves": {
+        "type": "int"
+      }
+    }
+  },
   "settingsViderCacheBouton": "Cache leeren",
   "settingsViderCacheConfirmTitre": "Lokalen Cache leeren?",
   "settingsViderCacheConfirmMessage": "Zwischengespeicherte Baustellen und Mängel werden von diesem Gerät entfernt. Es wird nichts vom Server gelöscht.",
@@ -534,18 +761,28 @@
   "settingsSupprimerCompteDescription": "Diese Aktion ist unwiderruflich. Ihre personenbezogenen Daten werden gemäß Ihrem Recht auf Löschung (DSGVO, Art. 17) gelöscht.",
   "settingsSupprimerCompteConfirmMot": "LÖSCHEN",
   "settingsSupprimerCompteConfirmHint": "Geben Sie {mot} ein, um zu bestätigen",
-  "@settingsSupprimerCompteConfirmHint": { "placeholders": { "mot": { "type": "String" } } },
+  "@settingsSupprimerCompteConfirmHint": {
+    "placeholders": {
+      "mot": {
+        "type": "String"
+      }
+    }
+  },
   "settingsSupprimerCompteConfirmBouton": "Endgültig löschen",
   "settingsAProposVersion": "Version {version}",
-  "@settingsAProposVersion": { "placeholders": { "version": { "type": "String" } } },
+  "@settingsAProposVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
   "settingsAProposCgu": "Allgemeine Geschäftsbedingungen",
   "settingsAProposConfidentialite": "Datenschutzrichtlinie",
   "settingsAProposSupport": "Support kontaktieren",
   "settingsAProposBientotDisponible": "Demnächst verfügbar",
   "dashboardParametres": "Einstellungen",
-
   "partenaireFournisseur": "Lieferant",
-
   "dashboardMenuTooltip": "Menü",
   "dashboardMonProfil": "Mein Profil",
   "dashboardApercuGeneral": "Allgemeine Übersicht",
@@ -563,9 +800,14 @@
   "dashboardApercuInspections": "Prüfungen",
   "dashboardApercuDocuments": "Dokumente",
   "dashboardApercuMembres": "Mitglieder",
-
   "chantierPickerCompteur": "{count, plural, one{{count} Baustelle} other{{count} Baustellen}}",
-  "@chantierPickerCompteur": {"placeholders": {"count": {"type": "int"}}},
+  "@chantierPickerCompteur": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "chantierPickerEffacer": "Suche löschen",
   "chantierPickerRechercheEnCours": "Suche läuft…",
   "chantierPickerChargerPlus": "Weitere Baustellen anzeigen",
@@ -573,11 +815,29 @@
   "chantierPickerSansAdresse": "Keine Adresse hinterlegt",
   "chantierPickerAucuneReserve": "Keine Mängel",
   "chantierPickerAvancement": "{pourcent} % erledigt",
-  "@chantierPickerAvancement": {"placeholders": {"pourcent": {"type": "int"}}},
+  "@chantierPickerAvancement": {
+    "placeholders": {
+      "pourcent": {
+        "type": "int"
+      }
+    }
+  },
   "chantierPickerResponsable": "Leitung: {nom}",
-  "@chantierPickerResponsable": {"placeholders": {"nom": {"type": "String"}}},
+  "@chantierPickerResponsable": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "partenaireCompteur": "{count, plural, one{{count} Partner} other{{count} Partner}}",
-  "@partenaireCompteur": {"placeholders": {"count": {"type": "int"}}},
+  "@partenaireCompteur": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "partenaireSlogan": "Ihre Firmen und Partner an einem Ort.",
   "partenaireFiltreType": "Partnertyp",
   "partenaireFiltreStatut": "Status",
@@ -608,15 +868,21 @@
   "partenaireFormNomAide": "Firmenname, wie er in Berichten erscheint.",
   "partenaireFormTypeAide": "Legt die Rolle des Unternehmens auf der Baustelle fest.",
   "partenaireFormNotesAide": "Nur für Ihr Team sichtbar.",
-
   "chantierAffichageSur": "Zeige {affiches} von {total} Baustellen",
-  "@chantierAffichageSur": {"placeholders": {"affiches": {"type": "int"}, "total": {"type": "int"}}},
+  "@chantierAffichageSur": {
+    "placeholders": {
+      "affiches": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "documentDeposerBouton": "Datei hochladen",
   "chantierDashboardSousTitre": "Überblick über die Mängel dieser Baustelle",
-
   "chantierDetailInformations": "Informationen",
   "chantierDetailSections": "Bereiche",
-
   "profilModifierTitre": "Mein Profil bearbeiten",
   "profilModifieMessage": "Ihre Angaben wurden aktualisiert.",
   "profilChangerPhoto": "Foto ändern",
@@ -648,8 +914,45 @@
   "profilEntrepriseVille": "Stadt",
   "profilEntreprisePays": "Land",
   "profilEntrepriseAbonnement": "Abonnement",
+  "typesReferentielIndisponible": "Kein Typ verfügbar. Fügen Sie einen im Verwaltungsbereich hinzu.",
+  "abonnementTitre": "Abonnement",
+  "abonnementVoirFormules": "Tarife ansehen",
+  "abonnementVotreFormule": "Ihr Tarif",
+  "abonnementActif": "Aktives Abonnement",
+  "abonnementEssaiEnCours": "Testphase",
+  "abonnementAucun": "Kein aktives Abonnement",
+  "abonnementEssaiJusquau": "Test bis {date}",
+  "abonnementRenouvellement": "Verlängerung am {date}",
+  "abonnementUtilisateurs": "Benutzer",
+  "abonnementChantiers": "Baustellen",
+  "abonnementIllimite": "unbegrenzt",
+  "abonnementNosFormules": "Unsere Tarife",
+  "abonnementFormuleActuelle": "Aktueller Tarif",
+  "abonnementChoisir": "Diesen Tarif wählen",
+  "abonnementNousContacter": "Kontaktieren Sie uns",
+  "abonnementSurDevis": "Auf Anfrage",
+  "abonnementParMois": "/ Monat",
+  "abonnementParAn": "/ Jahr",
+  "abonnementUtilisateursIllimites": "Unbegrenzte Benutzer",
+  "abonnementUtilisateursMax": "Bis zu {n} Benutzer",
+  "abonnementOuvertureImpossible": "Die Zahlungsseite konnte nicht geöffnet werden.",
+  "abonnementFReserves": "Mängelverwaltung",
+  "abonnementFMobile": "Mobile App",
+  "abonnementFStockage": "Foto- und Dokumentenspeicher",
+  "abonnementFSupport": "Prioritärer Support",
+  "abonnementFEquipe": "Teamverfolgung",
+  "abonnementFRapports": "PDF-Berichte",
+  "abonnementFAnnotations": "Planannotationen",
+  "abonnementFApi": "API-Zugang",
+  "abonnementIndisponible": "Diese Funktion ist in Ihrem Tarif nicht enthalten.",
   "profilEntrepriseEssai": "Test bis {date}",
-  "@profilEntrepriseEssai": {"placeholders": {"date": {"type": "String"}}},
+  "@profilEntrepriseEssai": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "profilEntrepriseModifier": "Unternehmen bearbeiten",
   "profilEntrepriseMaj": "Unternehmen aktualisiert",
   "profilEntrepriseIndisponible": "Unternehmensdaten nicht verfügbar",
@@ -664,17 +967,27 @@
   "motDePasseIdentiqueAncien": "Das neue Passwort muss sich vom aktuellen unterscheiden.",
   "motDePasseChangeMessage": "Ihr Passwort wurde geändert.",
   "motDePasseProvisoireAvertissement": "Ihr Passwort ist vorläufig. Ändern Sie es, um Ihr Konto zu schützen.",
-
   "motDePasseChangeAvecSessions": "{count, plural, one{Passwort geändert. {count} weiteres Gerät wurde abgemeldet.} other{Passwort geändert. {count} weitere Geräte wurden abgemeldet.}}",
-  "@motDePasseChangeAvecSessions": {"placeholders": {"count": {"type": "int"}}},
-
+  "@motDePasseChangeAvecSessions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "reserveCommentairesTitre": "Diskussion",
   "reserveCommentaireAucun": "Noch keine Nachrichten.",
   "reserveCommentaireHint": "Nachricht schreiben…",
   "reserveCommentaireEnvoyer": "Senden",
   "reserveCommentaireAjoute": "Nachricht gesendet.",
   "reserveCommentaireCompteur": "{count, plural, =0{Keine Nachrichten} one{{count} Nachricht} other{{count} Nachrichten}}",
-  "@reserveCommentaireCompteur": {"placeholders": {"count": {"type": "int"}}},
+  "@reserveCommentaireCompteur": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "reserveAffectationsTitre": "Zugewiesene Partner",
   "reserveAffectationAucune": "Diesem Mangel ist noch niemand zugewiesen.",
   "reserveAffectationAjouter": "Zuweisen",
@@ -692,7 +1005,6 @@
   "reserveActionsTitre": "Aktionen",
   "reserveChampEcheance": "Fälligkeit",
   "reserveEcheanceAucune": "Kein Fälligkeitsdatum",
-
   "documentOuvertureEnCours": "Datei wird geöffnet…",
   "documentAucuneApplication": "Keine App auf diesem Gerät kann diesen Dateityp öffnen.",
   "planOuvrirExterne": "In anderer App öffnen",
@@ -703,12 +1015,10 @@
   "reserveDupliquerDescription": "Erstellt eine Kopie dieses Mangels auf derselben Baustelle – nützlich für einen identischen Mangel in einer anderen Einheit.",
   "reserveDupliqueeMessage": "Mangel dupliziert.",
   "reserveDupliquerNombre": "Anzahl der Kopien",
-
   "wizardAbandonTitre": "Eingabe verwerfen?",
   "wizardAbandonMessage": "Die bereits eingegebenen Informationen gehen verloren.",
   "wizardAbandonContinuer": "Weiter bearbeiten",
   "wizardAbandonQuitter": "Verwerfen",
-
   "settingsSectionNotifications": "Benachrichtigungen",
   "notifToutesTitre": "Benachrichtigungen erhalten",
   "notifToutesDescription": "Alles ausschalten, um nicht mehr unterbrochen zu werden.",
@@ -728,7 +1038,6 @@
   "bioEchec": "Identität nicht bestätigt.",
   "bioReessayer": "Erneut versuchen",
   "bioVerrouille": "App gesperrt",
-
   "inspectionTypeInspection": "Inspektion",
   "inspectionTypeOpr": "Vorabnahme (OPR)",
   "inspectionTypeVisiteContradictoire": "Gemeinsame Begehung",
@@ -779,9 +1088,58 @@
   "rapportTypeQualite": "Qualität",
   "rapportTypeVisite": "Begehung",
   "rapportTypeOpr": "Vorabnahme (OPR)",
-
   "chantierDetailInspectionsSousTitre": "Begehungen, Pruefpunkte und Teilnehmer",
   "chantierDetailRapportsSousTitre": "PDF-Berichte erstellen und ansehen",
-
-  "chantierDetailPlansSousTitre": "Baustellenplaene und Anmerkungen"
+  "chantierDetailPlansSousTitre": "Baustellenplaene und Anmerkungen",
+  "planNavBatiments": "Gebäude",
+  "planNavEtages": "Etagen",
+  "planNavSousSols": "Untergeschosse",
+  "planNavToiture": "Dach",
+  "planNavAppartements": "Wohnungen und Bereiche",
+  "planNavSansPlan": "Kein Plan zugeordnet",
+  "planNavAucunPlanGlobal": "Diesem Projekt ist kein Gesamtplan zugeordnet.",
+  "planNavAucunBatiment": "Kein Gebäude in diesem Projekt.",
+  "planNavAucunEtage": "Keine Ebene in diesem Gebäude.",
+  "planNavAucuneZone": "Keine Wohnung auf dieser Etage.",
+  "planNavNEtages": "{count, plural, one{{count} Ebene} other{{count} Ebenen}}",
+  "@planNavNEtages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "planNavNZones": "{count, plural, one{{count} Bereich} other{{count} Bereiche}}",
+  "@planNavNZones": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "planPointerAide": "Tippen Sie im Plan genau auf die Stelle des Mangels.",
+  "planNouvelleReserve": "Neuer Mangel",
+  "planAnnulerPointage": "Abbrechen",
+  "reserveNouvTitreLabel": "Titel des Mangels",
+  "reserveNouvTitreHint": "z. B. Wandoberfläche nacharbeiten",
+  "reserveNouvObservation": "Beobachtung",
+  "reserveNouvObservationHint": "Beschreiben Sie den Mangel und seinen Ort.",
+  "reserveNouvEntreprise": "Betroffenes Unternehmen",
+  "reserveNouvAucuneEntreprise": "— Keines —",
+  "reserveNouvPhoto": "Foto",
+  "reserveNouvPrendrePhoto": "Foto aufnehmen",
+  "reserveNouvChoisirGalerie": "Aus der Galerie wählen",
+  "reserveNouvGravite": "Schweregrad",
+  "reserveNouvDelai": "Frist zur Behebung",
+  "reserveNouvChoisirDate": "Datum wählen",
+  "reserveNouvLocalisation": "Ort",
+  "reserveNouvEnregistrer": "Mangel speichern",
+  "reserveNouvCreee": "Mangel gespeichert.",
+  "reserveNouvPhotoEchouee": "Mangel erstellt, das Foto konnte jedoch nicht hochgeladen werden.",
+  "reserveNouvTitreRequis": "Der Titel muss mindestens 2 Zeichen lang sein.",
+  "corpsEtatLabel": "Gewerk",
+  "corpsEtatAucun": "— Keines —",
+  "phaseLabel": "Phase",
+  "phaseChoisir": "— Phase wählen —",
+  "phaseRequise": "Bitte wählen Sie eine Phase aus."
 }

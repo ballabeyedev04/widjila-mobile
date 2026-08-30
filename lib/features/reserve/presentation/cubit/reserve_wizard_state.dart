@@ -1,4 +1,6 @@
 import 'package:equatable/equatable.dart';
+import '../../../corps_etat/domain/entities/corps_etat.dart';
+import '../../../phase/domain/entities/phase_referentiel.dart';
 import '../../domain/entities/chantier_structure.dart';
 import '../../domain/entities/reserve.dart';
 
@@ -14,7 +16,18 @@ class ReserveWizardState extends Equatable {
 
   // Étape 1 — informations générales
   final String titre;
-  final ReserveCategorie categorie;
+  /// Catalogue des métiers servi par l'API, et métier retenu.
+  ///
+  /// Remplace l'ancienne énumération figée `ReserveCategorie` : la liste
+  /// s'enrichit désormais depuis l'espace d'administration, sans livraison
+  /// mobile.
+  final List<CorpsEtat> corpsEtatDisponibles;
+  final String? corpsEtatId;
+
+  /// Référentiel des phases et phase retenue. La phase est OBLIGATOIRE :
+  /// le serveur refuse une réserve sans, et [etape1Valide] l'exige.
+  final List<PhaseReferentiel> phasesDisponibles;
+  final String? phaseId;
   final ReserveSeverite priorite;
   final String description;
 
@@ -32,7 +45,10 @@ class ReserveWizardState extends Equatable {
     this.soumissionStatus = SoumissionStatus.initial,
     this.erreur,
     this.titre = '',
-    this.categorie = ReserveCategorie.autre,
+    this.corpsEtatDisponibles = const [],
+    this.corpsEtatId,
+    this.phasesDisponibles = const [],
+    this.phaseId,
     this.priorite = ReserveSeverite.moyenne,
     this.description = '',
     this.batiment,
@@ -43,13 +59,16 @@ class ReserveWizardState extends Equatable {
   });
 
   /// Étape 1 valide (titre obligatoire — le reste a un défaut raisonnable).
-  bool get etape1Valide => titre.trim().length >= 2;
+  /// La PHASE fait partie de la validité de l'étape 1 : elle est
+  /// obligatoire, et la bloquer ici évite d'aller jusqu'au refus serveur.
+  bool get etape1Valide => titre.trim().length >= 2 && phaseId != null;
 
 
   /// Vrai dès que l'utilisateur a saisi quelque chose qui serait perdu en
   /// refermant l'assistant.
   ///
-  /// Ne regarde PAS `categorie` ni `priorite` : elles ont une valeur par
+  /// Ne regarde PAS `corpsEtatId` ni `priorite` : le métier est facultatif et
+  /// la priorité a une valeur par
   /// défaut dès l'ouverture, les compter reviendrait à considérer tout
   /// formulaire vierge comme entamé — et à poser une question inutile à
   /// chaque abandon immédiat.
@@ -69,7 +88,11 @@ class ReserveWizardState extends Equatable {
     SoumissionStatus? soumissionStatus,
     String? erreur,
     String? titre,
-    ReserveCategorie? categorie,
+    List<CorpsEtat>? corpsEtatDisponibles,
+    String? corpsEtatId,
+    bool effacerCorpsEtat = false,
+    List<PhaseReferentiel>? phasesDisponibles,
+    String? phaseId,
     ReserveSeverite? priorite,
     String? description,
     BatimentStructure? batiment,
@@ -90,7 +113,10 @@ class ReserveWizardState extends Equatable {
       soumissionStatus: soumissionStatus ?? this.soumissionStatus,
       erreur: erreur,
       titre: titre ?? this.titre,
-      categorie: categorie ?? this.categorie,
+      corpsEtatDisponibles: corpsEtatDisponibles ?? this.corpsEtatDisponibles,
+      corpsEtatId: effacerCorpsEtat ? null : (corpsEtatId ?? this.corpsEtatId),
+      phasesDisponibles: phasesDisponibles ?? this.phasesDisponibles,
+      phaseId: phaseId ?? this.phaseId,
       priorite: priorite ?? this.priorite,
       description: description ?? this.description,
       batiment: effacerBatiment ? null : (batiment ?? this.batiment),
@@ -103,7 +129,8 @@ class ReserveWizardState extends Equatable {
 
   @override
   List<Object?> get props => [
-        etape, structureStatus, structure, soumissionStatus, erreur, titre, categorie, priorite, description,
+        etape, structureStatus, structure, soumissionStatus, erreur, titre,
+        corpsEtatDisponibles, corpsEtatId, phasesDisponibles, phaseId, priorite, description,
         batiment, etage, zone, lot, dateLimite,
       ];
 }

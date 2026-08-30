@@ -15,6 +15,8 @@ import '../../../../injection_container.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../l10n/l10n_extension.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../referentiel/domain/entities/type_referentiel.dart';
+import '../../../referentiel/presentation/cubit/types_referentiel_cubit.dart';
 import '../../domain/entities/partenaire.dart';
 import '../cubit/partenaires_cubit.dart';
 import 'ajouter_partenaire_sheet.dart';
@@ -78,8 +80,15 @@ class IntervenantsListPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => sl<PartenairesCubit>()..charger(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(create: (_) => sl<PartenairesCubit>()..charger()),
+        // Types d'intervenant : le filtre en a besoin pour proposer les types
+        // ajoutés depuis l'administration, que l'énumération Dart ignore.
+        BlocProvider(
+          create: (_) => sl<TypesReferentielCubit>(param1: ReferentielType.intervenant)..charger(),
+        ),
+      ],
       child: const _IntervenantsView(),
     );
   }
@@ -296,8 +305,13 @@ class _PucesFiltres extends StatelessWidget {
           children: [
             if (state.filtreType != null)
               _PuceFiltre(
-                icone: iconeTypePartenaire(state.filtreType!),
-                libelle: state.filtreType!.label(l10n),
+                // L'icône passe par l'énumération : un type ajouté par le
+                // client n'en a pas de dédiée et retombe sur la générique.
+                icone: iconeTypePartenaire(PartenaireTypeX.fromString(state.filtreType)),
+                // Le LIBELLÉ, lui, vient du référentiel : c'est
+                // l'administrateur qui le fixe. `libelle()` retombe sur le
+                // code si le type a été désactivé depuis.
+                libelle: context.watch<TypesReferentielCubit>().state.libelle(state.filtreType),
                 onRetrait: () => cubit.filtrerParType(null),
               ),
             if (state.filtreActif != null)
@@ -661,11 +675,20 @@ class _PiedDePage extends StatelessWidget {
 /// à fermer, regarder, rouvrir.
 Future<void> ouvrirFiltresPartenaires(BuildContext context) {
   final cubit = context.read<PartenairesCubit>();
+  // La feuille vit hors de l'arbre de la page : elle n'hérite pas de ses
+  // providers, il faut donc lui passer les deux cubits explicitement.
+  final typesCubit = context.read<TypesReferentielCubit>();
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => BlocProvider.value(value: cubit, child: const _FeuilleFiltres()),
+    builder: (_) => MultiBlocProvider(
+      providers: [
+        BlocProvider.value(value: cubit),
+        BlocProvider.value(value: typesCubit),
+      ],
+      child: const _FeuilleFiltres(),
+    ),
   );
 }
 
@@ -767,12 +790,12 @@ class _FeuilleFiltres extends StatelessWidget {
                               selectionne: state.filtreType == null,
                               onTap: () => cubit.filtrerParType(null),
                             ),
-                            for (final t in PartenaireType.values)
+                            for (final t in context.watch<TypesReferentielCubit>().state.items)
                               _PuceChoix(
-                                libelle: t.label(l10n),
-                                icone: iconeTypePartenaire(t),
-                                selectionne: state.filtreType == t,
-                                onTap: () => cubit.filtrerParType(t),
+                                libelle: t.nom,
+                                icone: iconeTypePartenaire(PartenaireTypeX.fromString(t.code)),
+                                selectionne: state.filtreType == t.code,
+                                onTap: () => cubit.filtrerParType(t.code),
                               ),
                           ],
                         ),

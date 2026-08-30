@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../l10n/l10n_extension.dart';
-import '../../domain/entities/inspection.dart';
+import '../../../../injection_container.dart';
+import '../../../referentiel/domain/entities/type_referentiel.dart';
+import '../../../referentiel/presentation/cubit/types_referentiel_cubit.dart';
 import '../cubit/inspections_list_cubit.dart';
 import '../cubit/inspections_list_state.dart';
 
@@ -22,8 +25,18 @@ class PlanifierInspectionSheet extends StatefulWidget {
 }
 
 class _PlanifierInspectionSheetState extends State<PlanifierInspectionSheet> {
-  InspectionType _type = InspectionType.inspection;
+  /// CODE du type choisi, et non une énumération : le référentiel est
+  /// administrable, un type ajouté côté web doit être sélectionnable ici.
+  ///
+  /// Nul tant que le référentiel n'a pas répondu — la première valeur reçue
+  /// devient la sélection par défaut. Choisir « inspection » en dur ferait
+  /// partir ce code même si l'administrateur l'a désactivé.
+  String? _typeCode;
   DateTime? _date;
+
+  /// Référentiel des types d'inspection, chargé à l'ouverture de la feuille.
+  late final TypesReferentielCubit _typesCubit =
+      sl<TypesReferentielCubit>(param1: ReferentielType.inspection)..charger();
 
   /// Un contrôleur par ligne — le texte doit survivre au réordonnancement
   /// provoqué par la suppression d'une ligne du milieu.
@@ -34,6 +47,7 @@ class _PlanifierInspectionSheetState extends State<PlanifierInspectionSheet> {
     for (final c in _points) {
       c.dispose();
     }
+    _typesCubit.close();
     super.dispose();
   }
 
@@ -62,13 +76,19 @@ class _PlanifierInspectionSheetState extends State<PlanifierInspectionSheet> {
   }
 
   void _valider() {
+    // Le référentiel n'a pas encore répondu, ou il est vide : sans code, le
+    // serveur refuserait la création. Le bouton est déjà désactivé dans ce
+    // cas — cette garde couvre la course entre les deux.
+    final code = _typeCode;
+    if (code == null) return;
+
     final libelles = _points
         .map((c) => c.text.trim())
         .where((t) => t.isNotEmpty)
         .toList();
 
     context.read<InspectionsListCubit>().planifier(
-          type: _type,
+          typeCode: code,
           dateVisite: _date,
           libellesChecklist: libelles,
         );
@@ -79,6 +99,23 @@ class _PlanifierInspectionSheetState extends State<PlanifierInspectionSheet> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
 
+    return BlocProvider.value(
+      value: _typesCubit,
+      child: BlocConsumer<TypesReferentielCubit, TypesReferentielState>(
+        // La PREMIÈRE valeur reçue devient la sélection par défaut : choisir
+        // « inspection » en dur enverrait ce code même si l'administrateur
+        // l'a désactivé ou renommé.
+        listener: (context, etat) {
+          if (_typeCode == null && etat.items.isNotEmpty) {
+            setState(() => _typeCode = etat.items.first.code);
+          }
+        },
+        builder: (context, typesState) => _corps(context, l10n, typesState),
+      ),
+    );
+  }
+
+  Widget _corps(BuildContext context, AppLocalizations l10n, TypesReferentielState typesState) {
     return Padding(
       // Remonte la feuille au-dessus du clavier : sans cela, les derniers
       // points de contrôle saisis sont cachés par celui-ci.
@@ -131,17 +168,39 @@ class _PlanifierInspectionSheetState extends State<PlanifierInspectionSheet> {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      for (final type in InspectionType.values)
+                      for (final type in typesState.items)
                         ChoiceChip(
-                          label: Text(type.label(l10n)),
-                          selected: _type == type,
-                          onSelected: (_) => setState(() => _type = type),
+                          // Le NOM vient du référentiel : c'est
+                          // l'administrateur qui le fixe, y compris pour les
+                          // types standard qu'il aurait renommés.
+                          label: Text(type.nom),
+                          selected: _typeCode == type.code,
+                          onSelected: (_) => setState(() => _typeCode = type.code),
                           selectedColor: AppColors.primary.withValues(alpha: 0.15),
                           labelStyle: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: _type == type ? AppColors.primary : AppColors.textSecondary,
+                            color: _typeCode == type.code
+                                ? AppColors.primary
+                                : AppColors.textSecondary,
                           ),
+                        ),
+                      if (typesState.status == TypesStatus.chargement)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 4),
+                          child: SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColors.primary),
+                          ),
+                        ),
+                      if (typesState.status == TypesStatus.vide ||
+                          typesState.status == TypesStatus.erreur)
+                        // Ni liste muette ni écran d'erreur : un message qui
+                        // dit où agir. Le référentiel se gère depuis le web.
+                        Text(
+                          l10n.typesReferentielIndisponible,
+                          style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted),
                         ),
                     ],
                   ),
@@ -230,7 +289,10 @@ class _PlanifierInspectionSheetState extends State<PlanifierInspectionSheet> {
                         backgroundColor: AppColors.primary,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
-                      onPressed: enCours ? null : _valider,
+                      // Désactivé tant qu'aucun type n'est sélectionnable :
+                      // sans code, le serveur refuserait la création, et
+                      // l'utilisateur ne saurait pas pourquoi.
+                      onPressed: (enCours || _typeCode == null) ? null : _valider,
                       child: enCours
                           ? const SizedBox(
                               width: 20,

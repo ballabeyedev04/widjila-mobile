@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/routes/app_router.dart';
 import '../../../../core/config/user_role.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/liste_chrome.dart';
@@ -599,6 +601,22 @@ class _SectionEntreprise extends StatelessWidget {
             _Ligne(libelle: l10n.profilEntrepriseRccm, valeur: org.rccm),
             _Ligne(libelle: l10n.profilEntrepriseNinea, valeur: org.ninea),
             _Ligne(libelle: l10n.profilEntrepriseAbonnement, valeur: _libelleAbonnement(org, l10n)),
+            // Porte d'entrée vers les offres. Ouverte à TOUS les rôles :
+            // consulter une grille tarifaire n'engage rien, et c'est le
+            // serveur qui refusera la souscription à qui n'y a pas droit.
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => context.push(AppRoutes.abonnement),
+                icon: const Icon(Icons.workspace_premium_outlined, size: 17),
+                label: Text(l10n.abonnementVoirFormules),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
             if (!peutModifier)
               _Bandeau(
                 texte: l10n.profilLectureSeule,

@@ -1,6 +1,5 @@
 {
   "@@locale": "en",
-
   "commonCancel": "Cancel",
   "commonConfirm": "Confirm",
   "commonSave": "Save",
@@ -27,24 +26,47 @@
   "commonContinue": "Continue",
   "commonModify": "Edit",
   "commonOptional": "Optional",
-
   "chantierPickerSousTitre": "Which site?",
   "chantierPickerRechercheHint": "Search a site…",
   "chantierAucun": "No sites",
   "chantierAucunSousTitre": "Create a site first from the admin panel.",
   "chantierAucunRecherche": "No site matches your search.",
   "chantierReservesOuvertesSur": "{count, plural, one{{count} open snag out of {total}} other{{count} open snags out of {total}}}",
-  "@chantierReservesOuvertesSur": { "placeholders": { "count": { "type": "int" }, "total": { "type": "int" } } },
+  "@chantierReservesOuvertesSur": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "chantierDetailTitre": "Site details",
   "chantierDetailCode": "Code: {code}",
-  "@chantierDetailCode": { "placeholders": { "code": { "type": "String" } } },
+  "@chantierDetailCode": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
   "chantierDetailAdresse": "Address",
   "chantierDetailResponsable": "Manager",
   "chantierDetailDebut": "Start",
   "chantierDetailFinPrevue": "Expected end",
   "commonDescription": "Description",
   "chantierDetailReservesSousTitre": "{count, plural, one{{count} open out of {total}} other{{count} open out of {total}}}",
-  "@chantierDetailReservesSousTitre": { "placeholders": { "count": { "type": "int" }, "total": { "type": "int" } } },
+  "@chantierDetailReservesSousTitre": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "chantierDetailReservesSousTitreDefaut": "Snag tracking for this site",
   "chantierDetailTableauBord": "Dashboard",
   "chantierDetailTableauBordSousTitre": "Breakdown by status and progress",
@@ -53,7 +75,6 @@
   "chantierSectionsAVenirTexte": "These sections are coming in a future update.",
   "chantierSectionStructure": "Structure",
   "chantierSectionRapports": "Reports",
-
   "reserveRechercheHint": "Search a snag…",
   "reserveAucune": "No snags",
   "reserveAucuneCriteres": "No snag matches these criteria.",
@@ -63,8 +84,16 @@
   "reserveAucuneDescription": "Snags created on your sites will appear here.",
   "reserveCreerBouton": "Create a snag",
   "reserveReference": "#{numero} · Created on {date}",
-  "@reserveReference": { "placeholders": { "numero": { "type": "String" }, "date": { "type": "String" } } },
-
+  "@reserveReference": {
+    "placeholders": {
+      "numero": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "reserveDetailTitreDefaut": "Snag",
   "reserveNumeroProvisoire": "Pending sync",
   "reserveDetailChangerStatut": "Change status",
@@ -72,7 +101,13 @@
   "reserveDetailMotifRefusTitre": "Reason for rejection",
   "reserveDetailMotifRefusHint": "Explain why this snag is being rejected…",
   "reserveDetailStatutMisAJour": "Status updated: {statut}",
-  "@reserveDetailStatutMisAJour": { "placeholders": { "statut": { "type": "String" } } },
+  "@reserveDetailStatutMisAJour": {
+    "placeholders": {
+      "statut": {
+        "type": "String"
+      }
+    }
+  },
   "reserveDetailCreeeLe": "Created on",
   "reserveDetailSignaleePar": "Reported by",
   "reserveDetailPriorite": "Priority",
@@ -80,15 +115,26 @@
   "reserveDetailEcheance": "Due date",
   "reserveDetailAssigneeA": "Assigned to",
   "reserveDetailPhotosCount": "Photos ({count})",
-  "@reserveDetailPhotosCount": { "placeholders": { "count": { "type": "int" } } },
+  "@reserveDetailPhotosCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "reserveDetailAucunePhoto": "No photos yet",
   "reserveDetailHistorique": "History",
   "reserveDetailPrendrePhoto": "Take a photo",
   "reserveDetailChoisirGalerie": "Choose from gallery",
   "reserveDetailPhotoAjoutee": "Photo added",
   "reserveDetailPar": "By {nom}",
-  "@reserveDetailPar": { "placeholders": { "nom": { "type": "String" } } },
-
+  "@reserveDetailPar": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "historiqueCreation": "Snag created",
   "historiqueModification": "Snag modified",
   "historiqueStatut": "Status changed",
@@ -96,12 +142,17 @@
   "historiqueValidation": "Snag approved",
   "historiqueRefus": "Snag rejected",
   "historiqueSuppression": "Snag deleted",
-
   "wizardEtapeInformations": "Information",
   "wizardEtapeRecapitulatif": "Summary",
   "wizardCreerReserve": "Create the snag",
   "wizardReserveCreee": "Snag {numero} created",
-  "@wizardReserveCreee": { "placeholders": { "numero": { "type": "String" } } },
+  "@wizardReserveCreee": {
+    "placeholders": {
+      "numero": {
+        "type": "String"
+      }
+    }
+  },
   "wizardChampTitre": "Title *",
   "wizardTitreHint": "E.g.: Wall paint touch-up",
   "wizardChampCategorie": "Category *",
@@ -122,13 +173,11 @@
   "wizardChampLocalisation": "Location",
   "wizardNonRenseignee": "Not specified",
   "wizardPhotosApresCreation": "You will be able to add photos once the snag is created.",
-
   "chantierDashboardRepartitionParStatut": "Breakdown by status",
   "chantierDashboardEvolution": "Snag progress",
   "chantierDashboardCreees": "Created",
   "chantierDashboardPasAssezDeDonnees": "Not enough data yet",
   "reserveNonLocalisee": "No location",
-
   "planImporterBouton": "Import a plan",
   "planRechercheHint": "Search a plan…",
   "planEssayerAutreMotCle": "Try another keyword.",
@@ -137,52 +186,83 @@
   "planAucunDescriptionSansDroit": "Plans imported from the admin panel will appear here.",
   "planViewerErreurChargement": "The plan could not be loaded.",
   "planViewerFormatTitre": "Format {format}",
-  "@planViewerFormatTitre": { "placeholders": { "format": { "type": "String" } } },
+  "@planViewerFormatTitre": {
+    "placeholders": {
+      "format": {
+        "type": "String"
+      }
+    }
+  },
   "planViewerFormatNonSupporte": "This format can't be opened on mobile yet. View it from the web dashboard.",
   "planViewerIndisponible": "Plan unavailable",
   "planViewerReperes": "{count, plural, one{{count} marker} other{{count} markers}}",
-  "@planViewerReperes": { "placeholders": { "count": { "type": "int" } } },
+  "@planViewerReperes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "planViewerAucuneReserve": "No snags on this plan",
   "planViewerReservesSurPlan": "{count, plural, one{{count} snag on this plan} other{{count} snags on this plan}}",
-  "@planViewerReservesSurPlan": { "placeholders": { "count": { "type": "int" } } },
+  "@planViewerReservesSurPlan": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "planImportSheetNomLabel": "Plan name",
   "planImportSheetNomHint": "E.g.: Site plan — level 2",
   "planImportSheetFormatLabel": "Format",
   "planImportSheetValiderBouton": "Import",
   "planImportSheetErreurCourt": "The name must be at least 2 characters long.",
   "planImportSheetErreurLong": "The name cannot exceed 200 characters.",
-
   "alertSuccessTitle": "Success",
   "alertErrorTitle": "Oops!",
   "errForbidden": "You don't have permission to perform this action.",
   "errRateLimit": "Too many requests sent. Please wait a moment.",
   "errServiceUnavailable": "The service is temporarily unavailable. Try again later.",
-
   "navAccueil": "Home",
   "navReserves": "Snags",
   "navPlans": "Plans",
   "navPlus": "More",
   "navNotifications": "Notifications",
-
   "actionTableauBordChantier": "Site dashboard",
   "actionEquipe": "Team",
   "actionDocument": "Document",
   "actionChantiers": "Sites",
   "actionIntervenants": "Stakeholders",
   "actionsFermerLabel": "Close quick actions",
-
   "bandeauHorsLigneAvecTravail": "Offline — you can keep working. {count, plural, one{{count} item will be sent automatically once you're back online.} other{{count} items will be sent automatically once you're back online.}}",
-  "@bandeauHorsLigneAvecTravail": { "placeholders": { "count": { "type": "int" } } },
+  "@bandeauHorsLigneAvecTravail": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "bandeauHorsLigneSansTravail": "Offline — you can keep working. Your entries will be sent automatically as soon as the connection returns.",
   "bandeauSynchronisationEnCours": "Connection restored — syncing…",
   "bandeauConfirmationSucces": "Connected — everything is synced.",
   "bandeauEchecIntro": "Some tasks could not be synced automatically. Please sync them manually.",
   "bandeauEchecCompteur": "{count, plural, one{{count} task needs your attention.} other{{count} tasks need your attention.}} Automatic sync could not complete some operations.",
-  "@bandeauEchecCompteur": { "placeholders": { "count": { "type": "int" } } },
+  "@bandeauEchecCompteur": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "bandeauVoirTachesBouton": "View all tasks",
   "bandeauEnAttenteEnvoi": "{count, plural, one{{count} item waiting to be sent…} other{{count} items waiting to be sent…}}",
-  "@bandeauEnAttenteEnvoi": { "placeholders": { "count": { "type": "int" } } },
-
+  "@bandeauEnAttenteEnvoi": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "syncTacheSuccesMessage": "Task synced successfully.",
   "syncTacheEchecMessage": "This task could not be synced. Try again later.",
   "syncToutSuccesMessage": "Sync completed successfully. All data is up to date.",
@@ -197,23 +277,39 @@
   "syncTypeAjouterPhoto": "Photo added",
   "syncNomNouvelleReserve": "New snag",
   "syncNomChangerStatut": "Change status → {statut}",
-  "@syncNomChangerStatut": { "placeholders": { "statut": { "type": "String" } } },
+  "@syncNomChangerStatut": {
+    "placeholders": {
+      "statut": {
+        "type": "String"
+      }
+    }
+  },
   "syncNomPhoto": "Snag photo",
   "syncStatutEnCours": "🔄 Syncing…",
   "syncStatutEchec": "🔴 Failed",
   "syncStatutEnAttente": "🟠 Pending",
-
   "commonPrevious": "Previous",
   "commonMin2Caracteres": "2 characters minimum",
   "commonMax50Caracteres": "50 characters maximum",
   "commonMax150Caracteres": "150 characters maximum",
   "commonNumeroInvalide": "Invalid number",
-
   "authEmailRequis": "Email is required",
   "authEmailTropLong": "Email too long",
   "authEmailInvalide": "Invalid email",
   "authEtapeIndicateur": "Step {etape}/{total} — {libelle}",
-  "@authEtapeIndicateur": { "placeholders": { "etape": { "type": "int" }, "total": { "type": "int" }, "libelle": { "type": "String" } } },
+  "@authEtapeIndicateur": {
+    "placeholders": {
+      "etape": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "libelle": {
+        "type": "String"
+      }
+    }
+  },
   "bienvenueAccroche": "Clear your snags,\ntrack your actions,\ndeliver excellence.",
   "authSeConnecter": "Log in",
   "authCreerUnCompte": "Create an account",
@@ -225,7 +321,6 @@
   "authMotDePasse8a128": "8 to 128 characters",
   "authMotDePasseComplexite": "Must contain an uppercase, a lowercase letter and a digit",
   "authAideMotDePasse": "8 characters min., an uppercase, a lowercase letter and a digit",
-
   "loginHeroTitre": "Your sites,\ntracked day by day.",
   "loginHeroSousTitre": "Snags, inspections, plans and documents — on site and in the office.",
   "loginSousTitre": "Log in to track your sites, snags and inspections.",
@@ -233,7 +328,6 @@
   "loginIdentifiantRequis": "This field is required",
   "loginMotDePasseOublie": "Forgot password?",
   "loginPasEncoreDeCompte": "No account yet?",
-
   "registerEtapeInfos": "Your details",
   "registerEtapeOrganisation": "Your organization",
   "registerLienEchec": "Could not open this page",
@@ -268,25 +362,27 @@
   "registerConsentementEt": " and the ",
   "registerPolitiqueConfidentialite": "privacy policy",
   "registerConsentementErreur": "You must accept the terms to create an account",
-
   "forgotVousSouvenez": "Remember your password?",
   "forgotTitre": "Forgot password",
   "forgotSousTitre": "Enter your email — a verification code will be sent to you.",
   "forgotBoutonEnvoyer": "Send code",
-
   "resetNouveauMotDePasse": "New password",
   "resetSousTitre": "Enter the code received by email and choose a new password.",
   "resetChampCode": "Code received by email",
   "resetCode6Requis": "A 6-character code is required",
   "resetBouton": "Reset",
-
   "mfaCode6Chiffres": "Enter the 6 digits of the code.",
   "mfaTitre": "Two-factor authentication",
   "mfaInstructionsAvecPrenom": "{prenom}, enter the 6-digit code from your authenticator app.",
-  "@mfaInstructionsAvecPrenom": { "placeholders": { "prenom": { "type": "String" } } },
+  "@mfaInstructionsAvecPrenom": {
+    "placeholders": {
+      "prenom": {
+        "type": "String"
+      }
+    }
+  },
   "mfaInstructionsSansPrenom": "Enter the 6-digit code from your authenticator app.",
   "mfaBoutonVerifier": "Verify code",
-
   "roleChefProjet": "Project manager",
   "roleConducteurTravaux": "Site manager",
   "roleBureauControle": "Inspection body",
@@ -297,15 +393,12 @@
   "rolePilote": "Site coordinator",
   "roleSousTraitant": "Subcontractor",
   "roleInconnu": "Unknown",
-
   "profilTitre": "Profile",
   "profilDeconnexion": "Log out",
   "profilConfirmerDeconnexion": "Are you sure you want to log out?",
   "profilTelephone": "Phone",
   "profilFonction": "Role",
-
   "commonAutre": "Other",
-
   "statutCreee": "Created",
   "statutAffectee": "Assigned",
   "statutPriseEnCharge": "Acknowledged",
@@ -317,12 +410,10 @@
   "statutRouverte": "Reopened",
   "statutEnRetard": "Overdue",
   "statutCloturee": "Closed",
-
   "severiteFaible": "Low",
   "severiteMoyenne": "Medium",
   "severiteHaute": "High",
   "severiteCritique": "Critical",
-
   "categorieMaconnerie": "Masonry",
   "categorieGrosOeuvre": "Structural work",
   "categoriePlomberie": "Plumbing",
@@ -333,13 +424,11 @@
   "categorieEtancheite": "Waterproofing",
   "categorieIsolation": "Insulation",
   "categorieAutre": "Other",
-
   "chantierStatutEnPreparation": "In preparation",
   "chantierStatutEnCours": "In progress",
   "chantierStatutEnPause": "On hold",
   "chantierStatutArchive": "Archived",
   "chantierStatutCloture": "Closed",
-
   "documentTypePlan": "Plan",
   "documentTypeContrat": "Contract",
   "documentTypeDoe": "As-built file",
@@ -350,16 +439,46 @@
   "documentTypePhoto": "Photo",
   "documentTypeAutre": "Other",
   "documentTailleKo": "{value} KB",
-  "@documentTailleKo": { "placeholders": { "value": { "type": "String" } } },
+  "@documentTailleKo": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "documentTailleMo": "{value} MB",
-  "@documentTailleMo": { "placeholders": { "value": { "type": "String" } } },
+  "@documentTailleMo": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "documentPageTitre": "Photos & documents",
   "documentOngletPhotos": "Photos ({count})",
-  "@documentOngletPhotos": { "placeholders": { "count": { "type": "int" } } },
+  "@documentOngletPhotos": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "documentOngletVideos": "Videos ({count})",
-  "@documentOngletVideos": { "placeholders": { "count": { "type": "int" } } },
+  "@documentOngletVideos": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "documentOngletDocuments": "Documents ({count})",
-  "@documentOngletDocuments": { "placeholders": { "count": { "type": "int" } } },
+  "@documentOngletDocuments": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "documentEnvoiEnCours": "Sending…",
   "documentFichierAjoute": "File added.",
   "documentEnvoiEchec": "The file could not be sent.",
@@ -375,24 +494,66 @@
   "documentTelechargementBientot": "Downloading files from mobile is coming soon. In the meantime, open this document from the web dashboard.",
   "notificationRechercheHint": "Search a notification…",
   "notificationFiltreToutes": "All ({count})",
-  "@notificationFiltreToutes": { "placeholders": { "count": { "type": "int" } } },
+  "@notificationFiltreToutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "notificationFiltreNonLues": "Unread ({count})",
-  "@notificationFiltreNonLues": { "placeholders": { "count": { "type": "int" } } },
+  "@notificationFiltreNonLues": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "notificationFiltreLues": "Read ({count})",
-  "@notificationFiltreLues": { "placeholders": { "count": { "type": "int" } } },
+  "@notificationFiltreLues": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "notificationToutLire": "Mark all read",
   "notificationAucune": "No notifications",
   "notificationAucuneDescription": "Alerts from your sites — snags, inspections, deadlines — will appear here.",
   "notificationInstant": "Just now",
   "notificationIlYAMinutes": "{count, plural, one{{count} min ago} other{{count} min ago}}",
-  "@notificationIlYAMinutes": { "placeholders": { "count": { "type": "int" } } },
+  "@notificationIlYAMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "notificationIlYAHeures": "{count, plural, one{{count} h ago} other{{count} h ago}}",
-  "@notificationIlYAHeures": { "placeholders": { "count": { "type": "int" } } },
+  "@notificationIlYAHeures": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "notificationIlYAJours": "{count, plural, one{{count} day ago} other{{count} days ago}}",
-  "@notificationIlYAJours": { "placeholders": { "count": { "type": "int" } } },
+  "@notificationIlYAJours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "commonUneErreurSurvenue": "An error occurred.",
   "membreAjouteMessage": "{nom} was added to your organization.",
-  "@membreAjouteMessage": { "placeholders": { "nom": { "type": "String" } } },
+  "@membreAjouteMessage": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "membreAucun": "No members yet",
   "membreAucunDescription": "Add your organization's collaborators with the button below.",
   "membreStatutActif": "Active",
@@ -400,7 +561,13 @@
   "membreStatutEnAttente": "Pending",
   "membreDialogueTitre": "Member added",
   "membreDialogueMessage": "{nom} was added. Share this temporary password with them (shown only once) — they'll need to change it on first login.",
-  "@membreDialogueMessage": { "placeholders": { "nom": { "type": "String" } } },
+  "@membreDialogueMessage": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "membreDialogueBouton": "Got it",
   "membreFormTitre": "New member",
   "membreFormPrenom": "First name",
@@ -424,21 +591,54 @@
   "membreSectionContact": "Contact",
   "membreSectionAcces": "Role and access",
   "membreFormChampTropLong": "{max} characters maximum",
-  "@membreFormChampTropLong": { "placeholders": { "max": { "type": "int" } } },
+  "@membreFormChampTropLong": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
   "membreFormChampTropCourt": "{min} characters minimum",
-  "@membreFormChampTropCourt": { "placeholders": { "min": { "type": "int" } } },
+  "@membreFormChampTropCourt": {
+    "placeholders": {
+      "min": {
+        "type": "int"
+      }
+    }
+  },
   "membreFormObligatoiresNote": "Fields marked with * are required.",
   "equipeRechercheHint": "Search a member…",
   "equipeFiltrer": "Filter",
   "equipeCompteur": "{count, plural, one{{count} member in the team} other{{count} members in the team}}",
-  "@equipeCompteur": { "placeholders": { "count": { "type": "int" } } },
+  "@equipeCompteur": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "equipeDetailBouton": "Details",
   "equipeSlogan": "Work together, build better.",
   "reserveFiltrer": "Filter",
   "reserveAffichageSur": "Showing {affiches} of {total} snags",
-  "@reserveAffichageSur": { "placeholders": { "affiches": { "type": "int" }, "total": { "type": "int" } } },
+  "@reserveAffichageSur": {
+    "placeholders": {
+      "affiches": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "reserveProjet": "Project: {nom}",
-  "@reserveProjet": { "placeholders": { "nom": { "type": "String" } } },
+  "@reserveProjet": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "planMesPlans": "My plans",
   "planTousLesPlans": "All plans",
   "planFiltrer": "Filter",
@@ -469,7 +669,13 @@
   "partenaireAucun": "No partners",
   "partenaireAucunDescription": "Companies, subcontractors and inspection bodies will appear here.",
   "partenaireResponsableLigne": "Contact: {nom}",
-  "@partenaireResponsableLigne": { "placeholders": { "nom": { "type": "String" } } },
+  "@partenaireResponsableLigne": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "settingsTitre": "Settings",
   "settingsSectionLangue": "Language",
   "settingsSectionSecurite": "Security",
@@ -498,9 +704,21 @@
   "settingsSessionsTitre": "Active sessions",
   "settingsSessionsAucune": "No other active sessions.",
   "settingsSessionOuverteLe": "Opened on {date}",
-  "@settingsSessionOuverteLe": { "placeholders": { "date": { "type": "String" } } },
+  "@settingsSessionOuverteLe": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "settingsSessionExpireLe": "Expires on {date}",
-  "@settingsSessionExpireLe": { "placeholders": { "date": { "type": "String" } } },
+  "@settingsSessionExpireLe": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "settingsSessionRevoquerTout": "Sign out of all devices",
   "settingsSessionRevoquerToutConfirmTitre": "Sign out of all devices?",
   "settingsSessionRevoquerToutConfirmMessage": "All your sessions will be closed, including this one. You'll need to sign in again.",
@@ -513,7 +731,16 @@
   "settingsConnexionTypeRefresh": "Session renewed",
   "settingsStockageDescription": "Sites and snags viewed offline are kept on this device for quick access.",
   "settingsStockageResume": "{chantiers} sites · {reserves} snags cached",
-  "@settingsStockageResume": { "placeholders": { "chantiers": { "type": "int" }, "reserves": { "type": "int" } } },
+  "@settingsStockageResume": {
+    "placeholders": {
+      "chantiers": {
+        "type": "int"
+      },
+      "reserves": {
+        "type": "int"
+      }
+    }
+  },
   "settingsViderCacheBouton": "Clear cache",
   "settingsViderCacheConfirmTitre": "Clear the local cache?",
   "settingsViderCacheConfirmMessage": "Cached sites and snags will be removed from this device. Nothing is deleted from the server.",
@@ -534,18 +761,28 @@
   "settingsSupprimerCompteDescription": "This action is irreversible. Your personal data will be erased under your right to erasure (GDPR, art. 17).",
   "settingsSupprimerCompteConfirmMot": "DELETE",
   "settingsSupprimerCompteConfirmHint": "Type {mot} to confirm",
-  "@settingsSupprimerCompteConfirmHint": { "placeholders": { "mot": { "type": "String" } } },
+  "@settingsSupprimerCompteConfirmHint": {
+    "placeholders": {
+      "mot": {
+        "type": "String"
+      }
+    }
+  },
   "settingsSupprimerCompteConfirmBouton": "Delete permanently",
   "settingsAProposVersion": "Version {version}",
-  "@settingsAProposVersion": { "placeholders": { "version": { "type": "String" } } },
+  "@settingsAProposVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
   "settingsAProposCgu": "Terms of use",
   "settingsAProposConfidentialite": "Privacy policy",
   "settingsAProposSupport": "Contact support",
   "settingsAProposBientotDisponible": "Coming soon",
   "dashboardParametres": "Settings",
-
   "partenaireFournisseur": "Supplier",
-
   "dashboardMenuTooltip": "Menu",
   "dashboardMonProfil": "My profile",
   "dashboardApercuGeneral": "Overview",
@@ -563,9 +800,14 @@
   "dashboardApercuInspections": "Inspections",
   "dashboardApercuDocuments": "Documents",
   "dashboardApercuMembres": "Members",
-
   "chantierPickerCompteur": "{count, plural, one{{count} site} other{{count} sites}}",
-  "@chantierPickerCompteur": {"placeholders": {"count": {"type": "int"}}},
+  "@chantierPickerCompteur": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "chantierPickerEffacer": "Clear search",
   "chantierPickerRechercheEnCours": "Searching…",
   "chantierPickerChargerPlus": "Show more sites",
@@ -573,11 +815,29 @@
   "chantierPickerSansAdresse": "No address on file",
   "chantierPickerAucuneReserve": "No snags",
   "chantierPickerAvancement": "{pourcent}% cleared",
-  "@chantierPickerAvancement": {"placeholders": {"pourcent": {"type": "int"}}},
+  "@chantierPickerAvancement": {
+    "placeholders": {
+      "pourcent": {
+        "type": "int"
+      }
+    }
+  },
   "chantierPickerResponsable": "Lead: {nom}",
-  "@chantierPickerResponsable": {"placeholders": {"nom": {"type": "String"}}},
+  "@chantierPickerResponsable": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "partenaireCompteur": "{count, plural, one{{count} partner} other{{count} partners}}",
-  "@partenaireCompteur": {"placeholders": {"count": {"type": "int"}}},
+  "@partenaireCompteur": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "partenaireSlogan": "Your companies and partners, all in one place.",
   "partenaireFiltreType": "Partner type",
   "partenaireFiltreStatut": "Status",
@@ -608,15 +868,21 @@
   "partenaireFormNomAide": "Legal name as it will appear on reports.",
   "partenaireFormTypeAide": "Sets the company’s role on the site.",
   "partenaireFormNotesAide": "Visible to your team only.",
-
   "chantierAffichageSur": "Showing {affiches} of {total} sites",
-  "@chantierAffichageSur": {"placeholders": {"affiches": {"type": "int"}, "total": {"type": "int"}}},
+  "@chantierAffichageSur": {
+    "placeholders": {
+      "affiches": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "documentDeposerBouton": "Upload a file",
   "chantierDashboardSousTitre": "Overview of this site’s snags",
-
   "chantierDetailInformations": "Details",
   "chantierDetailSections": "Sections",
-
   "profilModifierTitre": "Edit my profile",
   "profilModifieMessage": "Your details have been updated.",
   "profilChangerPhoto": "Change photo",
@@ -648,8 +914,45 @@
   "profilEntrepriseVille": "City",
   "profilEntreprisePays": "Country",
   "profilEntrepriseAbonnement": "Subscription",
+  "typesReferentielIndisponible": "No type available. Add one from the admin area.",
+  "abonnementTitre": "Subscription",
+  "abonnementVoirFormules": "View plans",
+  "abonnementVotreFormule": "Your plan",
+  "abonnementActif": "Active subscription",
+  "abonnementEssaiEnCours": "Trial period",
+  "abonnementAucun": "No active subscription",
+  "abonnementEssaiJusquau": "Trial until {date}",
+  "abonnementRenouvellement": "Renews on {date}",
+  "abonnementUtilisateurs": "Users",
+  "abonnementChantiers": "Sites",
+  "abonnementIllimite": "unlimited",
+  "abonnementNosFormules": "Our plans",
+  "abonnementFormuleActuelle": "Current plan",
+  "abonnementChoisir": "Choose this plan",
+  "abonnementNousContacter": "Contact us",
+  "abonnementSurDevis": "On request",
+  "abonnementParMois": "/ month",
+  "abonnementParAn": "/ year",
+  "abonnementUtilisateursIllimites": "Unlimited users",
+  "abonnementUtilisateursMax": "Up to {n} users",
+  "abonnementOuvertureImpossible": "Unable to open the payment page.",
+  "abonnementFReserves": "Snag management",
+  "abonnementFMobile": "Mobile app",
+  "abonnementFStockage": "Photo and document storage",
+  "abonnementFSupport": "Priority support",
+  "abonnementFEquipe": "Team tracking",
+  "abonnementFRapports": "PDF reports",
+  "abonnementFAnnotations": "Plan annotations",
+  "abonnementFApi": "API access",
+  "abonnementIndisponible": "This feature is not included in your plan.",
   "profilEntrepriseEssai": "Trial until {date}",
-  "@profilEntrepriseEssai": {"placeholders": {"date": {"type": "String"}}},
+  "@profilEntrepriseEssai": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "profilEntrepriseModifier": "Edit company",
   "profilEntrepriseMaj": "Company updated",
   "profilEntrepriseIndisponible": "Company information unavailable",
@@ -664,17 +967,27 @@
   "motDePasseIdentiqueAncien": "The new password must differ from the current one.",
   "motDePasseChangeMessage": "Your password has been changed.",
   "motDePasseProvisoireAvertissement": "Your password is temporary. Change it to secure your account.",
-
   "motDePasseChangeAvecSessions": "{count, plural, one{Password changed. {count} other device has been signed out.} other{Password changed. {count} other devices have been signed out.}}",
-  "@motDePasseChangeAvecSessions": {"placeholders": {"count": {"type": "int"}}},
-
+  "@motDePasseChangeAvecSessions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "reserveCommentairesTitre": "Discussion",
   "reserveCommentaireAucun": "No messages yet.",
   "reserveCommentaireHint": "Write a message…",
   "reserveCommentaireEnvoyer": "Send",
   "reserveCommentaireAjoute": "Message sent.",
   "reserveCommentaireCompteur": "{count, plural, =0{No messages} one{{count} message} other{{count} messages}}",
-  "@reserveCommentaireCompteur": {"placeholders": {"count": {"type": "int"}}},
+  "@reserveCommentaireCompteur": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "reserveAffectationsTitre": "Assigned partners",
   "reserveAffectationAucune": "Nobody is assigned to this snag yet.",
   "reserveAffectationAjouter": "Assign",
@@ -692,7 +1005,6 @@
   "reserveActionsTitre": "Actions",
   "reserveChampEcheance": "Due date",
   "reserveEcheanceAucune": "No due date",
-
   "documentOuvertureEnCours": "Opening file…",
   "documentAucuneApplication": "No app on this device can open this file type.",
   "planOuvrirExterne": "Open in another app",
@@ -703,12 +1015,10 @@
   "reserveDupliquerDescription": "Creates a copy of this snag in the same site — useful for an identical defect in another unit.",
   "reserveDupliqueeMessage": "Snag duplicated.",
   "reserveDupliquerNombre": "Number of copies",
-
   "wizardAbandonTitre": "Discard this snag?",
   "wizardAbandonMessage": "The information you have entered will be lost.",
   "wizardAbandonContinuer": "Keep editing",
   "wizardAbandonQuitter": "Discard",
-
   "settingsSectionNotifications": "Notifications",
   "notifToutesTitre": "Receive alerts",
   "notifToutesDescription": "Turn everything off to stop being interrupted.",
@@ -728,7 +1038,6 @@
   "bioEchec": "Identity not confirmed.",
   "bioReessayer": "Try again",
   "bioVerrouille": "App locked",
-
   "inspectionTypeInspection": "Inspection",
   "inspectionTypeOpr": "Pre-handover (OPR)",
   "inspectionTypeVisiteContradictoire": "Joint inspection",
@@ -779,9 +1088,58 @@
   "rapportTypeQualite": "Quality",
   "rapportTypeVisite": "Visit",
   "rapportTypeOpr": "Pre-handover (OPR)",
-
   "chantierDetailInspectionsSousTitre": "Visits, checkpoints and attendees",
   "chantierDetailRapportsSousTitre": "Generate and view PDF reports",
-
-  "chantierDetailPlansSousTitre": "Site drawings and annotations"
+  "chantierDetailPlansSousTitre": "Site drawings and annotations",
+  "planNavBatiments": "Buildings",
+  "planNavEtages": "Floors",
+  "planNavSousSols": "Basements",
+  "planNavToiture": "Roof",
+  "planNavAppartements": "Units and areas",
+  "planNavSansPlan": "No drawing attached",
+  "planNavAucunPlanGlobal": "No site-wide drawing is attached to this project.",
+  "planNavAucunBatiment": "No building on this project.",
+  "planNavAucunEtage": "No level in this building.",
+  "planNavAucuneZone": "No unit on this floor.",
+  "planNavNEtages": "{count, plural, one{{count} level} other{{count} levels}}",
+  "@planNavNEtages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "planNavNZones": "{count, plural, one{{count} area} other{{count} areas}}",
+  "@planNavNZones": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "planPointerAide": "Tap the drawing at the exact location of the defect.",
+  "planNouvelleReserve": "New snag",
+  "planAnnulerPointage": "Cancel",
+  "reserveNouvTitreLabel": "Snag title",
+  "reserveNouvTitreHint": "e.g. Wall finish to redo",
+  "reserveNouvObservation": "Observation",
+  "reserveNouvObservationHint": "Describe the defect and where it is.",
+  "reserveNouvEntreprise": "Company involved",
+  "reserveNouvAucuneEntreprise": "— None —",
+  "reserveNouvPhoto": "Photo",
+  "reserveNouvPrendrePhoto": "Take a photo",
+  "reserveNouvChoisirGalerie": "Pick from gallery",
+  "reserveNouvGravite": "Severity",
+  "reserveNouvDelai": "Due date",
+  "reserveNouvChoisirDate": "Pick a date",
+  "reserveNouvLocalisation": "Location",
+  "reserveNouvEnregistrer": "Save the snag",
+  "reserveNouvCreee": "Snag saved.",
+  "reserveNouvPhotoEchouee": "Snag created, but the photo could not be uploaded.",
+  "reserveNouvTitreRequis": "The title must be at least 2 characters.",
+  "corpsEtatLabel": "Trade",
+  "corpsEtatAucun": "— None —",
+  "phaseLabel": "Phase",
+  "phaseChoisir": "— Pick a phase —",
+  "phaseRequise": "Please select a phase."
 }

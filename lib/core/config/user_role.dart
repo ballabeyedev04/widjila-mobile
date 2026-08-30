@@ -133,9 +133,27 @@ extension UserRoleX on UserRole {
 
   // ── Groupes de permissions — miroir exact de backend/src/config/roles.js ───
 
-  /// GESTION : gère l'organisation, les membres et les équipes.
+  /// GESTION : gère l'organisation, les filiales et les équipes.
   bool get peutGererOrganisation =>
       this == UserRole.chefProjet || this == UserRole.maitreOuvrage;
+
+  /// GESTION_MEMBRES : gère les MEMBRES seulement — volontairement plus large
+  /// que [peutGererOrganisation].
+  ///
+  /// Une entreprise doit pouvoir constituer son propre effectif (chefs de
+  /// chantier, conducteurs de travaux…). Elle n'accède pour autant ni aux
+  /// réglages de l'organisation ni aux filiales, qui restent sur
+  /// [peutGererOrganisation]. Miroir exact de `GESTION_MEMBRES` dans
+  /// `backend/src/config/roles.js`.
+  bool get peutGererMembres => peutGererOrganisation || this == UserRole.entreprise;
+
+  /// Peut attribuer un rôle DE GESTION (chef de projet, maître d'ouvrage).
+  ///
+  /// Miroir de `OrganisationService._refusElevation` côté serveur : une
+  /// entreprise gère son effectif mais ne peut pas se fabriquer un compte de
+  /// gestion. Le serveur refuse de toute façon — ce booléen évite seulement
+  /// de PROPOSER un choix qui finirait en erreur.
+  bool get peutAttribuerRoleGestion => peutGererOrganisation;
 
   /// OPERATIONNEL : crée/modifie structure, plans, documents, inspections,
   /// réserves, rapports.

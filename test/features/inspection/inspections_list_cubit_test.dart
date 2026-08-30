@@ -102,14 +102,14 @@ void main() {
     test('insère la visite créée en tête', () async {
       when(() => repository.creerInspection(
             chantierId: any(named: 'chantierId'),
-            type: any(named: 'type'),
+            typeCode: any(named: 'typeCode'),
             dateVisite: any(named: 'dateVisite'),
             libellesChecklist: any(named: 'libellesChecklist'),
           )).thenAnswer((_) async => Right(visite(id: 'neuve')));
 
       cubit = construire();
       await cubit.charger();
-      await cubit.planifier(type: InspectionType.opr, libellesChecklist: const ['A', 'B']);
+      await cubit.planifier(typeCode: 'opr', libellesChecklist: const ['A', 'B']);
 
       expect(cubit.state.creationStatus, CreationInspectionStatus.succes);
       expect(cubit.state.items.first.id, 'neuve');
@@ -119,7 +119,7 @@ void main() {
       var appels = 0;
       when(() => repository.creerInspection(
             chantierId: any(named: 'chantierId'),
-            type: any(named: 'type'),
+            typeCode: any(named: 'typeCode'),
             dateVisite: any(named: 'dateVisite'),
             libellesChecklist: any(named: 'libellesChecklist'),
           )).thenAnswer((_) async {
@@ -129,8 +129,8 @@ void main() {
       });
 
       cubit = construire();
-      final a = cubit.planifier(type: InspectionType.inspection);
-      final b = cubit.planifier(type: InspectionType.inspection);
+      final a = cubit.planifier(typeCode: 'inspection');
+      final b = cubit.planifier(typeCode: 'inspection');
       await Future.wait([a, b]);
 
       // Deux visites identiques créées pour un double tap seraient à

@@ -25,16 +25,24 @@ class ZoneStructure extends StructureRef {
 
 class EtageStructure extends StructureRef {
   final List<ZoneStructure> zones;
-  const EtageStructure({required super.id, required super.nom, this.zones = const []});
+
+  /// Cote du niveau : négative pour un sous-sol, 0 pour le rez-de-chaussée.
+  /// C'est elle qui permet de présenter les niveaux comme le guide client —
+  /// « SOUS-SOLS » d'un côté, « ÉTAGES » de l'autre — au lieu d'une seule
+  /// liste où SS2 se retrouve entre R+1 et R+2.
+  final int niveau;
+
+  const EtageStructure({required super.id, required super.nom, this.zones = const [], this.niveau = 0});
 
   factory EtageStructure.fromJson(Map<String, dynamic> json) => EtageStructure(
         id: json['id'] as String,
         nom: json['nom'] as String? ?? '',
+        niveau: (json['niveau'] as num?)?.toInt() ?? 0,
         zones: (json['zones'] as List? ?? []).map((e) => ZoneStructure.fromJson(e as Map<String, dynamic>)).toList(),
       );
 
   @override
-  List<Object?> get props => [id, nom, zones];
+  List<Object?> get props => [id, nom, niveau, zones];
 }
 
 class BatimentStructure extends StructureRef {

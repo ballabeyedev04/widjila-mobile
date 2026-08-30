@@ -42,4 +42,19 @@ class Env {
     'POLITIQUE_CONFIDENTIALITE_URL',
     defaultValue: 'https://app.widjila.com/politique-confidentialite',
   );
+
+  /// Page d'abonnement de l'admin web, ouverte depuis l'écran Abonnement du
+  /// mobile pour le paiement par carte (choix confirmé par le client : pas
+  /// d'intégration Stripe native).
+  ///
+  /// Constante DÉDIÉE, et non déduite d'[apiBaseUrl] : les deux vivent sur des
+  /// domaines séparés (`api.*` pour l'API, `app.*` pour l'interface, voir
+  /// `backend/deploy/nginx-admin.conf`). Retirer `/api/v1` de l'URL de l'API
+  /// donnerait le domaine de l'API, où cette page n'existe pas.
+  ///
+  /// Même route que `admin/src/routes/AppRoutes.jsx` (`/abonnement`).
+  static const String abonnementUrl = String.fromEnvironment(
+    'ABONNEMENT_URL',
+    defaultValue: 'https://app.widjila.com/abonnement',
+  );
 }

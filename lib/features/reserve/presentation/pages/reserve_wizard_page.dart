@@ -20,7 +20,13 @@ class ReserveWizardPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => sl<ReserveWizardCubit>(param1: chantierId)..chargerStructure(),
+      // Les deux chargements partent ensemble mais restent INDÉPENDANTS :
+      // l'échec du catalogue ne doit pas empêcher l'assistant de s'ouvrir
+      // (voir `chargerCorpsEtat`, dont l'erreur est volontairement ignorée).
+      create: (_) => sl<ReserveWizardCubit>(param1: chantierId)
+        ..chargerStructure()
+        ..chargerCorpsEtat()
+        ..chargerPhases(),
       child: const _WizardView(),
     );
   }
@@ -277,11 +283,30 @@ class _Etape1InfosGenerales extends StatelessWidget {
               onChanged: cubit.changerTitre,
             ),
             const SizedBox(height: 18),
-            _Label(l10n.wizardChampCategorie),
-            DropdownButtonFormField<ReserveCategorie>(
-              initialValue: state.categorie,
-              items: [for (final c in ReserveCategorie.values) DropdownMenuItem(value: c, child: Text(c.label(l10n)))],
-              onChanged: (v) { if (v != null) cubit.changerCategorie(v); },
+            // Phase — OBLIGATOIRE, d'où l'astérisque et l'absence d'option
+            // « aucune ». `etape1Valide` bloque le passage à l'étape suivante.
+            _Label('${l10n.phaseLabel} *'),
+            DropdownButtonFormField<String?>(
+              initialValue: state.phaseId,
+              isExpanded: true,
+              items: [
+                DropdownMenuItem(value: null, child: Text(l10n.phaseChoisir)),
+                for (final ph in state.phasesDisponibles)
+                  DropdownMenuItem(value: ph.id, child: Text(ph.nom)),
+              ],
+              onChanged: cubit.changerPhase,
+            ),
+            const SizedBox(height: 16),
+            _Label(l10n.corpsEtatLabel),
+            DropdownButtonFormField<String?>(
+              initialValue: state.corpsEtatId,
+              isExpanded: true,
+              items: [
+                DropdownMenuItem(value: null, child: Text(l10n.corpsEtatAucun)),
+                for (final c in state.corpsEtatDisponibles)
+                  DropdownMenuItem(value: c.id, child: Text(c.nom)),
+              ],
+              onChanged: cubit.changerCorpsEtat,
             ),
             const SizedBox(height: 18),
             _Label(l10n.wizardChampPriorite),
@@ -451,7 +476,25 @@ class _Etape3Recapitulatif extends StatelessWidget {
                   children: [
                     Text(state.titre, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 12),
-                    _Recap(l10n.wizardChampCategorie, state.categorie.label(l10n)),
+                    _Recap(
+                      l10n.phaseLabel,
+                      state.phasesDisponibles
+                              .where((p) => p.id == state.phaseId)
+                              .map((p) => p.nom)
+                              .firstOrNull ??
+                          '—',
+                    ),
+                    _Recap(
+                      l10n.corpsEtatLabel,
+                      // Le récapitulatif montre le NOM du métier, pas son
+                      // identifiant : `firstWhere` sur la liste déjà chargée
+                      // évite une seconde requête pour un simple libellé.
+                      state.corpsEtatDisponibles
+                              .where((c) => c.id == state.corpsEtatId)
+                              .map((c) => c.nom)
+                              .firstOrNull ??
+                          l10n.corpsEtatAucun,
+                    ),
                     _Recap(l10n.wizardChampPriorite, state.priorite.label(l10n)),
                     _Recap(l10n.wizardChampLocalisation, localisation.isEmpty ? l10n.wizardNonRenseignee : localisation),
                     if (state.lot != null) _Recap(l10n.wizardChampLot, state.lot!.nom),

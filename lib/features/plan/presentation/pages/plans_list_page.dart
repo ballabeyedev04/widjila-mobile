@@ -15,6 +15,7 @@ import '../../../../l10n/l10n_extension.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../domain/entities/plan.dart';
 import '../cubit/plans_list_cubit.dart';
+import '../widgets/plan_vignette.dart';
 import '../widgets/plans_chrome.dart';
 import '../widgets/import_plan_sheet.dart';
 
@@ -331,18 +332,13 @@ class _CartePlan extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: couleur.withValues(alpha: 0.13),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(
-                  miseEnAvant ? Icons.map_rounded : Icons.description_outlined,
-                  color: couleur,
-                  size: 25,
-                ),
+              // Aperçu de la première page du plan, plutôt qu'un pictogramme :
+              // c'est ce qui permet de reconnaître un plan sans l'ouvrir.
+              // L'icône reste le repli (format non rendu, réseau coupé…).
+              PlanVignette(
+                plan: plan,
+                icone: miseEnAvant ? Icons.map_rounded : Icons.description_outlined,
+                couleur: couleur,
               ),
               const SizedBox(width: 13),
               Expanded(

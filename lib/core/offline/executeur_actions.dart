@@ -1,3 +1,4 @@
+import '../errors/exceptions.dart';
 import '../../features/reserve/data/datasources/reserve_remote_datasource.dart';
 import '../../features/reserve/domain/entities/reserve.dart';
 import 'cache_reserves.dart';
@@ -43,6 +44,27 @@ class ExecuteurActionsHorsLigne {
 
   Future<void> _creerReserve(ActionEnAttente action) async {
     final c = action.charge;
+
+    // La phase est devenue OBLIGATOIRE côté serveur. Une action déposée dans
+    // la file AVANT cette version n'en porte pas : la laisser partir vaudrait
+    // un 400 « Veuillez sélectionner une phase », affiché dans l'écran de
+    // synchronisation sans dire à l'utilisateur quoi faire de sa réserve.
+    //
+    // On échoue donc ici, avec un message qui indique la marche à suivre. Le
+    // 400 est délibéré : il classe l'action en échec DÉFINITIF (voir
+    // `SynchronisationService`), ce qui est exact — la retenter telle quelle
+    // échouera toujours — et libère la file au lieu de la bloquer.
+    //
+    // Ne rien inventer ici : choisir une phase à la place de l'utilisateur
+    // rattacherait la réserve à une étape de chantier qu'il n'a pas désignée.
+    if (c['phaseId'] == null) {
+      throw const ServerException(
+        statusCode: 400,
+        message: 'Cette réserve a été créée avant la mise à jour, sans phase de '
+            'chantier. Ouvrez-la et créez-la à nouveau en choisissant sa phase.',
+      );
+    }
+
     final reserve = await _reserves.creerReserve(
       id: c['id'] as String,
       chantierId: c['chantierId'] as String,
@@ -55,6 +77,20 @@ class ExecuteurActionsHorsLigne {
       zoneId: c['zoneId'] as String?,
       lotId: c['lotId'] as String?,
       dateLimite: c['dateLimite'] != null ? DateTime.tryParse(c['dateLimite'] as String) : null,
+      planId: c['planId'] as String?,
+      positionX: (c['positionX'] as num?)?.toDouble(),
+      positionY: (c['positionY'] as num?)?.toDouble(),
+      partenaireId: c['partenaireId'] as String?,
+      // Absente des actions déposées AVANT cette version : `fromString`
+      // retombe alors sur la valeur par défaut, et le datasource sur la
+      // priorité — une file existante se rejoue donc sans erreur.
+      severite: c['severite'] != null ? ReserveSeveriteX.fromString(c['severite'] as String?) : null,
+      // Absent des actions déposées avant cette version : la réserve part
+      // alors sans métier, comme auparavant, au lieu d'échouer. Contrairement
+      // à la phase, `corpsEtatId` reste FACULTATIF côté serveur.
+      corpsEtatId: c['corpsEtatId'] as String?,
+      // Non nul : vérifié en tête de méthode.
+      phaseId: c['phaseId'] as String?,
     );
     // Le serveur a confirmé : la ligne locale n'est plus « en attente ».
     // Même identifiant des deux côtés (voir `creerReserveSchema` côté back),

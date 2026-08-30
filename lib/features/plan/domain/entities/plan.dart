@@ -100,6 +100,77 @@ class PlanReserve extends Equatable {
   List<Object?> get props => [id, numero, titre, statut, severite, position, photoApercu];
 }
 
+/// Référence à un niveau de la structure du chantier, telle que jointe au
+/// plan par le backend (`INCLUDE_LOCALISATION` de `plan.service.js`).
+class PlanNiveauRef extends Equatable {
+  final String id;
+  final String nom;
+
+  const PlanNiveauRef({required this.id, required this.nom});
+
+  static PlanNiveauRef? fromJson(Map<String, dynamic>? json) {
+    if (json == null || json['id'] == null) return null;
+    return PlanNiveauRef(id: json['id'] as String, nom: json['nom'] as String? ?? '');
+  }
+
+  @override
+  List<Object?> get props => [id, nom];
+}
+
+/// Niveau de la structure ciblé par une zone cliquable.
+enum PlanCibleType { batiment, etage, zone }
+
+extension PlanCibleTypeX on PlanCibleType {
+  static PlanCibleType fromString(String? raw) => switch (raw) {
+        'batiment' => PlanCibleType.batiment,
+        'etage' => PlanCibleType.etage,
+        _ => PlanCibleType.zone,
+      };
+}
+
+/// Zone cliquable posée sur un plan — miroir de
+/// `backend/src/models/planHotspot.model.js`.
+///
+/// `x`, `y`, `largeur` et `hauteur` sont des POURCENTAGES (0-100) de la page
+/// rendue. C'est la même convention que [PlanPosition] : le plan est affiché à
+/// une taille qui dépend de l'écran et du zoom, seul un repère relatif reste
+/// juste d'un appareil à l'autre.
+class PlanHotspot extends Equatable {
+  final String id;
+  final PlanCibleType cibleType;
+  final String cibleId;
+  final String? libelle;
+  final double x;
+  final double y;
+  final double largeur;
+  final double hauteur;
+
+  const PlanHotspot({
+    required this.id,
+    required this.cibleType,
+    required this.cibleId,
+    this.libelle,
+    required this.x,
+    required this.y,
+    this.largeur = 0,
+    this.hauteur = 0,
+  });
+
+  factory PlanHotspot.fromJson(Map<String, dynamic> json) => PlanHotspot(
+        id: json['id'] as String,
+        cibleType: PlanCibleTypeX.fromString(json['cible_type'] as String?),
+        cibleId: json['cible_id'] as String? ?? '',
+        libelle: json['libelle'] as String?,
+        x: (json['x'] as num?)?.toDouble() ?? 0,
+        y: (json['y'] as num?)?.toDouble() ?? 0,
+        largeur: (json['largeur'] as num?)?.toDouble() ?? 0,
+        hauteur: (json['hauteur'] as num?)?.toDouble() ?? 0,
+      );
+
+  @override
+  List<Object?> get props => [id, cibleType, cibleId, libelle, x, y, largeur, hauteur];
+}
+
 /// Plan numérique — miroir de `backend/src/models/plan.model.js`.
 class Plan extends Equatable {
   final String id;
@@ -118,6 +189,16 @@ class Plan extends Equatable {
   /// Réserves posées sur ce plan — renseignées par le DÉTAIL uniquement.
   final List<PlanReserve> reserves;
 
+  /// Niveau de la structure DÉCRIT par ce plan. Les trois sont nuls pour le
+  /// plan global du chantier — le point d'entrée du parcours de consultation.
+  final PlanNiveauRef? batiment;
+  final PlanNiveauRef? etage;
+  final PlanNiveauRef? zone;
+
+  /// Zones cliquables qui font descendre d'un niveau. Vides tant que personne
+  /// ne les a dessinées : la navigation reste alors possible par les listes.
+  final List<PlanHotspot> hotspots;
+
   const Plan({
     required this.id,
     required this.chantierId,
@@ -130,6 +211,10 @@ class Plan extends Equatable {
     this.createdAt,
     this.chantierNom,
     this.reserves = const [],
+    this.batiment,
+    this.etage,
+    this.zone,
+    this.hotspots = const [],
   });
 
   factory Plan.fromJson(Map<String, dynamic> json) {
@@ -148,6 +233,23 @@ class Plan extends Equatable {
       reserves: json['reserves'] is List
           ? (json['reserves'] as List).map((e) => PlanReserve.fromJson(e as Map<String, dynamic>)).toList()
           : const [],
+      // La zone porte sa propre chaîne (zone → étage → bâtiment) : on
+      // privilégie les rattachements DIRECTS quand ils existent, et on
+      // retombe sur la chaîne remontée depuis la zone sinon.
+      batiment: PlanNiveauRef.fromJson(
+        (json['batiment'] as Map<String, dynamic>?) ??
+            ((json['etage'] as Map<String, dynamic>?)?['batiment'] as Map<String, dynamic>?) ??
+            (((json['zone'] as Map<String, dynamic>?)?['etage'] as Map<String, dynamic>?)?['batiment']
+                as Map<String, dynamic>?),
+      ),
+      etage: PlanNiveauRef.fromJson(
+        (json['etage'] as Map<String, dynamic>?) ??
+            ((json['zone'] as Map<String, dynamic>?)?['etage'] as Map<String, dynamic>?),
+      ),
+      zone: PlanNiveauRef.fromJson(json['zone'] as Map<String, dynamic>?),
+      hotspots: json['hotspots'] is List
+          ? (json['hotspots'] as List).map((e) => PlanHotspot.fromJson(e as Map<String, dynamic>)).toList()
+          : const [],
     );
   }
 
@@ -155,6 +257,8 @@ class Plan extends Equatable {
   int get nombreReperes => reserves.where((r) => r.position != null).length;
 
   @override
-  List<Object?> get props =>
-      [id, chantierId, nom, version, fichierUrl, format, nombrePages, fichierNom, createdAt, chantierNom, reserves];
+  List<Object?> get props => [
+        id, chantierId, nom, version, fichierUrl, format, nombrePages, fichierNom, createdAt,
+        chantierNom, reserves, batiment, etage, zone, hotspots,
+      ];
 }

@@ -1,4 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../corps_etat/domain/usecases/get_corps_etat_actifs.dart';
+import '../../../phase/domain/usecases/get_phases_actives.dart';
 import '../../domain/entities/chantier_structure.dart';
 import '../../domain/entities/reserve.dart';
 import '../../domain/usecases/creer_reserve.dart';
@@ -8,13 +10,32 @@ import 'reserve_wizard_state.dart';
 class ReserveWizardCubit extends Cubit<ReserveWizardState> {
   final GetChantierStructure getChantierStructure;
   final CreerReserve creerReserve;
+  final GetCorpsEtatActifs getCorpsEtatActifs;
+  final GetPhasesActives getPhasesActives;
   final String chantierId;
 
   ReserveWizardCubit({
     required this.getChantierStructure,
     required this.creerReserve,
+    required this.getCorpsEtatActifs,
+    required this.getPhasesActives,
     required this.chantierId,
   }) : super(const ReserveWizardState());
+
+  /// Catalogue des métiers.
+  ///
+  /// Chargé À PART de la structure, et son échec est ignoré : le métier est
+  /// facultatif, alors que la structure conditionne l'étape de localisation.
+  /// Les charger ensemble ferait échouer tout l'assistant pour une liste
+  /// déroulante indisponible.
+  Future<void> chargerCorpsEtat() async {
+    final result = await getCorpsEtatActifs();
+    if (isClosed) return;
+    result.fold(
+      (_) {},
+      (liste) => emit(state.copyWith(corpsEtatDisponibles: liste)),
+    );
+  }
 
   Future<void> chargerStructure() async {
     emit(state.copyWith(structureStatus: StructureStatus.chargement));
@@ -28,7 +49,25 @@ class ReserveWizardCubit extends Cubit<ReserveWizardState> {
 
   // ── Étape 1 ──────────────────────────────────────────────────────────────
   void changerTitre(String v) => emit(state.copyWith(titre: v));
-  void changerCategorie(ReserveCategorie v) => emit(state.copyWith(categorie: v));
+  /// Référentiel des phases.
+  ///
+  /// Chargé À PART de la structure : son échec ne doit pas empêcher
+  /// l'assistant de s'ouvrir. Le repository sert son cache en cas de coupure,
+  /// ce qui laisse la saisie possible hors ligne.
+  Future<void> chargerPhases() async {
+    final result = await getPhasesActives();
+    if (isClosed) return;
+    result.fold(
+      (_) {},
+      (liste) => emit(state.copyWith(phasesDisponibles: liste)),
+    );
+  }
+
+  void changerPhase(String? v) => emit(state.copyWith(phaseId: v));
+
+  void changerCorpsEtat(String? v) => emit(
+        v == null ? state.copyWith(effacerCorpsEtat: true) : state.copyWith(corpsEtatId: v),
+      );
   void changerPriorite(ReserveSeverite v) => emit(state.copyWith(priorite: v));
   void changerDescription(String v) => emit(state.copyWith(description: v));
 
@@ -89,7 +128,8 @@ class ReserveWizardCubit extends Cubit<ReserveWizardState> {
       titre: state.titre.trim(),
       description: state.description.trim().isEmpty ? null : state.description.trim(),
       priorite: state.priorite,
-      categorie: state.categorie,
+      corpsEtatId: state.corpsEtatId,
+      phaseId: state.phaseId,
       batimentId: state.batiment?.id,
       etageId: state.etage?.id,
       zoneId: state.zone?.id,

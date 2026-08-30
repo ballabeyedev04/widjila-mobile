@@ -16,7 +16,10 @@ class PartenairesState extends Equatable {
   final PartenairesStatus status;
   final List<Partenaire> items;
   final String recherche;
-  final PartenaireType? filtreType;
+  /// CODE du type filtré, et non une énumération : le référentiel est
+  /// administrable, un type ajouté par le client doit être filtrable.
+  /// `null` = tous les types.
+  final String? filtreType;
 
   /// `null` = tous, `true` = actifs seulement, `false` = archivés seulement.
   final bool? filtreActif;
@@ -49,7 +52,7 @@ class PartenairesState extends Equatable {
   List<Partenaire> get itemsFiltres {
     final motif = recherche.trim().toLowerCase();
     return items.where((p) {
-      final correspondType = filtreType == null || p.type == filtreType;
+      final correspondType = filtreType == null || p.typeCode == filtreType;
       final correspondActif = filtreActif == null || p.actif == filtreActif;
       final correspondTexte = motif.isEmpty ||
           p.nom.toLowerCase().contains(motif) ||
@@ -73,7 +76,7 @@ class PartenairesState extends Equatable {
     PartenairesStatus? status,
     List<Partenaire>? items,
     String? recherche,
-    PartenaireType? filtreType,
+    String? filtreType,
     bool effacerFiltreType = false,
     bool? filtreActif,
     bool effacerFiltreActif = false,
@@ -140,8 +143,8 @@ class PartenairesCubit extends Cubit<PartenairesState> {
 
   void rechercher(String texte) => emit(state.copyWith(recherche: texte));
 
-  void filtrerParType(PartenaireType? type) =>
-      emit(state.copyWith(filtreType: type, effacerFiltreType: type == null));
+  void filtrerParType(String? code) =>
+      emit(state.copyWith(filtreType: code, effacerFiltreType: code == null));
 
   void filtrerParActivite(bool? actif) =>
       emit(state.copyWith(filtreActif: actif, effacerFiltreActif: actif == null));
@@ -186,7 +189,10 @@ class PartenairesCubit extends Cubit<PartenairesState> {
 
   Future<void> ajouter({
     required String nom,
-    required PartenaireType type,
+    /// CODE du type, issu du référentiel administrable
+    /// (`/types-intervenant/actifs`). Une énumération figée ici
+    /// empêcherait d'utiliser un type ajouté par l'administrateur.
+    required String typeCode,
     String? email,
     String? telephone,
     String? contact,
@@ -199,7 +205,7 @@ class PartenairesCubit extends Cubit<PartenairesState> {
     emit(state.copyWith(soumissionStatus: SoumissionPartenaireStatus.enCours, effacerSoumissionErreur: true));
     final result = await creerPartenaireUsecase(
       nom: nom,
-      type: type,
+      typeCode: typeCode,
       email: email,
       telephone: telephone,
       contact: contact,

@@ -152,7 +152,14 @@ class _ChantierDetailView extends StatelessWidget {
                     icon: Icons.map_outlined,
                     titre: l10n.navPlans,
                     sousTitre: l10n.chantierDetailPlansSousTitre,
-                    onTap: () => context.push('/chantiers/${c.id}/plans'),
+                    // Le PARCOURS (plan global → bâtiment → étage →
+                    // appartement) et non la liste à plat : c'est le chemin
+                    // décrit par le guide client, et celui qui mène au geste
+                    // « poser une réserve sur le plan ». La liste des
+                    // documents reste accessible depuis ce parcours.
+                    onTap: () => context.push(
+                      '/chantiers/${c.id}/plans/parcourir?nom=${Uri.encodeComponent(c.nom)}',
+                    ),
                   ),
                   const SizedBox(height: 10),
                   _SectionCard(

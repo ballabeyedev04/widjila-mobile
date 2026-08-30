@@ -42,7 +42,10 @@ abstract class OrganisationRepository {
   /// MaitreOeuvre.
   Future<Either<Failure, Partenaire>> creerPartenaire({
     required String nom,
-    required PartenaireType type,
+    /// CODE du type, issu du référentiel administrable
+    /// (`/types-intervenant/actifs`). Une énumération figée ici
+    /// empêcherait d'utiliser un type ajouté par l'administrateur.
+    required String typeCode,
     String? email,
     String? telephone,
     String? contact,

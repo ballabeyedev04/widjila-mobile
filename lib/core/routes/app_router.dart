@@ -15,6 +15,7 @@ import '../../features/auth/presentation/pages/reset_password_page.dart';
 import '../../features/auth/presentation/pages/bienvenue_page.dart';
 import '../../features/auth/presentation/pages/splash_page.dart';
 import '../../features/account/presentation/pages/profil_page.dart';
+import '../../features/abonnement/presentation/pages/abonnement_page.dart';
 import '../../features/account/presentation/pages/settings_page.dart';
 import '../../features/chantier/presentation/pages/chantier_detail_page.dart';
 import '../../features/chantier/presentation/pages/chantiers_list_page.dart';
@@ -26,6 +27,7 @@ import '../../features/organisation/presentation/pages/membres_list_page.dart';
 import '../../features/inspection/presentation/pages/inspection_detail_page.dart';
 import '../../features/inspection/presentation/pages/inspections_list_page.dart';
 import '../../features/rapport/presentation/pages/rapports_list_page.dart';
+import '../../features/plan/presentation/pages/plan_navigation_page.dart';
 import '../../features/plan/presentation/pages/plan_viewer_page.dart';
 import '../../features/plan/presentation/pages/plans_list_page.dart';
 import '../../features/reserve/presentation/pages/chantier_dashboard_page.dart';
@@ -66,6 +68,10 @@ class AppRoutes {
   static const parametres = '/parametres';
   static const notifications = '/notifications';
 
+  // Abonnement — dans la coquille, comme Paramètres : c'est un écran de
+  // compte, consulté puis quitté, pas un niveau de profondeur d'un chantier.
+  static const abonnement = '/abonnement';
+
   // Synchronisation hors ligne — écran « Voir toutes les tâches », ouvert
   // depuis le bandeau rouge sur une tâche en échec. Hors coquille : c'est un
   // écran de reprise ponctuel, pas un onglet de navigation courante.
@@ -80,6 +86,10 @@ class AppRoutes {
   static const chantierDashboard = '/chantiers/:chantierId/tableau-de-bord';
   static const documents = '/chantiers/:chantierId/documents';
   static const chantierPlans = '/chantiers/:chantierId/plans';
+  // Parcours du guide client : plan global → bâtiment → étage → appartement.
+  // Distinct de `chantierPlans`, qui reste la LISTE à plat des documents
+  // (import, versions) — les deux répondent à deux besoins différents.
+  static const chantierPlansParcours = '/chantiers/:chantierId/plans/parcourir';
   static const planDetail = '/plans/:id';
 
   // Inspections et rapports — mêmes règles que les réserves : drill-down
@@ -155,11 +165,11 @@ class AppRouter {
         }
 
         // Garde de route par rôle — défense en profondeur. Le back refuse
-        // déjà `/organisation/membres` aux rôles hors GESTION ; ceci évite
+        // déjà `/organisation/membres` aux rôles hors GESTION_MEMBRES ; ceci évite
         // seulement d'ouvrir un écran voué à afficher une erreur, y compris
         // par lien profond où la barre de navigation n'a rien masqué.
         final role = authState.utilisateur?.role;
-        if (loc.startsWith(AppRoutes.equipe) && !(role?.peutGererOrganisation ?? false)) {
+        if (loc.startsWith(AppRoutes.equipe) && !(role?.peutGererMembres ?? false)) {
           return AppRoutes.dashboard;
         }
       }
@@ -198,6 +208,7 @@ class AppRouter {
           GoRoute(path: AppRoutes.intervenants, builder: (_, _) => const IntervenantsListPage()),
           GoRoute(path: AppRoutes.profil, builder: (_, _) => const ProfilPage()),
           GoRoute(path: AppRoutes.parametres, builder: (_, _) => const SettingsPage()),
+          GoRoute(path: AppRoutes.abonnement, builder: (_, _) => const AbonnementPage()),
           // Dans la coquille : l'écran garde la barre du bas, comme Réserves
           // et Plans dont il partage l'armature.
           GoRoute(path: AppRoutes.notifications, builder: (_, _) => const NotificationsPage()),
@@ -236,6 +247,18 @@ class AppRouter {
       GoRoute(
         path: AppRoutes.chantierPlans,
         builder: (_, state) => PlansListPage(chantierId: state.pathParameters['chantierId']!),
+      ),
+      // Déclarée AVANT `planDetail` sans ambiguïté : les deux motifs ne se
+      // recouvrent pas. En revanche l'ordre compte face à `chantierPlans`,
+      // que `/plans/parcourir` ne doit pas capturer — go_router préfère la
+      // route la plus spécifique, mais on la déclare juste après pour que la
+      // lecture du fichier suive la hiérarchie réelle.
+      GoRoute(
+        path: AppRoutes.chantierPlansParcours,
+        builder: (_, state) => PlanNavigationPage(
+          chantierId: state.pathParameters['chantierId']!,
+          chantierNom: state.uri.queryParameters['nom'],
+        ),
       ),
       GoRoute(
         path: AppRoutes.planDetail,

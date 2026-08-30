@@ -15,15 +15,27 @@ class MockCreerPartenaire extends Mock implements CreerPartenaire {}
 
 class MockChangerStatutPartenaire extends Mock implements ChangerStatutPartenaire {}
 
+/// Le serveur renvoie un CODE ; l'énumération n'en est qu'une lecture, pour
+/// l'icône et la couleur. La fabrique part donc du code, comme la vraie
+/// désérialisation — sinon `typeCode` resterait vide et le filtre, qui porte
+/// sur lui, ne trouverait jamais rien.
 Partenaire _partenaire(
   String id, {
   String nom = 'Sénégal BTP',
-  PartenaireType type = PartenaireType.sousTraitant,
+  String typeCode = 'sous_traitant',
   String? contact,
   String? email,
   bool actif = true,
 }) =>
-    Partenaire(id: id, nom: nom, type: type, contact: contact, email: email, actif: actif);
+    Partenaire(
+      id: id,
+      nom: nom,
+      type: PartenaireTypeX.fromString(typeCode),
+      typeCode: typeCode,
+      contact: contact,
+      email: email,
+      actif: actif,
+    );
 
 void main() {
   late MockGetPartenaires getPartenaires;
@@ -95,13 +107,47 @@ void main() {
     'filtrerParType() met à jour le filtre et itemsFiltres ne garde que le type choisi',
     build: build,
     seed: () => PartenairesState(items: [
-      _partenaire('p1', type: PartenaireType.sousTraitant),
-      _partenaire('p2', type: PartenaireType.fournisseur),
+      _partenaire('p1', typeCode: 'sous_traitant'),
+      _partenaire('p2', typeCode: 'fournisseur'),
     ]),
-    act: (cubit) => cubit.filtrerParType(PartenaireType.fournisseur),
+    act: (cubit) => cubit.filtrerParType('fournisseur'),
     expect: () => [
       isA<PartenairesState>()
-          .having((s) => s.filtreType, 'filtreType', PartenaireType.fournisseur)
+          .having((s) => s.filtreType, 'filtreType', 'fournisseur')
+          .having((s) => s.itemsFiltres.map((p) => p.id).toList(), 'itemsFiltres', ['p2']),
+    ],
+  );
+
+  // Le cas qui justifie tout ce changement : un type créé depuis
+  // l'administration n'existe dans AUCUNE énumération Dart. Tant que le filtre
+  // comparait des énumérations, ces intervenants étaient introuvables — le
+  // référentiel était administrable côté web et sans effet sur mobile.
+  blocTest<PartenairesCubit, PartenairesState>(
+    'filtrerParType() trouve un type AJOUTÉ par l’administrateur',
+    build: build,
+    seed: () => PartenairesState(items: [
+      _partenaire('p1', typeCode: 'sous_traitant'),
+      _partenaire('p2', typeCode: 'coordinateur_sps'),
+    ]),
+    act: (cubit) => cubit.filtrerParType('coordinateur_sps'),
+    expect: () => [
+      isA<PartenairesState>()
+          .having((s) => s.itemsFiltres.map((p) => p.id).toList(), 'itemsFiltres', ['p2']),
+    ],
+  );
+
+  blocTest<PartenairesCubit, PartenairesState>(
+    'deux types inconnus de l’énumération restent distincts',
+    build: build,
+    seed: () => PartenairesState(items: [
+      // Tous deux lus comme `PartenaireType.autre` : les confondre reviendrait
+      // à ce qu'un filtre sur l'un ramène l'autre.
+      _partenaire('p1', typeCode: 'coordinateur_sps'),
+      _partenaire('p2', typeCode: 'geometre'),
+    ]),
+    act: (cubit) => cubit.filtrerParType('geometre'),
+    expect: () => [
+      isA<PartenairesState>()
           .having((s) => s.itemsFiltres.map((p) => p.id).toList(), 'itemsFiltres', ['p2']),
     ],
   );
@@ -110,10 +156,10 @@ void main() {
     'filtrerParType(null) efface le filtre et itemsFiltres retrouve tous les items',
     build: build,
     seed: () => PartenairesState(
-      filtreType: PartenaireType.fournisseur,
+      filtreType: 'fournisseur',
       items: [
-        _partenaire('p1', type: PartenaireType.sousTraitant),
-        _partenaire('p2', type: PartenaireType.fournisseur),
+        _partenaire('p1', typeCode: 'sous_traitant'),
+        _partenaire('p2', typeCode: 'fournisseur'),
       ],
     ),
     act: (cubit) => cubit.filtrerParType(null),
@@ -129,7 +175,7 @@ void main() {
     build: () {
       when(() => creerPartenaireUsecase(
             nom: any(named: 'nom'),
-            type: any(named: 'type'),
+            typeCode: any(named: 'typeCode'),
             email: any(named: 'email'),
             telephone: any(named: 'telephone'),
             contact: any(named: 'contact'),
@@ -139,7 +185,7 @@ void main() {
       return build();
     },
     seed: () => PartenairesState(status: PartenairesStatus.succes, items: [_partenaire('p1')]),
-    act: (cubit) => cubit.ajouter(nom: 'Thiès Fournitures', type: PartenaireType.fournisseur),
+    act: (cubit) => cubit.ajouter(nom: 'Thiès Fournitures', typeCode: 'fournisseur'),
     expect: () => [
       isA<PartenairesState>()
           .having((s) => s.soumissionStatus, 'soumissionStatus', SoumissionPartenaireStatus.enCours),
@@ -154,7 +200,7 @@ void main() {
     build: () {
       when(() => creerPartenaireUsecase(
             nom: any(named: 'nom'),
-            type: any(named: 'type'),
+            typeCode: any(named: 'typeCode'),
             email: any(named: 'email'),
             telephone: any(named: 'telephone'),
             contact: any(named: 'contact'),
@@ -164,7 +210,7 @@ void main() {
       return build();
     },
     seed: () => PartenairesState(status: PartenairesStatus.succes, items: [_partenaire('p1')]),
-    act: (cubit) => cubit.ajouter(nom: 'Thiès Fournitures', type: PartenaireType.fournisseur),
+    act: (cubit) => cubit.ajouter(nom: 'Thiès Fournitures', typeCode: 'fournisseur'),
     expect: () => [
       isA<PartenairesState>()
           .having((s) => s.soumissionStatus, 'soumissionStatus', SoumissionPartenaireStatus.enCours),
@@ -284,7 +330,7 @@ void main() {
     build: build,
     seed: () => const PartenairesState(
       recherche: 'dakar',
-      filtreType: PartenaireType.fournisseur,
+      filtreType: 'fournisseur',
       filtreActif: false,
     ),
     act: (cubit) => cubit.reinitialiserFiltres(),

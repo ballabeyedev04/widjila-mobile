@@ -60,7 +60,18 @@ extension PartenaireTypeX on PartenaireType {
 class Partenaire extends Equatable {
   final String id;
   final String nom;
+  /// Type sous forme d'ÉNUMÉRATION — sert à la présentation : icône et
+  /// couleur de badge. Un type ajouté depuis l'administration retombe sur
+  /// [PartenaireType.autre], ce qui reste lisible.
   final PartenaireType type;
+
+  /// Code BRUT tel que renvoyé par le serveur (`sous_traitant`, `ppsps`…).
+  ///
+  /// Conservé en plus de [type] parce que le référentiel est administrable :
+  /// un type créé par le client n'a pas de valeur dans l'énumération, et la
+  /// convertir perdrait l'information. C'est ce code qui sert à filtrer et à
+  /// retrouver le libellé dans le référentiel.
+  final String typeCode;
   final String? email;
   final String? telephone;
 
@@ -86,6 +97,7 @@ class Partenaire extends Equatable {
     required this.id,
     required this.nom,
     required this.type,
+    this.typeCode = '',
     this.email,
     this.telephone,
     this.contact,
@@ -99,6 +111,7 @@ class Partenaire extends Equatable {
         id: json['id'] as String,
         nom: json['nom'] as String? ?? '',
         type: PartenaireTypeX.fromString(json['type'] as String?),
+        typeCode: json['type'] as String? ?? '',
         email: json['email'] as String?,
         telephone: json['telephone'] as String?,
         contact: json['contact'] as String?,
@@ -126,6 +139,7 @@ class Partenaire extends Equatable {
         id: id,
         nom: nom,
         type: type,
+        typeCode: typeCode,
         email: email,
         telephone: telephone,
         contact: contact,
@@ -137,5 +151,5 @@ class Partenaire extends Equatable {
 
   @override
   List<Object?> get props =>
-      [id, nom, type, email, telephone, contact, adresse, notes, chantierId, actif];
+      [id, nom, type, typeCode, email, telephone, contact, adresse, notes, chantierId, actif];
 }

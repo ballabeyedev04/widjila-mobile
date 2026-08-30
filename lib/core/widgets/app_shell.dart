@@ -258,12 +258,12 @@ class _AppShellState extends State<AppShell> {
   /// destination dans « Plus », pas derrière un bouton de création.
   ///
   /// Seule « Équipe » est filtrée par rôle : elle mène aux routes
-  /// `/organisation/membres`, réservées à GESTION côté serveur
+  /// `/organisation/membres`, réservées à GESTION_MEMBRES côté serveur
   /// (`backend/src/config/roles.js`). Chantiers et Intervenants sont en
   /// lecture et n'exigent aucun rôle. « Mon profil » reste dans le menu de
   /// l'en-tête du tableau de bord.
   List<ActionRapide> _entreesPlus(AppLocalizations l10n, UserRole? role) => [
-        if (role?.peutGererOrganisation ?? false)
+        if (role?.peutGererMembres ?? false)
           (
             icon: Icons.groups_rounded,
             label: l10n.actionEquipe,

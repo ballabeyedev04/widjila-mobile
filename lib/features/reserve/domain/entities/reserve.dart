@@ -383,7 +383,14 @@ class Reserve extends Equatable {
   final ReserveLocalisationRef? etage;
   final ReserveLocalisationRef? zone;
   final ReserveLocalisationRef? lot;
+  /// Organisation cliente en charge — renseignée seulement quand
+  /// l'entreprise possède elle-même un compte dans l'application.
   final ReserveLocalisationRef? entreprise;
+
+  /// « Entreprise concernée » du guide client : la fiche de l'ANNUAIRE du
+  /// chantier (table `partenaires`). C'est le cas courant — la plupart des
+  /// entreprises n'ont pas de compte. Voir `reserve.model.js#partenaireId`.
+  final ReserveLocalisationRef? partenaire;
 
   /// Chantier porteur — renseigné par la liste TRANSVERSALE
   /// (`GET /reserves`) et par le détail, absent de la liste par chantier
@@ -422,6 +429,7 @@ class Reserve extends Equatable {
     this.zone,
     this.lot,
     this.entreprise,
+    this.partenaire,
     this.chantier,
     this.assigne,
     this.createur,
@@ -460,6 +468,7 @@ class Reserve extends Equatable {
       zone: json['zone'] != null ? ReserveLocalisationRef.fromJson(json['zone'] as Map<String, dynamic>) : null,
       lot: json['lot'] != null ? ReserveLocalisationRef.fromJson(json['lot'] as Map<String, dynamic>) : null,
       entreprise: json['entreprise'] != null ? ReserveLocalisationRef.fromJson(json['entreprise'] as Map<String, dynamic>) : null,
+      partenaire: json['partenaire'] != null ? ReserveLocalisationRef.fromJson(json['partenaire'] as Map<String, dynamic>) : null,
       chantier: json['chantier'] != null ? ReserveLocalisationRef.fromJson(json['chantier'] as Map<String, dynamic>) : null,
       assigne: json['assigne'] != null ? ReserveUtilisateurRef.fromJson(json['assigne'] as Map<String, dynamic>) : null,
       createur: json['createur'] != null ? ReserveUtilisateurRef.fromJson(json['createur'] as Map<String, dynamic>) : null,
@@ -498,6 +507,7 @@ class Reserve extends Equatable {
         'zone': zone?.toJson(),
         'lot': lot?.toJson(),
         'entreprise': entreprise?.toJson(),
+        'partenaire': partenaire?.toJson(),
         'chantier': chantier?.toJson(),
         'assigne': assigne?.toJson(),
         'createur': createur?.toJson(),
@@ -526,6 +536,7 @@ class Reserve extends Equatable {
         zone: zone,
         lot: lot,
         entreprise: entreprise,
+        partenaire: partenaire,
         chantier: chantier,
         assigne: assigne,
         createur: createur,
@@ -538,6 +549,6 @@ class Reserve extends Equatable {
   @override
   List<Object?> get props => [
         id, numero, chantierId, titre, description, severite, priorite, categorie, statut, dateLimite, createdAt,
-        batiment, etage, zone, lot, entreprise, chantier, assigne, createur, motifRefus, photoApercu, medias, historiques,
+        batiment, etage, zone, lot, entreprise, partenaire, chantier, assigne, createur, motifRefus, photoApercu, medias, historiques,
       ];
 }

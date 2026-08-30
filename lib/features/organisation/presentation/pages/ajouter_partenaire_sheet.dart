@@ -6,6 +6,9 @@ import '../../../../core/widgets/app_alert.dart';
 import '../../../../core/widgets/liste_chrome.dart';
 import '../../../../core/widgets/status_badge.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../injection_container.dart';
+import '../../../referentiel/domain/entities/type_referentiel.dart';
+import '../../../referentiel/presentation/cubit/types_referentiel_cubit.dart';
 import '../../../../l10n/l10n_extension.dart';
 import '../../domain/entities/partenaire.dart';
 import '../cubit/partenaires_cubit.dart';
@@ -56,13 +59,24 @@ class _AjouterPartenaireSheetState extends State<AjouterPartenaireSheet> {
   final _adresseCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
 
-  PartenaireType _type = PartenaireType.sousTraitant;
+  /// CODE du type choisi, et non une énumération : le référentiel est
+  /// administrable, un type ajouté côté web doit être sélectionnable ici.
+  ///
+  /// Nul tant que le référentiel n'a pas répondu — la première valeur reçue
+  /// devient la sélection par défaut. Choisir « sous-traitant » en dur
+  /// enverrait ce code même si l'administrateur l'a désactivé.
+  String? _typeCode;
+
+  /// Référentiel des types d'intervenant, chargé à l'ouverture de la feuille.
+  late final TypesReferentielCubit _typesCubit =
+      sl<TypesReferentielCubit>(param1: ReferentielType.intervenant)..charger();
 
   @override
   void dispose() {
     for (final c in [_nomCtrl, _emailCtrl, _telephoneCtrl, _contactCtrl, _adresseCtrl, _notesCtrl]) {
       c.dispose();
     }
+    _typesCubit.close();
     super.dispose();
   }
 
@@ -74,9 +88,13 @@ class _AjouterPartenaireSheetState extends State<AjouterPartenaireSheet> {
   void _submit() {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
+    // Sans code, le serveur refuserait la création. Le bouton est déjà
+    // désactivé dans ce cas — cette garde couvre la course entre les deux.
+    final code = _typeCode;
+    if (code == null) return;
     context.read<PartenairesCubit>().ajouter(
           nom: _nomCtrl.text.trim(),
-          type: _type,
+          typeCode: code,
           email: _valeurOuNull(_emailCtrl),
           telephone: _valeurOuNull(_telephoneCtrl),
           contact: _valeurOuNull(_contactCtrl),
@@ -97,6 +115,23 @@ class _AjouterPartenaireSheetState extends State<AjouterPartenaireSheet> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
 
+    return BlocProvider.value(
+      value: _typesCubit,
+      // La PREMIÈRE valeur reçue devient la sélection par défaut : choisir
+      // « sous-traitant » en dur enverrait ce code même si l'administrateur
+      // l'a désactivé ou renommé.
+      child: BlocListener<TypesReferentielCubit, TypesReferentielState>(
+        listener: (context, etat) {
+          if (_typeCode == null && etat.items.isNotEmpty) {
+            setState(() => _typeCode = etat.items.first.code);
+          }
+        },
+        child: _corps(context, l10n),
+      ),
+    );
+  }
+
+  Widget _corps(BuildContext context, AppLocalizations l10n) {
     return BlocListener<PartenairesCubit, PartenairesState>(
       listenWhen: (a, b) => a.soumissionStatus != b.soumissionStatus,
       listener: (context, state) {
@@ -186,9 +221,14 @@ class _AjouterPartenaireSheetState extends State<AjouterPartenaireSheet> {
                               validator: (v) => _validerNom(l10n, v),
                             ),
                             const SizedBox(height: 18),
-                            _SelecteurType(
-                              valeur: _type,
-                              onChange: (t) => setState(() => _type = t),
+                            BlocBuilder<TypesReferentielCubit, TypesReferentielState>(
+                              builder: (context, typesState) => _SelecteurType(
+                                types: typesState.items,
+                                valeur: _typeCode,
+                                indisponible: typesState.status == TypesStatus.vide ||
+                                    typesState.status == TypesStatus.erreur,
+                                onChange: (code) => setState(() => _typeCode = code),
+                              ),
                             ),
 
                             const SizedBox(height: 22),
@@ -288,7 +328,11 @@ class _AjouterPartenaireSheetState extends State<AjouterPartenaireSheet> {
                                       elevation: 0,
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                     ),
-                                    onPressed: enCours ? null : _submit,
+                                    // Désactivé tant qu'aucun type n'est
+                                    // sélectionnable : sans code, le serveur
+                                    // refuserait la création et l'utilisateur
+                                    // ne saurait pas pourquoi.
+                                    onPressed: (enCours || _typeCode == null) ? null : _submit,
                                     icon: enCours
                                         ? const SizedBox(
                                             width: 20,
@@ -321,15 +365,25 @@ class _AjouterPartenaireSheetState extends State<AjouterPartenaireSheet> {
 
 /// Choix du type d'intervenant, en pastilles plutôt qu'en liste déroulante.
 ///
-/// Les sept types tiennent à l'écran : les montrer tous permet de choisir en
-/// un geste et, surtout, de VOIR les options — un menu déroulant les cache
+/// Les types tiennent à l'écran : les montrer tous permet de choisir en un
+/// geste et, surtout, de VOIR les options — un menu déroulant les cache
 /// derrière un tap et laisse le réglage par défaut passer inaperçu, alors
 /// qu'il détermine le rôle de l'entreprise sur le chantier.
+///
+/// La liste vient du RÉFÉRENTIEL administrable et non d'une énumération : un
+/// type ajouté côté web doit être sélectionnable ici.
 class _SelecteurType extends StatelessWidget {
-  final PartenaireType valeur;
-  final ValueChanged<PartenaireType> onChange;
+  final List<TypeReferentiel> types;
+  final String? valeur;
+  final bool indisponible;
+  final ValueChanged<String> onChange;
 
-  const _SelecteurType({required this.valeur, required this.onChange});
+  const _SelecteurType({
+    required this.types,
+    required this.valeur,
+    required this.indisponible,
+    required this.onChange,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -349,11 +403,21 @@ class _SelecteurType extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
-            for (final t in PartenaireType.values)
+            for (final t in types)
               _PuceType(
-                type: t,
-                selectionne: t == valeur,
-                onTap: () => onChange(t),
+                code: t.code,
+                // Le NOM vient du référentiel : c'est l'administrateur qui le
+                // fixe, y compris pour les types standard qu'il a renommés.
+                nom: t.nom,
+                selectionne: t.code == valeur,
+                onTap: () => onChange(t.code),
+              ),
+            if (indisponible)
+              // Ni liste muette ni écran d'erreur : un message qui dit où
+              // agir. Le référentiel se gère depuis l'espace d'administration.
+              Text(
+                l10n.typesReferentielIndisponible,
+                style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted),
               ),
           ],
         ),
@@ -370,17 +434,28 @@ class _SelecteurType extends StatelessWidget {
 }
 
 class _PuceType extends StatelessWidget {
-  final PartenaireType type;
+  final String code;
+  final String nom;
   final bool selectionne;
   final VoidCallback onTap;
 
-  const _PuceType({required this.type, required this.selectionne, required this.onTap});
+  const _PuceType({
+    required this.code,
+    required this.nom,
+    required this.selectionne,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     // La pastille sélectionnée prend la teinte du TYPE, pas l'orange
     // générique : elle annonce déjà la couleur qu'aura le badge de la fiche
     // une fois l'intervenant créé.
+    //
+    // Un type AJOUTÉ par l'administrateur n'a ni teinte ni icône dédiées :
+    // `fromString` retombe alors sur la valeur générique, et la pastille
+    // reste lisible plutôt que de disparaître.
+    final type = PartenaireTypeX.fromString(code);
     final teinte = toneTypePartenaire(type).fg;
     final couleurTexte = selectionne ? Colors.white : AppColors.textSecondary;
 
@@ -402,7 +477,7 @@ class _PuceType extends StatelessWidget {
               Icon(iconeTypePartenaire(type), size: 15, color: couleurTexte),
               const SizedBox(width: 7),
               Text(
-                type.label(context.l10n),
+                nom,
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: couleurTexte),
               ),
             ],

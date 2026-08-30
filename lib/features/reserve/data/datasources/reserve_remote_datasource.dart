@@ -61,6 +61,26 @@ abstract class ReserveRemoteDataSource {
     String? zoneId,
     String? lotId,
     DateTime? dateLimite,
+    /// Plan sur lequel la réserve a été posée, et point exact du clic —
+    /// tous deux facultatifs : une réserve créée depuis la liste n'a ni l'un
+    /// ni l'autre. Voir `ReservePosition` côté backend, `x`/`y` sont des
+    /// POURCENTAGES de la page (0-100), jamais des pixels.
+    String? planId,
+    double? positionX,
+    double? positionY,
+    /// Entreprise responsable de la correction (« Entreprise concernée » du
+    /// guide client) et gravité constatée. `severite` vaut `priorite` quand
+    /// elle n'est pas précisée — c'était le comportement implicite jusqu'ici.
+    String? partenaireId,
+    ReserveSeverite? severite,
+    /// Corps d'état (métier) — référence au catalogue administrable servi par
+    /// `/corps-etat/actifs`. Remplace `categorie`, conservée pour les serveurs
+    /// et les écrans qui s'appuient encore dessus.
+    String? corpsEtatId,
+    /// Phase du chantier — OBLIGATOIRE à la création (le serveur refuse sans).
+    /// Figée ensuite : une réserve relevée en « Pré-cloisons » y reste quand le
+    /// chantier passe en « Cloisons ».
+    String? phaseId,
     // Identifiant CLIENT (mode hors ligne) — voir la justification dans
     // `backend/src/modules/reserve/validation/reserve.validation.js`. Absent
     // en usage normal (en ligne) : le serveur génère l'id comme avant.
@@ -277,6 +297,13 @@ class ReserveRemoteDataSourceImpl implements ReserveRemoteDataSource {
     String? zoneId,
     String? lotId,
     DateTime? dateLimite,
+    String? planId,
+    double? positionX,
+    double? positionY,
+    String? partenaireId,
+    ReserveSeverite? severite,
+    String? corpsEtatId,
+    String? phaseId,
     String? id,
   }) async {
     try {
@@ -285,11 +312,23 @@ class ReserveRemoteDataSourceImpl implements ReserveRemoteDataSource {
         'titre': titre,
         if (description != null && description.isNotEmpty) 'description': description,
         'priorite': priorite.raw,
+        // La gravité tombe sur la priorité quand elle n'est pas précisée :
+        // c'est ce que faisait déjà le serveur, on ne change donc rien pour
+        // les écrans qui ne la demandent pas.
+        'severite': (severite ?? priorite).raw,
         'categorie': categorie.raw,
         if (batimentId != null) 'batimentId': batimentId,
         if (etageId != null) 'etageId': etageId,
         if (zoneId != null) 'zoneId': zoneId,
         if (lotId != null) 'lotId': lotId,
+        if (planId != null) 'planId': planId,
+        if (partenaireId != null) 'partenaireId': partenaireId,
+        if (corpsEtatId != null) 'corpsEtatId': corpsEtatId,
+        if (phaseId != null) 'phaseId': phaseId,
+        // Les deux coordonnées vont ensemble : une seule des deux décrirait
+        // un point qui n'existe pas, le backend exige d'ailleurs le couple.
+        if (positionX != null && positionY != null)
+          'position': {'x': positionX, 'y': positionY, 'zoom': 1},
         if (dateLimite != null) 'date_limite': dateLimite.toIso8601String().split('T').first,
       });
       final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;

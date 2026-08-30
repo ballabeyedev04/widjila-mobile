@@ -1,6 +1,5 @@
 {
   "@@locale": "fr",
-
   "commonCancel": "Annuler",
   "commonConfirm": "Confirmer",
   "commonSave": "Enregistrer",
@@ -27,24 +26,47 @@
   "commonContinue": "Continuer",
   "commonModify": "Modifier",
   "commonOptional": "Optionnel",
-
   "chantierPickerSousTitre": "Sur quel chantier ?",
   "chantierPickerRechercheHint": "Rechercher un chantier…",
   "chantierAucun": "Aucun chantier",
   "chantierAucunSousTitre": "Créez d'abord un chantier depuis l'espace d'administration.",
   "chantierAucunRecherche": "Aucun chantier ne correspond à votre recherche.",
   "chantierReservesOuvertesSur": "{count, plural, one{{count} réserve ouverte sur {total}} other{{count} réserves ouvertes sur {total}}}",
-  "@chantierReservesOuvertesSur": { "placeholders": { "count": { "type": "int" }, "total": { "type": "int" } } },
+  "@chantierReservesOuvertesSur": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "chantierDetailTitre": "Détail du chantier",
   "chantierDetailCode": "Code : {code}",
-  "@chantierDetailCode": { "placeholders": { "code": { "type": "String" } } },
+  "@chantierDetailCode": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
   "chantierDetailAdresse": "Adresse",
   "chantierDetailResponsable": "Responsable",
   "chantierDetailDebut": "Début",
   "chantierDetailFinPrevue": "Fin prévue",
   "commonDescription": "Description",
   "chantierDetailReservesSousTitre": "{count, plural, one{{count} ouverte sur {total}} other{{count} ouvertes sur {total}}}",
-  "@chantierDetailReservesSousTitre": { "placeholders": { "count": { "type": "int" }, "total": { "type": "int" } } },
+  "@chantierDetailReservesSousTitre": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "chantierDetailReservesSousTitreDefaut": "Suivi des réserves de ce chantier",
   "chantierDetailTableauBord": "Tableau de bord",
   "chantierDetailTableauBordSousTitre": "Répartition par statut et évolution",
@@ -53,7 +75,6 @@
   "chantierSectionsAVenirTexte": "Ces sections arrivent dans une prochaine mise à jour.",
   "chantierSectionStructure": "Structure",
   "chantierSectionRapports": "Rapports",
-
   "reserveRechercheHint": "Rechercher une réserve…",
   "reserveAucune": "Aucune réserve",
   "reserveAucuneCriteres": "Aucune réserve ne correspond à ces critères.",
@@ -63,8 +84,16 @@
   "reserveAucuneDescription": "Les réserves créées sur vos chantiers apparaîtront ici.",
   "reserveCreerBouton": "Créer une réserve",
   "reserveReference": "#{numero} · Créée le {date}",
-  "@reserveReference": { "placeholders": { "numero": { "type": "String" }, "date": { "type": "String" } } },
-
+  "@reserveReference": {
+    "placeholders": {
+      "numero": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "reserveDetailTitreDefaut": "Réserve",
   "reserveNumeroProvisoire": "En attente de synchronisation",
   "reserveDetailChangerStatut": "Changer le statut",
@@ -72,7 +101,13 @@
   "reserveDetailMotifRefusTitre": "Motif du refus",
   "reserveDetailMotifRefusHint": "Expliquez pourquoi cette réserve est refusée…",
   "reserveDetailStatutMisAJour": "Statut mis à jour : {statut}",
-  "@reserveDetailStatutMisAJour": { "placeholders": { "statut": { "type": "String" } } },
+  "@reserveDetailStatutMisAJour": {
+    "placeholders": {
+      "statut": {
+        "type": "String"
+      }
+    }
+  },
   "reserveDetailCreeeLe": "Créée le",
   "reserveDetailSignaleePar": "Signalée par",
   "reserveDetailPriorite": "Priorité",
@@ -80,15 +115,26 @@
   "reserveDetailEcheance": "Échéance",
   "reserveDetailAssigneeA": "Assignée à",
   "reserveDetailPhotosCount": "Photos ({count})",
-  "@reserveDetailPhotosCount": { "placeholders": { "count": { "type": "int" } } },
+  "@reserveDetailPhotosCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "reserveDetailAucunePhoto": "Aucune photo pour le moment",
   "reserveDetailHistorique": "Historique",
   "reserveDetailPrendrePhoto": "Prendre une photo",
   "reserveDetailChoisirGalerie": "Choisir depuis la galerie",
   "reserveDetailPhotoAjoutee": "Photo ajoutée",
   "reserveDetailPar": "Par {nom}",
-  "@reserveDetailPar": { "placeholders": { "nom": { "type": "String" } } },
-
+  "@reserveDetailPar": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "historiqueCreation": "Réserve créée",
   "historiqueModification": "Réserve modifiée",
   "historiqueStatut": "Statut modifié",
@@ -96,12 +142,17 @@
   "historiqueValidation": "Réserve validée",
   "historiqueRefus": "Réserve refusée",
   "historiqueSuppression": "Réserve supprimée",
-
   "wizardEtapeInformations": "Informations",
   "wizardEtapeRecapitulatif": "Récapitulatif",
   "wizardCreerReserve": "Créer la réserve",
   "wizardReserveCreee": "Réserve {numero} créée",
-  "@wizardReserveCreee": { "placeholders": { "numero": { "type": "String" } } },
+  "@wizardReserveCreee": {
+    "placeholders": {
+      "numero": {
+        "type": "String"
+      }
+    }
+  },
   "wizardChampTitre": "Titre *",
   "wizardTitreHint": "Ex : Finition peinture mur",
   "wizardChampCategorie": "Catégorie *",
@@ -122,13 +173,11 @@
   "wizardChampLocalisation": "Localisation",
   "wizardNonRenseignee": "Non renseignée",
   "wizardPhotosApresCreation": "Vous pourrez ajouter des photos une fois la réserve créée.",
-
   "chantierDashboardRepartitionParStatut": "Répartition par statut",
   "chantierDashboardEvolution": "Évolution des réserves",
   "chantierDashboardCreees": "Créées",
   "chantierDashboardPasAssezDeDonnees": "Pas assez de données pour l'instant",
   "reserveNonLocalisee": "Non localisée",
-
   "planImporterBouton": "Importer un plan",
   "planRechercheHint": "Rechercher un plan…",
   "planEssayerAutreMotCle": "Essayez un autre mot-clé.",
@@ -137,52 +186,83 @@
   "planAucunDescriptionSansDroit": "Les plans importés depuis l'espace d'administration apparaîtront ici.",
   "planViewerErreurChargement": "Le plan n'a pas pu être chargé.",
   "planViewerFormatTitre": "Format {format}",
-  "@planViewerFormatTitre": { "placeholders": { "format": { "type": "String" } } },
+  "@planViewerFormatTitre": {
+    "placeholders": {
+      "format": {
+        "type": "String"
+      }
+    }
+  },
   "planViewerFormatNonSupporte": "Ce format ne s'ouvre pas encore sur mobile. Consultez-le depuis l'espace web.",
   "planViewerIndisponible": "Plan indisponible",
   "planViewerReperes": "{count, plural, one{{count} repère} other{{count} repères}}",
-  "@planViewerReperes": { "placeholders": { "count": { "type": "int" } } },
+  "@planViewerReperes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "planViewerAucuneReserve": "Aucune réserve sur ce plan",
   "planViewerReservesSurPlan": "{count, plural, one{{count} réserve sur ce plan} other{{count} réserves sur ce plan}}",
-  "@planViewerReservesSurPlan": { "placeholders": { "count": { "type": "int" } } },
+  "@planViewerReservesSurPlan": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "planImportSheetNomLabel": "Nom du plan",
   "planImportSheetNomHint": "Ex. : Plan de masse — niveau 2",
   "planImportSheetFormatLabel": "Format",
   "planImportSheetValiderBouton": "Importer",
   "planImportSheetErreurCourt": "Le nom doit faire au moins 2 caractères.",
   "planImportSheetErreurLong": "Le nom ne peut pas dépasser 200 caractères.",
-
   "alertSuccessTitle": "Succès",
   "alertErrorTitle": "Oups !",
   "errForbidden": "Vous n'avez pas la permission d'effectuer cette action.",
   "errRateLimit": "Trop de requêtes envoyées. Veuillez patienter quelques instants.",
   "errServiceUnavailable": "Le service est momentanément indisponible. Réessayez plus tard.",
-
   "navAccueil": "Accueil",
   "navReserves": "Réserves",
   "navPlans": "Plans",
   "navPlus": "Plus",
   "navNotifications": "Notifications",
-
   "actionTableauBordChantier": "Tableau de bord chantier",
   "actionEquipe": "Équipe",
   "actionDocument": "Document",
   "actionChantiers": "Chantiers",
   "actionIntervenants": "Intervenants",
   "actionsFermerLabel": "Fermer les actions rapides",
-
   "bandeauHorsLigneAvecTravail": "Hors ligne — vous pouvez continuer à travailler. {count, plural, one{{count} élément sera envoyé automatiquement au retour du réseau.} other{{count} éléments seront envoyés automatiquement au retour du réseau.}}",
-  "@bandeauHorsLigneAvecTravail": { "placeholders": { "count": { "type": "int" } } },
+  "@bandeauHorsLigneAvecTravail": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "bandeauHorsLigneSansTravail": "Hors ligne — vous pouvez continuer à travailler. Vos saisies seront envoyées automatiquement dès le retour du réseau.",
   "bandeauSynchronisationEnCours": "Connexion rétablie — synchronisation en cours…",
   "bandeauConfirmationSucces": "Connecté — tout a été synchronisé.",
   "bandeauEchecIntro": "Certaines tâches n'ont pas pu être synchronisées automatiquement. Veuillez les synchroniser manuellement.",
   "bandeauEchecCompteur": "{count, plural, one{{count} tâche nécessite votre attention.} other{{count} tâches nécessitent votre attention.}} La synchronisation automatique n'a pas pu terminer certaines opérations.",
-  "@bandeauEchecCompteur": { "placeholders": { "count": { "type": "int" } } },
+  "@bandeauEchecCompteur": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "bandeauVoirTachesBouton": "Voir toutes les tâches",
   "bandeauEnAttenteEnvoi": "{count, plural, one{{count} élément en attente d'envoi…} other{{count} éléments en attente d'envoi…}}",
-  "@bandeauEnAttenteEnvoi": { "placeholders": { "count": { "type": "int" } } },
-
+  "@bandeauEnAttenteEnvoi": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "syncTacheSuccesMessage": "Tâche synchronisée avec succès.",
   "syncTacheEchecMessage": "Cette tâche n'a pas pu être synchronisée. Réessayez plus tard.",
   "syncToutSuccesMessage": "Synchronisation terminée avec succès. Toutes les données sont à jour.",
@@ -197,23 +277,39 @@
   "syncTypeAjouterPhoto": "Ajout de photo",
   "syncNomNouvelleReserve": "Nouvelle réserve",
   "syncNomChangerStatut": "Changer le statut → {statut}",
-  "@syncNomChangerStatut": { "placeholders": { "statut": { "type": "String" } } },
+  "@syncNomChangerStatut": {
+    "placeholders": {
+      "statut": {
+        "type": "String"
+      }
+    }
+  },
   "syncNomPhoto": "Photo de réserve",
   "syncStatutEnCours": "🔄 Synchronisation…",
   "syncStatutEchec": "🔴 Échec",
   "syncStatutEnAttente": "🟠 En attente",
-
   "commonPrevious": "Précédent",
   "commonMin2Caracteres": "2 caractères minimum",
   "commonMax50Caracteres": "50 caractères maximum",
   "commonMax150Caracteres": "150 caractères maximum",
   "commonNumeroInvalide": "Numéro invalide",
-
   "authEmailRequis": "L'email est requis",
   "authEmailTropLong": "Email trop long",
   "authEmailInvalide": "Email invalide",
   "authEtapeIndicateur": "Étape {etape}/{total} — {libelle}",
-  "@authEtapeIndicateur": { "placeholders": { "etape": { "type": "int" }, "total": { "type": "int" }, "libelle": { "type": "String" } } },
+  "@authEtapeIndicateur": {
+    "placeholders": {
+      "etape": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "libelle": {
+        "type": "String"
+      }
+    }
+  },
   "bienvenueAccroche": "Levez vos réserves,\nsuivez vos actions,\nlivrez l’excellence.",
   "authSeConnecter": "Se connecter",
   "authCreerUnCompte": "Créer un compte",
@@ -225,7 +321,6 @@
   "authMotDePasse8a128": "8 à 128 caractères",
   "authMotDePasseComplexite": "Doit contenir une majuscule, une minuscule et un chiffre",
   "authAideMotDePasse": "8 caractères min., une majuscule, une minuscule et un chiffre",
-
   "loginHeroTitre": "Vos chantiers,\nsuivis au jour le jour.",
   "loginHeroSousTitre": "Réserves, inspections, plans et documents — sur le terrain comme au bureau.",
   "loginSousTitre": "Connectez-vous pour suivre vos chantiers, vos réserves et vos inspections.",
@@ -233,7 +328,6 @@
   "loginIdentifiantRequis": "L'identifiant est requis",
   "loginMotDePasseOublie": "Mot de passe oublié ?",
   "loginPasEncoreDeCompte": "Pas encore de compte ?",
-
   "registerEtapeInfos": "Vos informations",
   "registerEtapeOrganisation": "Votre organisation",
   "registerLienEchec": "Impossible d'ouvrir cette page",
@@ -268,25 +362,27 @@
   "registerConsentementEt": " et la ",
   "registerPolitiqueConfidentialite": "politique de confidentialité",
   "registerConsentementErreur": "L'acceptation est requise pour créer un compte",
-
   "forgotVousSouvenez": "Vous vous souvenez ?",
   "forgotTitre": "Mot de passe oublié",
   "forgotSousTitre": "Indiquez votre email — un code de vérification vous sera envoyé.",
   "forgotBoutonEnvoyer": "Envoyer le code",
-
   "resetNouveauMotDePasse": "Nouveau mot de passe",
   "resetSousTitre": "Saisissez le code reçu par email et choisissez un nouveau mot de passe.",
   "resetChampCode": "Code reçu par email",
   "resetCode6Requis": "Code à 6 caractères requis",
   "resetBouton": "Réinitialiser",
-
   "mfaCode6Chiffres": "Saisissez les 6 chiffres du code.",
   "mfaTitre": "Double authentification",
   "mfaInstructionsAvecPrenom": "{prenom}, saisissez le code à 6 chiffres de votre application d'authentification.",
-  "@mfaInstructionsAvecPrenom": { "placeholders": { "prenom": { "type": "String" } } },
+  "@mfaInstructionsAvecPrenom": {
+    "placeholders": {
+      "prenom": {
+        "type": "String"
+      }
+    }
+  },
   "mfaInstructionsSansPrenom": "Saisissez le code à 6 chiffres de votre application d'authentification.",
   "mfaBoutonVerifier": "Vérifier le code",
-
   "roleChefProjet": "Chef de projet",
   "roleConducteurTravaux": "Conducteur de travaux",
   "roleBureauControle": "Bureau de contrôle",
@@ -297,15 +393,12 @@
   "rolePilote": "Pilote de chantier",
   "roleSousTraitant": "Sous-traitant",
   "roleInconnu": "Inconnu",
-
   "profilTitre": "Profil",
   "profilDeconnexion": "Déconnexion",
   "profilConfirmerDeconnexion": "Voulez-vous vraiment vous déconnecter ?",
   "profilTelephone": "Téléphone",
   "profilFonction": "Fonction",
-
   "commonAutre": "Autre",
-
   "statutCreee": "Créée",
   "statutAffectee": "Affectée",
   "statutPriseEnCharge": "Prise en charge",
@@ -317,12 +410,10 @@
   "statutRouverte": "Rouverte",
   "statutEnRetard": "En retard",
   "statutCloturee": "Clôturée",
-
   "severiteFaible": "Faible",
   "severiteMoyenne": "Moyenne",
   "severiteHaute": "Haute",
   "severiteCritique": "Critique",
-
   "categorieMaconnerie": "Maçonnerie",
   "categorieGrosOeuvre": "Gros œuvre",
   "categoriePlomberie": "Plomberie",
@@ -333,13 +424,11 @@
   "categorieEtancheite": "Étanchéité",
   "categorieIsolation": "Isolation",
   "categorieAutre": "Autre",
-
   "chantierStatutEnPreparation": "En préparation",
   "chantierStatutEnCours": "En cours",
   "chantierStatutEnPause": "En pause",
   "chantierStatutArchive": "Archivé",
   "chantierStatutCloture": "Clôturé",
-
   "documentTypePlan": "Plan",
   "documentTypeContrat": "Contrat",
   "documentTypeDoe": "DOE",
@@ -350,16 +439,46 @@
   "documentTypePhoto": "Photo",
   "documentTypeAutre": "Autre",
   "documentTailleKo": "{value} Ko",
-  "@documentTailleKo": { "placeholders": { "value": { "type": "String" } } },
+  "@documentTailleKo": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "documentTailleMo": "{value} Mo",
-  "@documentTailleMo": { "placeholders": { "value": { "type": "String" } } },
+  "@documentTailleMo": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "documentPageTitre": "Photos & documents",
   "documentOngletPhotos": "Photos ({count})",
-  "@documentOngletPhotos": { "placeholders": { "count": { "type": "int" } } },
+  "@documentOngletPhotos": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "documentOngletVideos": "Vidéos ({count})",
-  "@documentOngletVideos": { "placeholders": { "count": { "type": "int" } } },
+  "@documentOngletVideos": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "documentOngletDocuments": "Documents ({count})",
-  "@documentOngletDocuments": { "placeholders": { "count": { "type": "int" } } },
+  "@documentOngletDocuments": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "documentEnvoiEnCours": "Envoi…",
   "documentFichierAjoute": "Fichier ajouté.",
   "documentEnvoiEchec": "Le fichier n'a pas pu être envoyé.",
@@ -375,24 +494,66 @@
   "documentTelechargementBientot": "Le téléchargement des fichiers depuis le mobile arrive bientôt. En attendant, ouvrez ce document depuis l'espace web.",
   "notificationRechercheHint": "Rechercher une notification…",
   "notificationFiltreToutes": "Toutes ({count})",
-  "@notificationFiltreToutes": { "placeholders": { "count": { "type": "int" } } },
+  "@notificationFiltreToutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "notificationFiltreNonLues": "Non lues ({count})",
-  "@notificationFiltreNonLues": { "placeholders": { "count": { "type": "int" } } },
+  "@notificationFiltreNonLues": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "notificationFiltreLues": "Lues ({count})",
-  "@notificationFiltreLues": { "placeholders": { "count": { "type": "int" } } },
+  "@notificationFiltreLues": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "notificationToutLire": "Tout lire",
   "notificationAucune": "Aucune notification",
   "notificationAucuneDescription": "Les alertes de vos chantiers — réserves, inspections, échéances — apparaîtront ici.",
   "notificationInstant": "À l'instant",
   "notificationIlYAMinutes": "{count, plural, one{Il y a {count} min} other{Il y a {count} min}}",
-  "@notificationIlYAMinutes": { "placeholders": { "count": { "type": "int" } } },
+  "@notificationIlYAMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "notificationIlYAHeures": "{count, plural, one{Il y a {count} h} other{Il y a {count} h}}",
-  "@notificationIlYAHeures": { "placeholders": { "count": { "type": "int" } } },
+  "@notificationIlYAHeures": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "notificationIlYAJours": "{count, plural, one{Il y a {count} j} other{Il y a {count} j}}",
-  "@notificationIlYAJours": { "placeholders": { "count": { "type": "int" } } },
+  "@notificationIlYAJours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "commonUneErreurSurvenue": "Une erreur est survenue.",
   "membreAjouteMessage": "{nom} a été ajouté à votre organisation.",
-  "@membreAjouteMessage": { "placeholders": { "nom": { "type": "String" } } },
+  "@membreAjouteMessage": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "membreAucun": "Aucun membre pour le moment",
   "membreAucunDescription": "Ajoutez les collaborateurs de votre organisation avec le bouton ci-dessous.",
   "membreStatutActif": "Actif",
@@ -400,7 +561,13 @@
   "membreStatutEnAttente": "En attente",
   "membreDialogueTitre": "Membre ajouté",
   "membreDialogueMessage": "{nom} a été ajouté. Communiquez-lui ce mot de passe temporaire (affiché une seule fois) — il devra le changer à sa première connexion.",
-  "@membreDialogueMessage": { "placeholders": { "nom": { "type": "String" } } },
+  "@membreDialogueMessage": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "membreDialogueBouton": "J'ai noté",
   "membreFormTitre": "Nouveau membre",
   "membreFormPrenom": "Prénom",
@@ -424,21 +591,54 @@
   "membreSectionContact": "Contact",
   "membreSectionAcces": "Rôle et accès",
   "membreFormChampTropLong": "{max} caractères maximum",
-  "@membreFormChampTropLong": { "placeholders": { "max": { "type": "int" } } },
+  "@membreFormChampTropLong": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
   "membreFormChampTropCourt": "{min} caractères minimum",
-  "@membreFormChampTropCourt": { "placeholders": { "min": { "type": "int" } } },
+  "@membreFormChampTropCourt": {
+    "placeholders": {
+      "min": {
+        "type": "int"
+      }
+    }
+  },
   "membreFormObligatoiresNote": "Les champs marqués d'une * sont obligatoires.",
   "equipeRechercheHint": "Rechercher un membre…",
   "equipeFiltrer": "Filtrer",
   "equipeCompteur": "{count, plural, one{{count} membre dans l'équipe} other{{count} membres dans l'équipe}}",
-  "@equipeCompteur": { "placeholders": { "count": { "type": "int" } } },
+  "@equipeCompteur": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "equipeDetailBouton": "Détail",
   "equipeSlogan": "Travaillez ensemble, construisez mieux.",
   "reserveFiltrer": "Filtrer",
   "reserveAffichageSur": "Affichage de {affiches} sur {total} réserves",
-  "@reserveAffichageSur": { "placeholders": { "affiches": { "type": "int" }, "total": { "type": "int" } } },
+  "@reserveAffichageSur": {
+    "placeholders": {
+      "affiches": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "reserveProjet": "Projet : {nom}",
-  "@reserveProjet": { "placeholders": { "nom": { "type": "String" } } },
+  "@reserveProjet": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "planMesPlans": "Mes plans",
   "planTousLesPlans": "Tous les plans",
   "planFiltrer": "Filtrer",
@@ -469,7 +669,13 @@
   "partenaireAucun": "Aucun intervenant",
   "partenaireAucunDescription": "Entreprises, sous-traitants et bureaux de contrôle apparaîtront ici.",
   "partenaireResponsableLigne": "Responsable : {nom}",
-  "@partenaireResponsableLigne": { "placeholders": { "nom": { "type": "String" } } },
+  "@partenaireResponsableLigne": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "settingsTitre": "Paramètres",
   "settingsSectionLangue": "Langue",
   "settingsSectionSecurite": "Sécurité",
@@ -498,9 +704,21 @@
   "settingsSessionsTitre": "Sessions actives",
   "settingsSessionsAucune": "Aucune autre session active.",
   "settingsSessionOuverteLe": "Ouverte le {date}",
-  "@settingsSessionOuverteLe": { "placeholders": { "date": { "type": "String" } } },
+  "@settingsSessionOuverteLe": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "settingsSessionExpireLe": "Expire le {date}",
-  "@settingsSessionExpireLe": { "placeholders": { "date": { "type": "String" } } },
+  "@settingsSessionExpireLe": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "settingsSessionRevoquerTout": "Se déconnecter de tous les appareils",
   "settingsSessionRevoquerToutConfirmTitre": "Déconnecter tous les appareils ?",
   "settingsSessionRevoquerToutConfirmMessage": "Toutes vos sessions seront fermées, y compris celle-ci. Vous devrez vous reconnecter.",
@@ -513,7 +731,16 @@
   "settingsConnexionTypeRefresh": "Session renouvelée",
   "settingsStockageDescription": "Les chantiers et réserves consultés hors connexion sont gardés sur cet appareil pour un accès rapide.",
   "settingsStockageResume": "{chantiers} chantiers · {reserves} réserves en cache",
-  "@settingsStockageResume": { "placeholders": { "chantiers": { "type": "int" }, "reserves": { "type": "int" } } },
+  "@settingsStockageResume": {
+    "placeholders": {
+      "chantiers": {
+        "type": "int"
+      },
+      "reserves": {
+        "type": "int"
+      }
+    }
+  },
   "settingsViderCacheBouton": "Vider le cache",
   "settingsViderCacheConfirmTitre": "Vider le cache local ?",
   "settingsViderCacheConfirmMessage": "Les chantiers et réserves mis en cache seront supprimés de cet appareil. Rien n'est supprimé du serveur.",
@@ -534,18 +761,28 @@
   "settingsSupprimerCompteDescription": "Cette action est irréversible. Vos données personnelles seront effacées conformément à votre droit à l'effacement (RGPD, art. 17).",
   "settingsSupprimerCompteConfirmMot": "SUPPRIMER",
   "settingsSupprimerCompteConfirmHint": "Tapez {mot} pour confirmer",
-  "@settingsSupprimerCompteConfirmHint": { "placeholders": { "mot": { "type": "String" } } },
+  "@settingsSupprimerCompteConfirmHint": {
+    "placeholders": {
+      "mot": {
+        "type": "String"
+      }
+    }
+  },
   "settingsSupprimerCompteConfirmBouton": "Supprimer définitivement",
   "settingsAProposVersion": "Version {version}",
-  "@settingsAProposVersion": { "placeholders": { "version": { "type": "String" } } },
+  "@settingsAProposVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
   "settingsAProposCgu": "Conditions générales d'utilisation",
   "settingsAProposConfidentialite": "Politique de confidentialité",
   "settingsAProposSupport": "Contacter le support",
   "settingsAProposBientotDisponible": "Bientôt disponible",
   "dashboardParametres": "Paramètres",
-
   "partenaireFournisseur": "Fournisseur",
-
   "dashboardMenuTooltip": "Menu",
   "dashboardMonProfil": "Mon profil",
   "dashboardApercuGeneral": "Aperçu général",
@@ -563,9 +800,14 @@
   "dashboardApercuInspections": "Inspections",
   "dashboardApercuDocuments": "Documents",
   "dashboardApercuMembres": "Membres",
-
   "chantierPickerCompteur": "{count, plural, one{{count} chantier} other{{count} chantiers}}",
-  "@chantierPickerCompteur": {"placeholders": {"count": {"type": "int"}}},
+  "@chantierPickerCompteur": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "chantierPickerEffacer": "Effacer la recherche",
   "chantierPickerRechercheEnCours": "Recherche en cours…",
   "chantierPickerChargerPlus": "Voir plus de chantiers",
@@ -573,11 +815,29 @@
   "chantierPickerSansAdresse": "Adresse non renseignée",
   "chantierPickerAucuneReserve": "Aucune réserve",
   "chantierPickerAvancement": "{pourcent} % levées",
-  "@chantierPickerAvancement": {"placeholders": {"pourcent": {"type": "int"}}},
+  "@chantierPickerAvancement": {
+    "placeholders": {
+      "pourcent": {
+        "type": "int"
+      }
+    }
+  },
   "chantierPickerResponsable": "Resp. {nom}",
-  "@chantierPickerResponsable": {"placeholders": {"nom": {"type": "String"}}},
+  "@chantierPickerResponsable": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "partenaireCompteur": "{count, plural, one{{count} intervenant} other{{count} intervenants}}",
-  "@partenaireCompteur": {"placeholders": {"count": {"type": "int"}}},
+  "@partenaireCompteur": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "partenaireSlogan": "Vos entreprises et partenaires, réunis au même endroit.",
   "partenaireFiltreType": "Type d’intervenant",
   "partenaireFiltreStatut": "Statut",
@@ -608,15 +868,21 @@
   "partenaireFormNomAide": "Raison sociale telle qu’elle apparaîtra sur les rapports.",
   "partenaireFormTypeAide": "Détermine le rôle de l’entreprise sur le chantier.",
   "partenaireFormNotesAide": "Visible par votre équipe uniquement.",
-
   "chantierAffichageSur": "Affichage de {affiches} chantiers sur {total}",
-  "@chantierAffichageSur": {"placeholders": {"affiches": {"type": "int"}, "total": {"type": "int"}}},
+  "@chantierAffichageSur": {
+    "placeholders": {
+      "affiches": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "documentDeposerBouton": "Déposer un fichier",
   "chantierDashboardSousTitre": "Vue d’ensemble des réserves de ce chantier",
-
   "chantierDetailInformations": "Informations",
   "chantierDetailSections": "Sections",
-
   "profilModifierTitre": "Modifier mon profil",
   "profilModifieMessage": "Vos informations ont été mises à jour.",
   "profilChangerPhoto": "Changer la photo",
@@ -648,8 +914,66 @@
   "profilEntrepriseVille": "Ville",
   "profilEntreprisePays": "Pays",
   "profilEntrepriseAbonnement": "Abonnement",
+  "typesReferentielIndisponible": "Aucun type disponible. Ajoutez-en depuis l’espace d’administration.",
+  "abonnementTitre": "Abonnement",
+  "abonnementVoirFormules": "Voir les formules",
+  "abonnementVotreFormule": "Votre formule",
+  "abonnementActif": "Abonnement actif",
+  "abonnementEssaiEnCours": "Période d’essai",
+  "abonnementAucun": "Aucun abonnement actif",
+  "abonnementEssaiJusquau": "Essai jusqu’au {date}",
+  "@abonnementEssaiJusquau": {
+    "placeholders": {
+        "date": {
+          "type": "String"
+        }
+    }
+  },
+  "abonnementRenouvellement": "Échéance le {date}",
+  "@abonnementRenouvellement": {
+    "placeholders": {
+        "date": {
+          "type": "String"
+        }
+    }
+  },
+  "abonnementUtilisateurs": "Utilisateurs",
+  "abonnementChantiers": "Chantiers",
+  "abonnementIllimite": "illimité",
+  "abonnementNosFormules": "Nos formules",
+  "abonnementFormuleActuelle": "Formule actuelle",
+  "abonnementChoisir": "Choisir cette formule",
+  "abonnementNousContacter": "Nous contacter",
+  "abonnementSurDevis": "Sur devis",
+  "abonnementParMois": "/ mois",
+  "abonnementParAn": "/ an",
+  "abonnementUtilisateursIllimites": "Utilisateurs illimités",
+  "abonnementUtilisateursMax": "Jusqu’à {n} utilisateurs",
+  "@abonnementUtilisateursMax": {
+    "placeholders": {
+        "n": {
+          "type": "int"
+        }
+    }
+  },
+  "abonnementOuvertureImpossible": "Impossible d’ouvrir la page de paiement.",
+  "abonnementFReserves": "Gestion des réserves",
+  "abonnementFMobile": "Application mobile",
+  "abonnementFStockage": "Stockage des photos et documents",
+  "abonnementFSupport": "Support prioritaire",
+  "abonnementFEquipe": "Suivi d’équipe",
+  "abonnementFRapports": "Rapports PDF",
+  "abonnementFAnnotations": "Annotations sur plans",
+  "abonnementFApi": "Accès API",
+  "abonnementIndisponible": "Cette fonctionnalité n’est pas incluse dans votre formule.",
   "profilEntrepriseEssai": "Essai jusqu’au {date}",
-  "@profilEntrepriseEssai": {"placeholders": {"date": {"type": "String"}}},
+  "@profilEntrepriseEssai": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "profilEntrepriseModifier": "Modifier l’entreprise",
   "profilEntrepriseMaj": "Entreprise mise à jour",
   "profilEntrepriseIndisponible": "Informations de l’entreprise indisponibles",
@@ -664,17 +988,27 @@
   "motDePasseIdentiqueAncien": "Le nouveau mot de passe doit être différent de l’actuel.",
   "motDePasseChangeMessage": "Votre mot de passe a été changé.",
   "motDePasseProvisoireAvertissement": "Votre mot de passe est provisoire. Changez-le pour sécuriser votre compte.",
-
   "motDePasseChangeAvecSessions": "{count, plural, one{Mot de passe changé. {count} autre appareil a été déconnecté.} other{Mot de passe changé. {count} autres appareils ont été déconnectés.}}",
-  "@motDePasseChangeAvecSessions": {"placeholders": {"count": {"type": "int"}}},
-
+  "@motDePasseChangeAvecSessions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "reserveCommentairesTitre": "Discussion",
   "reserveCommentaireAucun": "Aucun message pour le moment.",
   "reserveCommentaireHint": "Écrire un message…",
   "reserveCommentaireEnvoyer": "Envoyer",
   "reserveCommentaireAjoute": "Message envoyé.",
   "reserveCommentaireCompteur": "{count, plural, =0{Aucun message} one{{count} message} other{{count} messages}}",
-  "@reserveCommentaireCompteur": {"placeholders": {"count": {"type": "int"}}},
+  "@reserveCommentaireCompteur": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "reserveAffectationsTitre": "Intervenants affectés",
   "reserveAffectationAucune": "Personne n’est encore affecté à cette réserve.",
   "reserveAffectationAjouter": "Affecter",
@@ -692,7 +1026,6 @@
   "reserveActionsTitre": "Actions",
   "reserveChampEcheance": "Échéance",
   "reserveEcheanceAucune": "Aucune échéance",
-
   "documentOuvertureEnCours": "Ouverture du fichier…",
   "documentAucuneApplication": "Aucune application de cet appareil ne sait ouvrir ce type de fichier.",
   "planOuvrirExterne": "Ouvrir avec une autre application",
@@ -703,12 +1036,10 @@
   "reserveDupliquerDescription": "Crée une copie de cette réserve dans le même chantier — utile pour un défaut identique dans un autre logement.",
   "reserveDupliqueeMessage": "Réserve dupliquée.",
   "reserveDupliquerNombre": "Nombre de copies",
-
   "wizardAbandonTitre": "Abandonner la saisie ?",
   "wizardAbandonMessage": "Les informations déjà saisies seront perdues.",
   "wizardAbandonContinuer": "Continuer la saisie",
   "wizardAbandonQuitter": "Abandonner",
-
   "settingsSectionNotifications": "Notifications",
   "notifToutesTitre": "Recevoir les alertes",
   "notifToutesDescription": "Coupez tout pour ne plus être interrompu.",
@@ -728,7 +1059,6 @@
   "bioEchec": "Identité non confirmée.",
   "bioReessayer": "Réessayer",
   "bioVerrouille": "Application verrouillée",
-
   "inspectionTypeInspection": "Inspection",
   "inspectionTypeOpr": "OPR",
   "inspectionTypeVisiteContradictoire": "Visite contradictoire",
@@ -747,7 +1077,16 @@
   "inspectionsFiltreTous": "Toutes",
   "inspectionPlanifier": "Planifier une visite",
   "inspectionAvancement": "{coches} / {total} points",
-  "@inspectionAvancement": {"placeholders": {"coches": {"type": "int"}, "total": {"type": "int"}}},
+  "@inspectionAvancement": {
+    "placeholders": {
+      "coches": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "inspectionEnRetard": "En retard",
   "inspectionSansDate": "Date non fixée",
   "inspectionInspecteur": "Inspecteur",
@@ -780,9 +1119,58 @@
   "rapportTypeQualite": "Qualité",
   "rapportTypeVisite": "Visite",
   "rapportTypeOpr": "OPR",
-
   "chantierDetailInspectionsSousTitre": "Visites, points de controle et convocations",
   "chantierDetailRapportsSousTitre": "Generer et consulter les rapports PDF",
-
-  "chantierDetailPlansSousTitre": "Plans du chantier et annotations"
+  "chantierDetailPlansSousTitre": "Plans du chantier et annotations",
+  "planNavBatiments": "Bâtiments",
+  "planNavEtages": "Étages",
+  "planNavSousSols": "Sous-sols",
+  "planNavToiture": "Toiture",
+  "planNavAppartements": "Appartements et zones",
+  "planNavSansPlan": "Aucun plan rattaché",
+  "planNavAucunPlanGlobal": "Aucun plan global n'est rattaché à ce chantier.",
+  "planNavAucunBatiment": "Aucun bâtiment sur ce chantier.",
+  "planNavAucunEtage": "Aucun niveau dans ce bâtiment.",
+  "planNavAucuneZone": "Aucun appartement dans cet étage.",
+  "planNavNEtages": "{count, plural, one{{count} niveau} other{{count} niveaux}}",
+  "@planNavNEtages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "planNavNZones": "{count, plural, one{{count} zone} other{{count} zones}}",
+  "@planNavNZones": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "planPointerAide": "Appuyez sur le plan à l'endroit exact du défaut.",
+  "planNouvelleReserve": "Nouvelle réserve",
+  "planAnnulerPointage": "Annuler",
+  "reserveNouvTitreLabel": "Titre de la réserve",
+  "reserveNouvTitreHint": "Ex. Finition mur à reprendre",
+  "reserveNouvObservation": "Observation",
+  "reserveNouvObservationHint": "Décrivez le défaut et sa localisation.",
+  "reserveNouvEntreprise": "Entreprise concernée",
+  "reserveNouvAucuneEntreprise": "— Aucune —",
+  "reserveNouvPhoto": "Photo",
+  "reserveNouvPrendrePhoto": "Prendre une photo",
+  "reserveNouvChoisirGalerie": "Choisir dans la galerie",
+  "reserveNouvGravite": "Gravité",
+  "reserveNouvDelai": "Délai de levée",
+  "reserveNouvChoisirDate": "Choisir une date",
+  "reserveNouvLocalisation": "Localisation",
+  "reserveNouvEnregistrer": "Enregistrer la réserve",
+  "reserveNouvCreee": "Réserve enregistrée.",
+  "reserveNouvPhotoEchouee": "Réserve créée, mais la photo n'a pas pu être envoyée.",
+  "reserveNouvTitreRequis": "Le titre doit faire au moins 2 caractères.",
+  "corpsEtatLabel": "Corps d’état",
+  "corpsEtatAucun": "— Aucun —",
+  "phaseLabel": "Phase",
+  "phaseChoisir": "— Choisir une phase —",
+  "phaseRequise": "Veuillez sélectionner une phase."
 }

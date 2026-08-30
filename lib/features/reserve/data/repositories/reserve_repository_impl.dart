@@ -263,6 +263,13 @@ class ReserveRepositoryImpl implements ReserveRepository {
     String? zoneId,
     String? lotId,
     DateTime? dateLimite,
+    String? planId,
+    double? positionX,
+    double? positionY,
+    String? partenaireId,
+    ReserveSeverite? severite,
+    String? corpsEtatId,
+    String? phaseId,
   }) async {
     // Identifiant généré ICI, AVANT toute tentative réseau, et partagé par
     // les deux chemins (en ligne et repli hors ligne). C'est ce qui rend un
@@ -287,6 +294,8 @@ class ReserveRepositoryImpl implements ReserveRepository {
         chantierId: chantierId, titre: titre, description: description, priorite: priorite,
         categorie: categorie, batimentId: batimentId, etageId: etageId, zoneId: zoneId, lotId: lotId,
         dateLimite: dateLimite,
+        planId: planId, positionX: positionX, positionY: positionY,
+        partenaireId: partenaireId, severite: severite, corpsEtatId: corpsEtatId, phaseId: phaseId,
       ));
     }
     try {
@@ -295,6 +304,8 @@ class ReserveRepositoryImpl implements ReserveRepository {
         chantierId: chantierId, titre: titre, description: description, priorite: priorite,
         categorie: categorie, batimentId: batimentId, etageId: etageId, zoneId: zoneId, lotId: lotId,
         dateLimite: dateLimite,
+        planId: planId, positionX: positionX, positionY: positionY,
+        partenaireId: partenaireId, severite: severite, corpsEtatId: corpsEtatId, phaseId: phaseId,
       );
       await _cache.enregistrer(result);
       return Right(result);
@@ -305,6 +316,8 @@ class ReserveRepositoryImpl implements ReserveRepository {
         chantierId: chantierId, titre: titre, description: description, priorite: priorite,
         categorie: categorie, batimentId: batimentId, etageId: etageId, zoneId: zoneId, lotId: lotId,
         dateLimite: dateLimite,
+        planId: planId, positionX: positionX, positionY: positionY,
+        partenaireId: partenaireId, severite: severite, corpsEtatId: corpsEtatId, phaseId: phaseId,
       ));
     } on DioException catch (e) {
       if (estCoupureReseau(e)) {
@@ -313,6 +326,8 @@ class ReserveRepositoryImpl implements ReserveRepository {
           chantierId: chantierId, titre: titre, description: description, priorite: priorite,
           categorie: categorie, batimentId: batimentId, etageId: etageId, zoneId: zoneId, lotId: lotId,
           dateLimite: dateLimite,
+          planId: planId, positionX: positionX, positionY: positionY,
+          partenaireId: partenaireId, severite: severite, corpsEtatId: corpsEtatId, phaseId: phaseId,
         ));
       }
       return Left(exceptionToFailure(e));
@@ -343,6 +358,13 @@ class ReserveRepositoryImpl implements ReserveRepository {
     String? zoneId,
     String? lotId,
     DateTime? dateLimite,
+    String? planId,
+    double? positionX,
+    double? positionY,
+    String? partenaireId,
+    ReserveSeverite? severite,
+    String? corpsEtatId,
+    String? phaseId,
   }) async {
     final reserve = Reserve(
       id: id,
@@ -354,7 +376,7 @@ class ReserveRepositoryImpl implements ReserveRepository {
       chantierId: chantierId,
       titre: titre,
       description: description,
-      severite: priorite,
+      severite: severite ?? priorite,
       priorite: priorite,
       categorie: categorie,
       statut: ReserveStatut.creee,
@@ -381,6 +403,20 @@ class ReserveRepositoryImpl implements ReserveRepository {
         'zoneId': zoneId,
         'lotId': lotId,
         'dateLimite': dateLimite?.toIso8601String(),
+        // Sans ces quatre clés, une réserve posée sur un plan SANS RÉSEAU
+        // partait au retour de connexion en ayant perdu son point, son plan et
+        // son entreprise — c'est-à-dire tout ce qui la rendait localisable.
+        'planId': planId,
+        'positionX': positionX,
+        'positionY': positionY,
+        'partenaireId': partenaireId,
+        'severite': severite?.raw,
+        // Sans cette clé, une réserve créée SANS RÉSEAU repartait au retour
+        // de connexion en ayant perdu son métier.
+        'corpsEtatId': corpsEtatId,
+        // Sans cette clé, une réserve créée SANS RÉSEAU repartait au retour
+        // de connexion sans phase — et le serveur la refuserait désormais.
+        'phaseId': phaseId,
       },
     );
     return reserve;

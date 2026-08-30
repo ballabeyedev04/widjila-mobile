@@ -878,7 +878,7 @@ class _GrilleApercu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final peutGererEquipe = role?.peutGererOrganisation ?? false;
+    final peutGererEquipe = role?.peutGererMembres ?? false;
 
     final items = [
       (

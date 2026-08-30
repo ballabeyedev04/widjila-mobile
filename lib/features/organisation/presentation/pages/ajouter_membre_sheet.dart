@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/config/user_role.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_alert.dart';
 import '../../../../core/widgets/liste_chrome.dart';
@@ -45,6 +46,18 @@ String? _validerNom(AppLocalizations l10n, String? valeur) {
 /// super-admin plateforme et déjà explicitement exclu de [UserRole]
 /// (`core/config/user_role.dart`) ainsi que rejeté par
 /// `OrganisationService.ajouterMembre` si on tentait de le forcer.
+const _rolesGestion = [UserRole.chefProjet, UserRole.maitreOuvrage];
+
+/// Rôles réellement proposables au compte connecté.
+///
+/// Une entreprise ne voit pas les rôles de gestion : le serveur les refuse
+/// (`OrganisationService._refusElevation`), les afficher ne mènerait qu'à une
+/// erreur après saisie complète du formulaire.
+List<UserRole> _rolesPour(UserRole? auteur) {
+  if (auteur?.peutAttribuerRoleGestion ?? false) return _rolesProposes;
+  return _rolesProposes.where((r) => !_rolesGestion.contains(r)).toList();
+}
+
 const _rolesProposes = [
   UserRole.chefProjet,
   UserRole.conducteurTravaux,
@@ -109,6 +122,8 @@ class _AjouterMembreSheetState extends State<AjouterMembreSheet> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    // Rôle du compte connecté : il détermine les rôles qu'il peut attribuer.
+    final auteur = context.select((AuthBloc b) => b.state.utilisateur?.role);
     return BlocListener<MembresCubit, MembresState>(
       listenWhen: (a, b) => a.soumissionStatus != b.soumissionStatus,
       listener: (context, state) {
@@ -271,7 +286,7 @@ class _AjouterMembreSheetState extends State<AjouterMembreSheet> {
                               helperMaxLines: 3,
                             ),
                             items: [
-                              for (final r in _rolesProposes)
+                              for (final r in _rolesPour(auteur))
                                 DropdownMenuItem(
                                   value: r,
                                   child: Row(

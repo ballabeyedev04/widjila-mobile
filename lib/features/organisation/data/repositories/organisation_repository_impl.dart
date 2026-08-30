@@ -81,7 +81,10 @@ class OrganisationRepositoryImpl implements OrganisationRepository {
   @override
   Future<Either<Failure, Partenaire>> creerPartenaire({
     required String nom,
-    required PartenaireType type,
+    /// CODE du type, issu du référentiel administrable
+    /// (`/types-intervenant/actifs`). Une énumération figée ici
+    /// empêcherait d'utiliser un type ajouté par l'administrateur.
+    required String typeCode,
     String? email,
     String? telephone,
     String? contact,
@@ -95,7 +98,7 @@ class OrganisationRepositoryImpl implements OrganisationRepository {
       // « Email : » sans email.
       final partenaire = await remoteDataSource.creerPartenaire({
         'nom': nom,
-        'type': type.raw,
+        'type': typeCode,
         if (email != null && email.isNotEmpty) 'email': email,
         if (telephone != null && telephone.isNotEmpty) 'telephone': telephone,
         if (contact != null && contact.isNotEmpty) 'contact': contact,
