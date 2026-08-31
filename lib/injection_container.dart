@@ -51,6 +51,9 @@ import 'features/chantier/domain/usecases/get_chantier_detail.dart';
 import 'features/chantier/domain/usecases/get_chantiers.dart';
 import 'features/chantier/presentation/cubit/chantier_detail_cubit.dart';
 import 'features/chantier/presentation/cubit/chantiers_list_cubit.dart';
+import 'features/chantier/domain/usecases/creer_chantier.dart';
+import 'features/chantier/presentation/cubit/demandes_chantier_cubit.dart';
+import 'features/chantier/presentation/cubit/envoi_plan_cubit.dart';
 
 // Réserve
 import 'features/reserve/data/datasources/reserve_remote_datasource.dart';
@@ -267,6 +270,11 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetChantiers(sl()));
   sl.registerLazySingleton(() => GetChantierDetail(sl()));
   sl.registerFactory(() => ChantiersListCubit(getChantiers: sl(), getDashboardStats: sl()));
+  sl.registerLazySingleton(() => CreerChantier(sl()));
+  sl.registerFactory(() => DemandesChantierCubit(getChantiers: sl()));
+  // `UploaderPlan` est enregistré avec le module Plan, plus bas : `sl()` le
+  // résout à la CONSTRUCTION du cubit, donc après l'initialisation complète.
+  sl.registerFactory(() => EnvoiPlanCubit(creerChantier: sl(), uploaderPlan: sl()));
   sl.registerFactoryParam<ChantierDetailCubit, String, void>(
     (chantierId, _) => ChantierDetailCubit(getChantierDetail: sl(), chantierId: chantierId),
   );

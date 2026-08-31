@@ -30,6 +30,8 @@ import '../../features/rapport/presentation/pages/rapports_list_page.dart';
 import '../../features/plan/presentation/pages/plan_navigation_page.dart';
 import '../../features/plan/presentation/pages/plan_viewer_page.dart';
 import '../../features/plan/presentation/pages/plans_list_page.dart';
+import '../../features/chantier/presentation/pages/demandes_chantier_page.dart';
+import '../../features/chantier/presentation/pages/envoi_plan_page.dart';
 import '../../features/reserve/presentation/pages/chantier_dashboard_page.dart';
 import '../../features/reserve/presentation/pages/reserve_detail_page.dart';
 import '../../features/reserve/presentation/pages/reserve_wizard_page.dart';
@@ -62,6 +64,11 @@ class AppRoutes {
   // ── Écrans secondaires, accessibles depuis « Plus » ──────────────────────
   static const chantiers = '/chantiers';
   static const chantierDetail = '/chantiers/:id';
+
+  /// Suivi des demandes de création de chantier, et dépôt d'une nouvelle
+  /// demande accompagnée de ses plans.
+  static const demandesChantier = '/chantiers/demandes';
+  static const envoiPlan = '/chantiers/envoi-plan';
   static const equipe = '/equipe';
   static const intervenants = '/intervenants';
   static const profil = '/profil';
@@ -244,6 +251,18 @@ class AppRouter {
       ),
 
       // ── Plans — écrans pleins, hors coquille ──────────────────────────────
+      // ── Demandes de chantier — écrans pleins, hors coquille ─────────────
+      //
+      // Déclarées AVANT `chantierDetail` : `/chantiers/:id` capturerait
+      // sinon `/chantiers/demandes`, qu'il prendrait pour un identifiant.
+      GoRoute(
+        path: AppRoutes.demandesChantier,
+        builder: (_, _) => const DemandesChantierPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.envoiPlan,
+        builder: (_, _) => const EnvoiPlanPage(),
+      ),
       GoRoute(
         path: AppRoutes.chantierPlans,
         builder: (_, state) => PlansListPage(chantierId: state.pathParameters['chantierId']!),

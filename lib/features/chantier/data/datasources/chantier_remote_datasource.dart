@@ -4,8 +4,19 @@ import '../../domain/entities/chantier.dart';
 import '../../domain/repositories/chantier_repository.dart';
 
 abstract class ChantierRemoteDataSource {
-  Future<ChantierPage> getChantiers({int page, int limit, String? search, ChantierStatut? statut});
+  Future<ChantierPage> getChantiers({
+    int page,
+    int limit,
+    String? search,
+    ChantierStatut? statut,
+    VueDemandes? demandes,
+  });
   Future<Chantier> getChantierDetail(String id);
+  Future<Chantier> creerChantier({
+    required String nom,
+    String? adresse,
+    String? description,
+  });
 }
 
 class ChantierRemoteDataSourceImpl implements ChantierRemoteDataSource {
@@ -18,6 +29,7 @@ class ChantierRemoteDataSourceImpl implements ChantierRemoteDataSource {
     int limit = 20,
     String? search,
     ChantierStatut? statut,
+    VueDemandes? demandes,
   }) async {
     try {
       // `statut` est filtré CÔTÉ SERVEUR (`ChantierService.listChantiers`) :
@@ -28,10 +40,35 @@ class ChantierRemoteDataSourceImpl implements ChantierRemoteDataSource {
         'limit': limit,
         if (search != null && search.isNotEmpty) 'search': search,
         if (statut != null) 'statut': statut.raw,
+        // Sans ce paramètre, le serveur écarte les demandes : l'écran de
+        // suivi n'afficherait jamais rien.
+        if (demandes != null) 'demandes': demandes.raw,
       });
       final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
       final items = (data['chantiers'] as List).map((e) => Chantier.fromJson(e as Map<String, dynamic>)).toList();
       return ChantierPage(items: items, total: data['total'] as int? ?? items.length);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<Chantier> creerChantier({
+    required String nom,
+    String? adresse,
+    String? description,
+  }) async {
+    try {
+      // Aucun `statut` n'est envoyé : le serveur le DÉDUIT du rôle de
+      // l'appelant, et l'ignorerait de toute façon pour une demande. En
+      // envoyer un laisserait croire que le mobile en décide.
+      final response = await dio.post('/chantiers', data: {
+        'nom': nom,
+        if (adresse != null && adresse.isNotEmpty) 'adresse': adresse,
+        if (description != null && description.isNotEmpty) 'description': description,
+      });
+      final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+      return Chantier.fromJson(data['chantier'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw mapDioException(e);
     }

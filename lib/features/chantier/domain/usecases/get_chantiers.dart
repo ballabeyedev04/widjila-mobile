@@ -12,7 +12,14 @@ class GetChantiers {
     int limit = 20,
     String? search,
     ChantierStatut? statut,
+    VueDemandes? demandes,
   }) {
-    return repository.getChantiers(page: page, limit: limit, search: search, statut: statut);
+    return repository.getChantiers(
+      page: page,
+      limit: limit,
+      search: search,
+      statut: statut,
+      demandes: demandes,
+    );
   }
 }

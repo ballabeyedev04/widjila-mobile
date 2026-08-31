@@ -11,6 +11,10 @@ import '../../domain/entities/chantier.dart';
 /// possible entre la pastille et le reste de la carte.
 BadgeTone toneStatutChantier(ChantierStatut statut) {
   switch (statut) {
+    case ChantierStatut.enAttenteValidation:
+      return BadgeTone.warning;
+    case ChantierStatut.rejete:
+      return BadgeTone.danger;
     case ChantierStatut.enPreparation:
       return BadgeTone.info;
     case ChantierStatut.enCours:
@@ -29,6 +33,10 @@ BadgeTone toneStatutChantier(ChantierStatut statut) {
 /// suffirait pas (et ne dirait rien à un daltonien).
 IconData iconeStatutChantier(ChantierStatut statut) {
   switch (statut) {
+    case ChantierStatut.enAttenteValidation:
+      return Icons.hourglass_top_rounded;
+    case ChantierStatut.rejete:
+      return Icons.cancel_outlined;
     case ChantierStatut.enPreparation:
       return Icons.pending_actions_rounded;
     case ChantierStatut.enCours:

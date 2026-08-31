@@ -17,6 +17,8 @@ import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_event.dart';
 import '../../../notification/presentation/cubit/notifications_cubit.dart';
 import '../../../chantier/domain/entities/chantier.dart';
+import '../../../../core/widgets/status_badge.dart';
+import '../../../chantier/presentation/widgets/chantier_statut_badge.dart';
 import '../../../reserve/domain/entities/reserve.dart';
 import '../../../reserve/presentation/cubit/reserves_list_state.dart';
 import '../../../reserve/presentation/cubit/toutes_reserves_cubit.dart';
@@ -989,20 +991,11 @@ class _ListeChantiers extends StatelessWidget {
   }
 }
 
-Color _couleurStatutChantier(ChantierStatut s) {
-  switch (s) {
-    case ChantierStatut.enPreparation:
-      return AppColors.info;
-    case ChantierStatut.enCours:
-      return AppColors.success;
-    case ChantierStatut.enPause:
-      return AppColors.warning;
-    case ChantierStatut.archive:
-      return AppColors.neutral;
-    case ChantierStatut.cloture:
-      return AppColors.danger;
-  }
-}
+/// Couleur du statut — DÉRIVÉE de la table des pastilles.
+///
+/// Elle était recopiée ici, et avait déjà pris du retard : les deux statuts
+/// du circuit de validation y manquaient. Une seule table fait foi.
+Color _couleurStatutChantier(ChantierStatut s) => toneStatutChantier(s).fg;
 
 class _CarteChantier extends StatelessWidget {
   final DashboardChantierResume chantier;

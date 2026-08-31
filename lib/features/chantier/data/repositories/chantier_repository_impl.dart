@@ -30,14 +30,25 @@ class ChantierRepositoryImpl implements ChantierRepository {
     int limit = 20,
     String? search,
     ChantierStatut? statut,
+    VueDemandes? demandes,
   }) async {
     try {
       final result = await remoteDataSource.getChantiers(
-        page: page, limit: limit, search: search, statut: statut,
+        page: page, limit: limit, search: search, statut: statut, demandes: demandes,
       );
-      await _cache.enregistrerTous(result.items);
+      // Les DEMANDES ne rejoignent pas le cache des chantiers. Sans ce tri,
+      // la liste hors ligne les afficherait comme des chantiers en activité —
+      // précisément ce que le filtrage serveur évite.
+      final aRetenir = result.items.where((c) => !c.statut.estUneDemande).toList();
+      if (aRetenir.isNotEmpty) await _cache.enregistrerTous(aRetenir);
       return Right(result);
     } catch (e) {
+      // Aucun repli sur une vue de DEMANDES : le cache ne porte pas le
+      // demandeur, il ne saurait pas distinguer les demandes du compte
+      // connecté de celles des autres. Afficher celles d'un collègue comme
+      // les siennes serait pire qu'un message d'erreur.
+      if (demandes != null) return Left(exceptionToFailure(e));
+
       final repli = await _replisiSansReseau(e, () => _cache.listerTout());
       if (repli == null) return Left(exceptionToFailure(e));
       // Repli hors ligne : le cache contient TOUS les chantiers connus, sans
@@ -45,6 +56,27 @@ class ChantierRepositoryImpl implements ChantierRepository {
       // demandé, sans quoi le filtre paraîtrait ignoré dès la perte du réseau.
       final filtres = statut == null ? repli : repli.where((c) => c.statut == statut).toList();
       return Right(ChantierPage(items: filtres, total: filtres.length));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Chantier>> creerChantier({
+    required String nom,
+    String? adresse,
+    String? description,
+  }) async {
+    try {
+      final chantier = await remoteDataSource.creerChantier(
+        nom: nom, adresse: adresse, description: description,
+      );
+      // Une DEMANDE ne rejoint pas le cache des chantiers : hors ligne, elle
+      // s'afficherait comme un chantier en activité.
+      if (!chantier.statut.estUneDemande) await _cache.enregistrer(chantier);
+      return Right(chantier);
+    } catch (e) {
+      // Aucun repli hors ligne : une création ne se devine pas depuis un
+      // cache, et prétendre qu'elle a réussi serait mentir.
+      return Left(exceptionToFailure(e));
     }
   }
 

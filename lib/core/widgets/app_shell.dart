@@ -245,6 +245,17 @@ class _AppShellState extends State<AppShell> {
           dansCoquille: false,
           route: (String? id) => '/chantiers/$id/documents',
         ),
+      // « Envoi Plan » — sans rôle requis et SANS chantier à choisir : c'est
+      // précisément l'action de celui qui n'a pas encore de chantier. Le
+      // serveur met la demande en attente et tranche ensuite.
+      (
+        icon: Icons.upload_file_rounded,
+        label: l10n.envoiPlanTitre,
+        couleur: AppColors.info,
+        besoinChantier: false,
+        dansCoquille: false,
+        route: _versEnvoiPlan,
+      ),
     ];
   }
 
@@ -282,6 +293,14 @@ class _AppShellState extends State<AppShell> {
           route: _versChantiers,
         ),
         (
+          icon: Icons.assignment_outlined,
+          label: l10n.demandesTitre,
+          couleur: AppColors.warning,
+          besoinChantier: false,
+          dansCoquille: false,
+          route: _versDemandes,
+        ),
+        (
           icon: Icons.handshake_rounded,
           label: l10n.actionIntervenants,
           couleur: AppColors.info,
@@ -294,6 +313,8 @@ class _AppShellState extends State<AppShell> {
   // Fonctions nommées et non lambdas : une liste `const` n'accepte pas de
   // fermeture créée à la volée.
   static String _versChantiers(String? _) => AppRoutes.chantiers;
+  static String _versDemandes(String? _) => AppRoutes.demandesChantier;
+  static String _versEnvoiPlan(String? _) => AppRoutes.envoiPlan;
   static String _versIntervenants(String? _) => AppRoutes.intervenants;
 
   int _indexActif(String location, List<_Onglet> onglets) {
