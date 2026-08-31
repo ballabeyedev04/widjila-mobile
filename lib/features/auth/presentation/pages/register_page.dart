@@ -1,4 +1,3 @@
-import 'package:country_picker/country_picker.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +8,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/config/env.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../injection_container.dart';
+import '../../../referentiel/domain/entities/pays.dart';
+import '../../../referentiel/presentation/cubit/pays_cubit.dart';
 import '../../../../core/widgets/app_alert.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../l10n/l10n_extension.dart';
@@ -66,25 +68,22 @@ class _RegisterPageState extends State<RegisterPage> {
   //    via cet endpoint) ──
   final _organisationNomCtrl = TextEditingController();
   final _raisonSocialeCtrl = TextEditingController();
-  final _siretCtrl = TextEditingController();
-  final _rccmCtrl = TextEditingController();
-  final _nineaCtrl = TextEditingController();
+  /// Un contrôleur par identifiant, créé à la volée selon le pays choisi.
+  ///
+  /// Trois champs figés (SIRET, RCCM, NINEA) ne pouvaient pas couvrir quatre
+  /// pays : le Mali a un NIF, la Côte d'Ivoire un NCC et un IDU. La carte est
+  /// indexée par la clé attendue par le serveur.
+  final Map<String, TextEditingController> _identifiantsCtrl = {};
+
+  /// Catalogue des pays, chargé depuis l'API — voir [PaysCubit].
+  late final PaysCubit _paysCubit = sl<PaysCubit>()..charger();
   final _organisationTelephoneCtrl = TextEditingController();
   final _organisationEmailCtrl = TextEditingController();
   final _organisationAdresseCtrl = TextEditingController();
   final _organisationVilleCtrl = TextEditingController();
-  // Valeur par défaut volontairement laissée en français : `Country.name`
-  // (contrairement à `getTranslatedName(context)`, utilisé dès que
-  // l'utilisateur choisit explicitement via le sélecteur — voir
-  // `_choisirPays`) n'est disponible qu'avec un `BuildContext`, indisponible
-  // à l'initialisation d'un champ `late`/final de state. Exception documentée
-  // et acceptée : un seul mot, non structurant, corrigé dès la première
-  // interaction avec le champ.
-  final _organisationPaysCtrl = TextEditingController(text: 'France');
-  // Le drapeau accompagne toujours le pays choisi — y compris la valeur par
-  // défaut, pour ne pas afficher un « France » orphelin de son drapeau tant
-  // que l'utilisateur n'a pas explicitement ouvert le sélecteur.
-  Country? _paysSelectionne = CountryService().findByCode('FR');
+  /// Aucun pays présélectionné : forcer « France » ferait passer des
+  /// inscriptions sous un pays que l'utilisateur n'a jamais choisi, et
+  /// afficherait d'emblée des champs qui ne le concernent peut-être pas.
 
   bool _motDePasseVisible = false;
   bool _confirmMotDePasseVisible = false;
@@ -115,16 +114,114 @@ class _RegisterPageState extends State<RegisterPage> {
     for (final c in [
       _prenomCtrl, _nomCtrl, _emailCtrl, _telephoneCtrl, _fonctionCtrl,
       _motDePasseCtrl, _confirmMotDePasseCtrl,
-      _organisationNomCtrl, _raisonSocialeCtrl, _siretCtrl, _rccmCtrl, _nineaCtrl,
+      _organisationNomCtrl, _raisonSocialeCtrl,
       _organisationTelephoneCtrl, _organisationEmailCtrl, _organisationAdresseCtrl,
-      _organisationVilleCtrl, _organisationPaysCtrl,
+      _organisationVilleCtrl,
+      // Les contrôleurs d'identifiants sont créés à la volée selon le pays :
+      // les oublier ici laisserait fuir un objet par champ affiché.
+      ..._identifiantsCtrl.values,
     ]) {
       c.dispose();
     }
+    _paysCubit.close();
     super.dispose();
   }
 
   String? _videSi(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
+
+  /// Champ Pays — première question du formulaire d'entreprise.
+  Widget _champPays(AppLocalizations l10n) {
+    return BlocBuilder<PaysCubit, PaysState>(
+      bloc: _paysCubit,
+      builder: (context, etat) {
+        final choisi = etat.choisi;
+
+        return TextFormField(
+          key: ValueKey(etat.codeChoisi),
+          // `initialValue` et non un contrôleur : la valeur est entièrement
+          // dérivée de l'état du cubit, un contrôleur ferait doublon.
+          initialValue: choisi?.nom ?? '',
+          readOnly: true,
+          showCursor: false,
+          onTap: etat.items.isEmpty ? null : _choisirPays,
+          style: authFieldTextStyle,
+          decoration: authFieldDecoration(
+            label: l10n.registerChampPays,
+            icone: Icons.public_outlined,
+            suffixe: Icon(
+              Icons.arrow_drop_down_rounded,
+              color: Colors.white.withValues(alpha: 0.70),
+            ),
+          ).copyWith(
+            prefixIcon: choisi != null
+                ? SizedBox(
+                    width: 48,
+                    child: Center(
+                      child: Text(choisi.drapeau, style: const TextStyle(fontSize: 22)),
+                    ),
+                  )
+                : null,
+          ),
+          // Le pays est OBLIGATOIRE : sans lui, aucun identifiant n'est
+          // proposé et le serveur ne saurait pas lesquels vérifier.
+          validator: (_) => etat.codeChoisi == null ? l10n.registerPaysRequis : null,
+        );
+      },
+    );
+  }
+
+  /// Champs d'identification du pays choisi, deux par ligne.
+  ///
+  /// Rien tant qu'aucun pays n'est sélectionné : afficher des champs avant
+  /// de savoir lesquels s'appliquent est précisément ce qu'on corrige.
+  List<Widget> _champsIdentification(AppLocalizations l10n) {
+    final champs = _paysCubit.state.champs;
+    if (champs.isEmpty) return const [];
+
+    final widgets = <Widget>[];
+    for (var i = 0; i < champs.length; i += 2) {
+      final paire = champs.skip(i).take(2).toList();
+      widgets
+        ..add(const SizedBox(height: 14))
+        ..add(AuthFieldRow(
+          children: [
+            for (final champ in paire) _champIdentifiant(champ, l10n),
+            // `AuthFieldRow` attend deux enfants : un champ seul en dernière
+            // ligne serait sinon étiré sur toute la largeur, en rupture avec
+            // le reste du formulaire.
+            if (paire.length == 1) const SizedBox.shrink(),
+          ],
+        ));
+    }
+    return widgets;
+  }
+
+  Widget _champIdentifiant(ChampIdentification champ, AppLocalizations l10n) {
+    return TextFormField(
+      controller: _identifiantsCtrl[champ.cle],
+      textInputAction: TextInputAction.next,
+      style: authFieldTextStyle,
+      cursorColor: AppColors.primaryLight,
+      maxLength: 50,
+      buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+      decoration: authFieldDecoration(
+        label: champ.libelle,
+        icone: Icons.pin_outlined,
+      ).copyWith(
+        // L'aide dit à quoi correspond le sigle : « NINEA » seul ne parle
+        // qu'à ceux qui le connaissent déjà.
+        helperText: champ.aide,
+        helperMaxLines: 2,
+        helperStyle: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.55)),
+      ),
+      validator: (v) {
+        // Aucun identifiant n'est obligatoire : une entreprise en cours
+        // d'immatriculation n'a pas encore ses numéros.
+        if ((v ?? '').trim().isEmpty) return null;
+        return champ.valide(v) ? null : l10n.registerIdentifiantInvalide(champ.aide);
+      },
+    );
+  }
 
   void _etapeSuivante() {
     FocusScope.of(context).unfocus();
@@ -154,45 +251,98 @@ class _RegisterPageState extends State<RegisterPage> {
           fonction: _videSi(_fonctionCtrl),
           organisationNom: _organisationNomCtrl.text.trim(),
           raisonSociale: _videSi(_raisonSocialeCtrl),
-          siret: _videSi(_siretCtrl),
-          rccm: _videSi(_rccmCtrl),
-          ninea: _videSi(_nineaCtrl),
+          // Seuls les identifiants du pays choisi sont envoyés : le
+          // serveur REFUSE ceux qui n'ont pas de sens pour ce pays.
+          identifiants: {
+            for (final e in _identifiantsCtrl.entries)
+              if (e.value.text.trim().isNotEmpty) e.key: e.value.text.trim(),
+          },
           organisationTelephone: _videSi(_organisationTelephoneCtrl),
           organisationEmail: _videSi(_organisationEmailCtrl),
           organisationAdresse: _videSi(_organisationAdresseCtrl),
           organisationVille: _videSi(_organisationVilleCtrl),
-          organisationPays: _videSi(_organisationPaysCtrl),
+          // Code ISO, jamais le libellé : c'est ce que le serveur valide.
+          organisationPays: _paysCubit.state.codeChoisi,
         ));
   }
 
-  /// Sélecteur de pays avec recherche intégrée — remplace la saisie libre
-  /// (fautes de frappe, incohérences « France »/« france »/« FR »…). La
-  /// liste des ~250 pays reste accessible en tapant les premières lettres
-  /// plutôt qu'en la faisant défiler entièrement.
+  /// Sélecteur de pays — limité aux pays RÉELLEMENT couverts.
+  ///
+  /// L'ancien sélecteur en proposait environ 250, alors que le serveur n'en
+  /// accepte que quatre : choisir la Belgique menait à un refus que rien à
+  /// l'écran n'avait laissé prévoir. Quatre entrées tiennent dans une feuille,
+  /// sans champ de recherche.
   void _choisirPays() {
-    showCountryPicker(
+    final pays = _paysCubit.state.items;
+    if (pays.isEmpty) return;
+
+    showModalBottomSheet<void>(
       context: context,
-      showPhoneCode: false,
-      onSelect: (country) => setState(() {
-        _organisationPaysCtrl.text = country.getTranslatedName(context) ?? country.name;
-        _paysSelectionne = country;
-      }),
-      countryListTheme: CountryListThemeData(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        bottomSheetHeight: MediaQuery.sizeOf(context).height * 0.75,
-        searchTextStyle: const TextStyle(fontSize: 15, color: AppColors.textPrimary),
-        inputDecoration: InputDecoration(
-          labelText: context.l10n.registerRecherchePays,
-          prefixIcon: const Icon(Icons.search_rounded),
-          filled: true,
-          fillColor: AppColors.background,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none,
-          ),
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (feuille) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 14),
+            Container(
+              width: 42, height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            const SizedBox(height: 18),
+            for (final p in pays)
+              ListTile(
+                leading: Text(p.drapeau, style: const TextStyle(fontSize: 26)),
+                title: Text(
+                  p.nom,
+                  style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                subtitle: Text(
+                  // Les identifiants attendus, annoncés AVANT le choix :
+                  // l'utilisateur sait ce qu'on va lui demander.
+                  p.champs.map((c) => c.libelle).join(' · '),
+                  style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                ),
+                trailing: _paysCubit.state.codeChoisi == p.code
+                    ? const Icon(Icons.check_circle_rounded, color: AppColors.primary)
+                    : null,
+                onTap: () {
+                  _choisirCode(p);
+                  Navigator.of(feuille).pop();
+                },
+              ),
+            const SizedBox(height: 10),
+          ],
         ),
       ),
     );
+  }
+
+  /// Applique le pays choisi et reconstruit les champs d'identification.
+  ///
+  /// Les contrôleurs des champs qui DISPARAISSENT sont libérés : garder la
+  /// saisie d'un NINEA après un passage en France l'aurait envoyée au serveur,
+  /// qui l'aurait refusée — pour une valeur devenue invisible à l'écran.
+  void _choisirCode(Pays pays) {
+    setState(() {
+      _paysCubit.choisir(pays.code);
+
+      final cles = pays.champs.map((c) => c.cle).toSet();
+      for (final cle in _identifiantsCtrl.keys.toList()) {
+        if (!cles.contains(cle)) _identifiantsCtrl.remove(cle)!.dispose();
+      }
+      for (final champ in pays.champs) {
+        _identifiantsCtrl.putIfAbsent(champ.cle, TextEditingController.new);
+      }
+    });
   }
 
   Future<void> _ouvrirLien(String url) async {
@@ -481,6 +631,13 @@ class _RegisterPageState extends State<RegisterPage> {
             },
           ),
           const SizedBox(height: 14),
+          // ── Le PAYS d'abord ──────────────────────────────────────────
+          //
+          // Il commande les identifiants demandés plus bas : le placer après
+          // eux obligeait l'utilisateur à ressaisir, et laissait afficher des
+          // champs sans rapport avec son pays.
+          _champPays(l10n),
+          const SizedBox(height: 14),
           TextFormField(
             controller: _raisonSocialeCtrl,
             textInputAction: TextInputAction.next,
@@ -490,48 +647,15 @@ class _RegisterPageState extends State<RegisterPage> {
             maxLength: 255,
             buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
           ),
+          // ── Identifiants d'entreprise, selon le PAYS ────────────────
+          //
+          // Construits d'après le catalogue servi par l'API : ni SIRET pour
+          // une entreprise sénégalaise, ni NINEA pour une française. Deux par
+          // ligne, comme le reste du formulaire.
+          ..._champsIdentification(l10n),
+
           const SizedBox(height: 14),
           AuthFieldRow(children: [
-            TextFormField(
-              controller: _siretCtrl,
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(14),
-              ],
-              textInputAction: TextInputAction.next,
-              style: authFieldTextStyle,
-              cursorColor: AppColors.primaryLight,
-              decoration: authFieldDecoration(label: l10n.registerChampSiret, icone: Icons.pin_outlined),
-              validator: (v) {
-                final val = (v ?? '').trim();
-                if (val.isEmpty) return null;
-                return val.length == 14 ? null : l10n.registerSiret14Chiffres;
-              },
-            ),
-            TextFormField(
-              controller: _rccmCtrl,
-              textInputAction: TextInputAction.next,
-              style: authFieldTextStyle,
-              cursorColor: AppColors.primaryLight,
-              decoration: authFieldDecoration(label: l10n.registerChampRccm, icone: Icons.pin_outlined),
-              maxLength: 50,
-              buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
-            ),
-          ]),
-          const SizedBox(height: 14),
-          AuthFieldRow(children: [
-            TextFormField(
-              controller: _nineaCtrl,
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
-                LengthLimitingTextInputFormatter(15),
-              ],
-              textInputAction: TextInputAction.next,
-              style: authFieldTextStyle,
-              cursorColor: AppColors.primaryLight,
-              decoration: authFieldDecoration(label: l10n.registerChampNinea, icone: Icons.pin_outlined),
-            ),
             TextFormField(
               controller: _organisationTelephoneCtrl,
               keyboardType: TextInputType.phone,
@@ -582,29 +706,6 @@ class _RegisterPageState extends State<RegisterPage> {
               decoration: authFieldDecoration(label: l10n.registerChampVille, icone: Icons.location_city_outlined),
               maxLength: 100,
               buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
-            ),
-            TextFormField(
-              controller: _organisationPaysCtrl,
-              readOnly: true,
-              showCursor: false,
-              onTap: _choisirPays,
-              style: authFieldTextStyle,
-              decoration: authFieldDecoration(
-                label: l10n.registerChampPays,
-                icone: Icons.public_outlined,
-                suffixe: Icon(Icons.arrow_drop_down_rounded, color: Colors.white.withValues(alpha: 0.70)),
-              ).copyWith(
-                // Le drapeau du pays choisi remplace l'icône générique dès
-                // qu'une sélection existe — c'est le repère visuel demandé.
-                prefixIcon: _paysSelectionne != null
-                    ? SizedBox(
-                        width: 48,
-                        child: Center(
-                          child: Text(_paysSelectionne!.flagEmoji, style: const TextStyle(fontSize: 22)),
-                        ),
-                      )
-                    : null,
-              ),
             ),
           ]),
 

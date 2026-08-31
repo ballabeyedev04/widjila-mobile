@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 
 import '../../../../core/errors/exception_to_failure.dart';
 import '../../../../core/errors/failure.dart';
+import '../../domain/entities/pays.dart';
 import '../../domain/entities/type_referentiel.dart';
 import '../../domain/repositories/referentiel_repository.dart';
 import '../datasources/referentiel_remote_datasource.dart';
@@ -22,6 +23,11 @@ class ReferentielRepositoryImpl implements ReferentielRepository {
   /// qui viderait le sélecteur.
   final Map<ReferentielType, List<TypeReferentiel>> _cache = {};
 
+  /// Catalogue des pays, gardé pour la session. Il ne change qu'avec une
+  /// livraison : le relire à chaque ouverture du formulaire d'inscription
+  /// n'apprendrait rien.
+  List<Pays>? _cachePays;
+
   ReferentielRepositoryImpl(this.remoteDataSource);
 
   @override
@@ -34,6 +40,19 @@ class ReferentielRepositoryImpl implements ReferentielRepository {
       return Right(liste);
     } catch (e) {
       final cache = _cache[referentiel];
+      if (cache != null) return Right(cache);
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<Pays>>> getPays() async {
+    try {
+      final liste = await remoteDataSource.getPays();
+      _cachePays = liste;
+      return Right(liste);
+    } catch (e) {
+      final cache = _cachePays;
       if (cache != null) return Right(cache);
       return Left(exceptionToFailure(e));
     }

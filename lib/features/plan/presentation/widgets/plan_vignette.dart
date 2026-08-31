@@ -40,6 +40,13 @@ class PlanVignette extends StatefulWidget {
   final Color couleur;
 
   final double taille;
+
+  /// Largeur, quand l'apercu n'est pas carre. `null` = aussi large que haut.
+  ///
+  /// Une bande horizontale (carrousel du tableau de bord) a besoin d'un
+  /// bandeau plus large que haut ; les listes verticales gardent le carre.
+  final double? largeur;
+
   final double rayon;
 
   const PlanVignette({
@@ -48,6 +55,7 @@ class PlanVignette extends StatefulWidget {
     required this.icone,
     required this.couleur,
     this.taille = 52,
+    this.largeur,
     this.rayon = 16,
   });
 
@@ -179,7 +187,7 @@ class _PlanVignetteState extends State<PlanVignette> {
     final apercu = _apercu;
 
     return Container(
-      width: widget.taille,
+      width: widget.largeur ?? widget.taille,
       height: widget.taille,
       decoration: BoxDecoration(
         color: widget.couleur.withValues(alpha: 0.13),

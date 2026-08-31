@@ -102,6 +102,8 @@ import 'features/referentiel/domain/entities/type_referentiel.dart';
 import 'features/referentiel/domain/repositories/referentiel_repository.dart';
 import 'features/referentiel/domain/usecases/get_types_actifs.dart';
 import 'features/referentiel/presentation/cubit/types_referentiel_cubit.dart';
+import 'features/referentiel/domain/usecases/get_pays.dart';
+import 'features/referentiel/presentation/cubit/pays_cubit.dart';
 import 'features/plan/data/datasources/plan_remote_datasource.dart';
 import 'features/plan/data/repositories/plan_repository_impl.dart';
 import 'features/plan/domain/repositories/plan_repository.dart';
@@ -391,6 +393,9 @@ Future<void> init() async {
   );
   sl.registerLazySingleton<ReferentielRepository>(() => ReferentielRepositoryImpl(sl()));
   sl.registerLazySingleton(() => GetTypesActifs(sl()));
+  sl.registerLazySingleton(() => GetPays(sl()));
+  // Catalogue des pays du formulaire d'inscription — voir PaysCubit.
+  sl.registerFactory(() => PaysCubit(getPays: sl()));
 
   // Un cubit PAR référentiel, choisi au moment de l'injection : les trois
   // listes sont indépendantes, et les réunir obligerait à charger les trois

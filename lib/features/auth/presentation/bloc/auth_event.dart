@@ -50,9 +50,9 @@ class AuthRegisterRequested extends AuthEvent {
   final String? fonction;
   final String? organisationNom;
   final String? raisonSociale;
-  final String? siret;
-  final String? rccm;
-  final String? ninea;
+  /// Identifiants d'entreprise, indexés par la clé attendue par le serveur.
+  /// Les champs varient selon le pays — voir `config/pays.js` côté backend.
+  final Map<String, String> identifiants;
   final String? organisationTelephone;
   final String? organisationEmail;
   final String? organisationAdresse;
@@ -68,9 +68,7 @@ class AuthRegisterRequested extends AuthEvent {
     this.fonction,
     this.organisationNom,
     this.raisonSociale,
-    this.siret,
-    this.rccm,
-    this.ninea,
+    this.identifiants = const {},
     this.organisationTelephone,
     this.organisationEmail,
     this.organisationAdresse,
@@ -81,7 +79,7 @@ class AuthRegisterRequested extends AuthEvent {
   @override
   List<Object?> get props => [
         nom, prenom, email, motDePasse, telephone, fonction, organisationNom,
-        raisonSociale, siret, rccm, ninea, organisationTelephone,
+        raisonSociale, identifiants, organisationTelephone,
         organisationEmail, organisationAdresse, organisationVille, organisationPays,
       ];
 }

@@ -16,9 +16,13 @@ class RegisterUser {
     String? fonction,
     String? organisationNom,
     String? raisonSociale,
-    String? siret,
-    String? rccm,
-    String? ninea,
+    /// Identifiants d'entreprise, indexés par la clé attendue par le serveur
+    /// (`siret`, `ninea`, `nif`, `ncc`, `idu`, `rccm`, `num_tva`).
+    ///
+    /// Une carte plutôt que des paramètres nommés : les champs varient selon
+    /// le pays, et les figer ici obligerait à modifier chaque couche à chaque
+    /// pays ajouté.
+    Map<String, String> identifiants = const {},
     String? organisationTelephone,
     String? organisationEmail,
     String? organisationAdresse,
@@ -34,9 +38,7 @@ class RegisterUser {
       fonction: fonction,
       organisationNom: organisationNom,
       raisonSociale: raisonSociale,
-      siret: siret,
-      rccm: rccm,
-      ninea: ninea,
+      identifiants: identifiants,
       organisationTelephone: organisationTelephone,
       organisationEmail: organisationEmail,
       organisationAdresse: organisationAdresse,

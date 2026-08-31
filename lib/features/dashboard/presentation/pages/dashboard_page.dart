@@ -25,6 +25,7 @@ import '../../../reserve/presentation/widgets/reserve_statut_donut.dart';
 import '../../domain/entities/dashboard_stats.dart';
 import '../cubit/dashboard_cubit.dart';
 import '../cubit/dashboard_state.dart';
+import '../widgets/derniers_plans.dart';
 
 /// Largeur à partir de laquelle le tableau de bord bascule sur une mise en
 /// page à deux colonnes (tablette / desktop) plutôt qu'empilée (téléphone).
@@ -549,6 +550,10 @@ class _CorpsTableauDeBord extends StatelessWidget {
                   _CarteSeverite(stats: stats),
                   const SizedBox(height: 18),
                 ],
+                // Les huit derniers plans, entre la vue d'ensemble et
+                // l'apercu general : l'ouverture la plus frequente de
+                // l'application, jusqu'ici a deux ecrans de distance.
+                const DerniersPlans(),
                 _TitreSection(context.l10n.dashboardApercuGeneral),
                 const SizedBox(height: 12),
                 _GrilleApercu(stats: stats, role: role, colonnes: 2),
@@ -587,6 +592,7 @@ class _CorpsTableauDeBord extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 24),
+                const DerniersPlans(margeBas: 24),
                 _TitreSection(context.l10n.dashboardApercuGeneral),
                 const SizedBox(height: 12),
                 _GrilleApercu(stats: stats, role: role, colonnes: 4),

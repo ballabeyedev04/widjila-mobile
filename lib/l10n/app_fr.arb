@@ -354,6 +354,15 @@
   "registerChampEmailOrg": "Email de l'organisation (optionnel)",
   "registerChampAdresse": "Adresse (optionnel)",
   "registerChampVille": "Ville (optionnel)",
+  "registerPaysRequis": "Sélectionnez un pays",
+  "registerIdentifiantInvalide": "Format attendu : {aide}",
+  "@registerIdentifiantInvalide": {
+    "placeholders": {
+      "aide": {
+        "type": "String"
+      }
+    }
+  },
   "registerChampPays": "Pays (optionnel)",
   "registerRecherchePays": "Rechercher un pays",
   "registerBoutonCreerCompte": "Créer mon compte",
@@ -785,6 +794,9 @@
   "partenaireFournisseur": "Fournisseur",
   "dashboardMenuTooltip": "Menu",
   "dashboardMonProfil": "Mon profil",
+  "dashboardDerniersPlans": "Derniers plans",
+  "dashboardPlansPrecedents": "Plans précédents",
+  "dashboardPlansSuivants": "Plans suivants",
   "dashboardApercuGeneral": "Aperçu général",
   "dashboardVosChantiers": "Vos chantiers",
   "dashboardReservesRecentes": "Réserves récentes",

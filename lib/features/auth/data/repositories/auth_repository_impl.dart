@@ -93,9 +93,13 @@ class AuthRepositoryImpl implements AuthRepository {
     String? fonction,
     String? organisationNom,
     String? raisonSociale,
-    String? siret,
-    String? rccm,
-    String? ninea,
+    /// Identifiants d'entreprise, indexés par la clé attendue par le serveur
+    /// (`siret`, `ninea`, `nif`, `ncc`, `idu`, `rccm`, `num_tva`).
+    ///
+    /// Une carte plutôt que des paramètres nommés : les champs varient selon
+    /// le pays, et les figer ici obligerait à modifier chaque couche à chaque
+    /// pays ajouté.
+    Map<String, String> identifiants = const {},
     String? organisationTelephone,
     String? organisationEmail,
     String? organisationAdresse,
@@ -112,9 +116,12 @@ class AuthRepositoryImpl implements AuthRepository {
         if (fonction != null && fonction.isNotEmpty) 'fonction': fonction,
         if (organisationNom != null && organisationNom.isNotEmpty) 'organisationNom': organisationNom,
         if (raisonSociale != null && raisonSociale.isNotEmpty) 'raison_sociale': raisonSociale,
-        if (siret != null && siret.isNotEmpty) 'siret': siret,
-        if (rccm != null && rccm.isNotEmpty) 'rccm': rccm,
-        if (ninea != null && ninea.isNotEmpty) 'ninea': ninea,
+        // Les identifiants partent sous leur clé serveur. Les valeurs vides
+        // sont OMISES plutôt qu'envoyées à '' : le schéma les tolère, mais une
+        // chaîne vide en base se relit ensuite comme une valeur renseignée.
+        ...Map.fromEntries(
+          identifiants.entries.where((e) => e.value.trim().isNotEmpty),
+        ),
         if (organisationTelephone != null && organisationTelephone.isNotEmpty)
           'organisationTelephone': organisationTelephone,
         if (organisationEmail != null && organisationEmail.isNotEmpty) 'organisationEmail': organisationEmail,
