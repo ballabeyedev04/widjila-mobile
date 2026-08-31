@@ -230,7 +230,10 @@ class _BoutonFiltrer extends StatelessWidget {
                 trailing: courant == null ? const Icon(Icons.check_rounded, color: AppColors.primary) : null,
                 onTap: () => Navigator.of(sheetContext).pop(sentinelleTous),
               ),
-              for (final s in ChantierStatut.values)
+              // Sans les statuts du circuit : les demandes ont leur propre
+              // écran (« Suivi des demandes »), et le serveur les écarte de
+              // cette liste — le filtre ne ramènerait rien.
+              for (final s in ChantierStatut.values.where((s) => !s.estUneDemande))
                 ListTile(
                   leading: Icon(iconeStatutChantier(s), size: 20, color: toneStatutChantier(s).fg),
                   title: Text(s.label(l10n)),

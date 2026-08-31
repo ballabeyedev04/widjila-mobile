@@ -52,8 +52,13 @@ class ChantiersListState extends Equatable {
 
   /// Statuts effectivement représentés — inutile d'afficher une puce
   /// « Clôturé (0) » pour une organisation qui n'en a aucun.
-  List<ChantierStatut> get statutsPresents =>
-      ChantierStatut.values.where((s) => (compteursParStatut[s] ?? 0) > 0).toList();
+  ///
+  /// Les statuts du CIRCUIT en sont exclus : les demandes ont leur propre
+  /// écran, et le serveur les écarte déjà de cette liste — une puce qui ne
+  /// ramènerait rien serait pire qu'une puce absente.
+  List<ChantierStatut> get statutsPresents => ChantierStatut.values
+      .where((s) => !s.estUneDemande && (compteursParStatut[s] ?? 0) > 0)
+      .toList();
 
   ChantiersListState copyWith({
     ChantiersListStatus? status,
