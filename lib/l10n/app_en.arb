@@ -864,6 +864,7 @@
   "partenaireFournisseur": "Supplier",
   "dashboardMenuTooltip": "Menu",
   "dashboardMonProfil": "My profile",
+  "dashboardAucunPlan": "No drawing yet",
   "dashboardDerniersPlans": "Latest drawings",
   "dashboardPlansPrecedents": "Previous drawings",
   "dashboardPlansSuivants": "Next drawings",

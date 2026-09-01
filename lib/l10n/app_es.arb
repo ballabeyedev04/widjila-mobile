@@ -864,6 +864,7 @@
   "partenaireFournisseur": "Proveedor",
   "dashboardMenuTooltip": "Menú",
   "dashboardMonProfil": "Mi perfil",
+  "dashboardAucunPlan": "Ningún plano por ahora",
   "dashboardDerniersPlans": "Últimos planos",
   "dashboardPlansPrecedents": "Planos anteriores",
   "dashboardPlansSuivants": "Planos siguientes",

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -79,7 +80,8 @@ class _BandeState extends State<_Bande> {
 
   /// Largeur d'une carte plus son écart — le pas d'un appui sur une flèche.
   static const _pas = 172.0;
-  static const _hauteur = 186.0;
+  /// Hauteur de la bande — l'aperçu (112) plus les trois lignes de texte.
+  static const _hauteur = 202.0;
 
   @override
   void initState() {
@@ -123,14 +125,18 @@ class _BandeState extends State<_Bande> {
 
     return BlocBuilder<PlansListCubit, PlansListState>(
       builder: (context, etat) {
-        // Rien tant qu'il n'y a rien à montrer : une section vide entre deux
-        // blocs pleins ferait croire à un défaut d'affichage.
+        // Rien PENDANT le chargement : afficher « aucun plan » une
+        // demi-seconde avant que la liste arrive ferait clignoter un mensonge.
         if (etat.status == PlansListStatus.chargement && etat.items.isEmpty) {
           return const SizedBox.shrink();
         }
-        if (etat.items.isEmpty) return const SizedBox.shrink();
+        // Rien en cas d'ERREUR non plus : on ignore alors s'il existe des
+        // plans, et affirmer qu'il n'y en a pas serait faux. Le tableau de
+        // bord a déjà sa propre gestion d'erreur.
+        if (etat.status == PlansListStatus.erreur) return const SizedBox.shrink();
 
         final derniers = derniersPlans(etat.items);
+        final vide = derniers.isEmpty;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -147,41 +153,86 @@ class _BandeState extends State<_Bande> {
                     ),
                   ),
                 ),
-                _Fleche(
-                  icone: Icons.chevron_left_rounded,
-                  actif: _peutReculer,
-                  libelle: l10n.dashboardPlansPrecedents,
-                  onTap: () => _glisser(-1),
-                ),
-                const SizedBox(width: 6),
-                _Fleche(
-                  icone: Icons.chevron_right_rounded,
-                  actif: _peutAvancer,
-                  libelle: l10n.dashboardPlansSuivants,
-                  onTap: () => _glisser(1),
-                ),
+                // Pas de flèches sur une bande vide : il n'y a rien à
+                // faire défiler, et deux boutons inertes feraient chercher
+                // un contenu qui n'existe pas.
+                if (!vide) ...[
+                  _Fleche(
+                    icone: Icons.chevron_left_rounded,
+                    actif: _peutReculer,
+                    libelle: l10n.dashboardPlansPrecedents,
+                    onTap: () => _glisser(-1),
+                  ),
+                  const SizedBox(width: 6),
+                  _Fleche(
+                    icone: Icons.chevron_right_rounded,
+                    actif: _peutAvancer,
+                    libelle: l10n.dashboardPlansSuivants,
+                    onTap: () => _glisser(1),
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              height: _hauteur,
-              child: ListView.separated(
-                controller: _defilement,
-                scrollDirection: Axis.horizontal,
-                // `ClampingScrollPhysics` : sur Android, l'effet élastique
-                // d'iOS renverrait `offset` hors bornes et ferait clignoter
-                // les flèches en fin de course.
-                physics: const ClampingScrollPhysics(),
-                padding: EdgeInsets.zero,
-                itemCount: derniers.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 12),
-                itemBuilder: (_, i) => _Carte(plan: derniers[i]),
+            if (vide)
+              _BandeVide(message: l10n.dashboardAucunPlan)
+            else
+              SizedBox(
+                height: _hauteur,
+                child: ListView.separated(
+                  controller: _defilement,
+                  scrollDirection: Axis.horizontal,
+                  // `ClampingScrollPhysics` : sur Android, l'effet élastique
+                  // d'iOS renverrait `offset` hors bornes et ferait clignoter
+                  // les flèches en fin de course.
+                  physics: const ClampingScrollPhysics(),
+                  padding: EdgeInsets.zero,
+                  itemCount: derniers.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 12),
+                  itemBuilder: (_, i) => _Carte(plan: derniers[i]),
+                ),
               ),
-            ),
             SizedBox(height: widget.margeBas),
           ],
         );
       },
+    );
+  }
+}
+
+/// Message affiché à la place de la bande quand aucun plan n'existe.
+///
+/// Discret, et de la hauteur d'une carte : la section garde sa place entre
+/// « Vue d'ensemble » et « Aperçu général », et l'utilisateur comprend qu'elle
+/// se remplira — plutôt que de la croire absente.
+class _BandeVide extends StatelessWidget {
+  final String message;
+
+  const _BandeVide({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.map_outlined, size: 18, color: AppColors.textMuted),
+          const SizedBox(width: 9),
+          Flexible(
+            child: Text(
+              message,
+              style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -296,6 +347,20 @@ class _Carte extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted),
                       ),
+                      // La DATE distingue la dernière version de
+                      // l'avant-dernière quand huit plans portent des noms
+                      // proches. Absente, la ligne disparaît plutôt que
+                      // d'afficher un tiret : un plan sans date est un cas
+                      // rare, et le signaler n'apprendrait rien.
+                      if (plan.createdAt != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          DateFormat('dd MMM yyyy').format(plan.createdAt!),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                        ),
+                      ],
                     ],
                   ),
                 ),
