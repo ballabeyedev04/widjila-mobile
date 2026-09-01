@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/config/breakpoints.dart';
 import '../../../../core/config/user_role.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -31,7 +32,7 @@ import '../widgets/derniers_plans.dart';
 
 /// Largeur à partir de laquelle le tableau de bord bascule sur une mise en
 /// page à deux colonnes (tablette / desktop) plutôt qu'empilée (téléphone).
-const _seuilTablette = 700.0;
+
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -535,7 +536,7 @@ class _CorpsTableauDeBord extends StatelessWidget {
       onRefresh: () => context.read<DashboardCubit>().charger(),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final estTablette = constraints.maxWidth >= _seuilTablette;
+          final estTablette = constraints.maxWidth >= seuilTablette;
           final padding = EdgeInsets.all(estTablette ? 24 : 16);
 
           if (!estTablette) {

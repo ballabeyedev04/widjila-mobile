@@ -1,11 +1,14 @@
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/config/user_role.dart';
+import '../../../../core/config/breakpoints.dart';
+import '../../../referentiel/domain/entities/code_niveau.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/error_view.dart';
@@ -175,11 +178,24 @@ class _PlanNavigationPageState extends State<PlanNavigationPage> {
     return widget.chantierNom ?? context.l10n.navPlans;
   }
 
-  String get _sousTitre => [
-        if (_batiment != null && _zone != null) _batiment!.nom,
-        if (_etage != null && _zone != null) _etage!.nom,
-        if (_batiment != null && _zone == null && _etage != null) _batiment!.nom,
-      ].join(' › ');
+  /// Fil d'Ariane COMPLET — « Résidence Horizon › Bâtiment A › R+2 ».
+  ///
+  /// Le chantier en tête, et tous les niveaux traversés SAUF le dernier, que
+  /// le titre affiche déjà juste au-dessus. Le répéter ne dirait rien de plus.
+  ///
+  /// La version précédente perdait le nom du chantier dès qu'on descendait :
+  /// après trois appuis, on lisait « A203 » sans savoir de quel chantier.
+  String get _sousTitre {
+    final chemin = <String>[
+      if (widget.chantierNom != null) widget.chantierNom!,
+      if (_batiment != null) _batiment!.nom,
+      if (_etage != null) _etage!.nom,
+      if (_zone != null) _zone!.nom,
+    ];
+    // Le dernier segment EST le titre : on le retire du chemin.
+    if (chemin.length > 1) chemin.removeLast();
+    return chemin.join(' › ');
+  }
 
   /// Remonte d'un niveau ; à la racine, quitte l'écran.
   void _remonter() {
@@ -290,9 +306,9 @@ class _PlanNavigationPageState extends State<PlanNavigationPage> {
     // ── Niveau 2 : les étages d'un bâtiment ────────────────────────────────
     if (_batiment != null) {
       final tries = [..._batiment!.etages]..sort((a, b) => a.niveau.compareTo(b.niveau));
-      final sousSols = tries.where((e) => e.niveau < 0).toList();
-      final toiture = tries.where((e) => e.niveau >= 0 && _estToiture(e.nom)).toList();
-      final etages = tries.where((e) => e.niveau >= 0 && !_estToiture(e.nom)).toList();
+      final sousSols = tries.where((e) => sectionDuNiveau(e) == TypeNiveau.sousSol).toList();
+      final etages = tries.where((e) => sectionDuNiveau(e) == TypeNiveau.etage).toList();
+      final toiture = tries.where((e) => sectionDuNiveau(e) == TypeNiveau.toiture).toList();
 
       ({String titre, List<({String nom, String meta, Plan? plan, IconData icone, VoidCallback onTap})> elements})
           section(String titre, List<EtageStructure> liste) => (
@@ -348,7 +364,36 @@ class _PlanNavigationPageState extends State<PlanNavigationPage> {
   }
 }
 
-bool _estToiture(String nom) => RegExp('toiture', caseSensitive: false).hasMatch(nom);
+/// Mots qui désignent un niveau de toiture, pour les données ANCIENNES.
+///
+/// « Acrotère » n'y figure pas : c'est un détail de rive, pas un niveau.
+final _motsToiture = RegExp(
+  'toiture|terrasse|comble|edicule|édicule|local technique',
+  caseSensitive: false,
+);
+
+/// Sous quelle section ranger ce niveau ?
+///
+/// La NATURE DÉCLARÉE fait foi. Elle vient du référentiel, saisie au dépôt du
+/// plan, et c'est la seule information fiable : une cote ne dit pas qu'un
+/// niveau est une toiture, et un nom libre encore moins.
+///
+/// L'heuristique ne sert qu'en REPLI, pour les niveaux créés avant ce
+/// référentiel : la migration leur a donné `etage` par défaut, sans rien
+/// deviner de leur nom — c'est donc ici, à l'affichage, qu'on fait de son
+/// mieux avec ce qu'on a. Une cote négative est un sous-sol ; un nom qui parle
+/// de toiture en est une.
+///
+/// Conséquence assumée : un niveau ancien nommé « Niveau -1 » avec une cote à
+/// 0 restera dans ÉTAGES. On ne peut pas mieux faire sans inventer, et le
+/// client peut corriger la nature depuis la fiche du niveau.
+@visibleForTesting
+TypeNiveau sectionDuNiveau(EtageStructure niveau) {
+  if (niveau.typeNiveau != TypeNiveau.etage) return niveau.typeNiveau;
+  if (niveau.niveau < 0) return TypeNiveau.sousSol;
+  if (_motsToiture.hasMatch(niveau.nom)) return TypeNiveau.toiture;
+  return TypeNiveau.etage;
+}
 
 /// Bandeau de navigation — même vocabulaire visuel que la visionneuse
 /// (flèche orange, tuile d'icône, titre en w800, ligne méta grise).
@@ -448,13 +493,19 @@ class _Liste extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vide = sections.every((s) => s.elements.isEmpty);
+    // Même seuil que le tableau de bord et la coquille : une tablette ne se
+    // définit pas différemment d'un écran à l'autre.
+    final estTablette = MediaQuery.sizeOf(context).width >= seuilTablette;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      padding: EdgeInsets.fromLTRB(estTablette ? 24 : 16, 16, estTablette ? 24 : 16, 24),
       children: [
         if (planEnTete != null)
           SizedBox(
-            height: 300,
+            // Le plan occupe plus de place sur tablette : c'est l'élément
+            // qu'on vient regarder, et la largeur disponible n'a d'intérêt que
+            // si la hauteur suit.
+            height: estTablette ? 460 : 300,
             child: _PlanApercu(plan: planEnTete!, onHotspot: onHotspot),
           )
         else if (messageAucunPlan != null)
@@ -486,10 +537,24 @@ class _Liste extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            for (final e in s.elements) ...[
-              _Tuile(element: e, sansPlan: sansPlan),
-              const SizedBox(height: 8),
-            ],
+            // Une colonne sur téléphone, quatre sur tablette. `shrinkWrap` :
+            // la grille vit dans la `ListView` de la page, elle doit se
+            // dimensionner sur son contenu plutôt que défiler séparément —
+            // deux zones de défilement imbriquées rendraient le geste
+            // imprévisible.
+            GridView.count(
+              crossAxisCount: estTablette ? 4 : 1,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 12,
+              // Une tuile est large et basse sur téléphone (pleine largeur),
+              // presque carrée sur tablette (un quart de la largeur).
+              childAspectRatio: estTablette ? 1.55 : 5.2,
+              children: [
+                for (final e in s.elements) _Tuile(element: e, sansPlan: sansPlan),
+              ],
+            ),
             const SizedBox(height: 14),
           ],
       ],

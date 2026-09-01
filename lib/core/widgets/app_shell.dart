@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../config/user_role.dart';
 import '../routes/app_router.dart';
 import '../services/verrou_biometrique.dart';
+import '../config/breakpoints.dart';
 import '../theme/app_colors.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../features/notification/presentation/cubit/notifications_cubit.dart';
@@ -43,7 +44,7 @@ const double _diametreFab = 58;
 ///    elles basculent toujours. Une 7 pouces en PORTRAIT (~600 dp) garde la
 ///    barre du bas : a cette largeur un rail de 200 dp mangerait un tiers de
 ///    l'ecran.
-const double _seuilTablette = 700;
+
 
 /// Durée de l'ouverture ET de la fermeture de l'éventail d'actions. La
 /// navigation qui suit un choix attend ce délai — voir [_ouvrirEventail].
@@ -435,7 +436,7 @@ class _AppShellState extends State<AppShell> {
     //    haut-gauche, sinon la moitie des pastilles sort de l'ecran ;
     //  - rail lateral : « Plus » est a GAUCHE, arc symetrique vers le
     //    haut-droit, pour la meme raison.
-    final surRail = largeur >= _seuilTablette;
+    final surRail = largeur >= seuilTablette;
     final role = context.read<AuthBloc>().state.utilisateur?.role;
     final entrees = _entreesPlus(context.l10n, role);
     // Un angle par entrée : la liste varie selon le rôle (« Équipe » n'est
@@ -479,7 +480,7 @@ class _AppShellState extends State<AppShell> {
     // structure (Row + rail contre body + barre basse), pas seulement de
     // style. Un LayoutBuilder plus bas ne verrait que la zone deja amputee du
     // rail, et ne pourrait donc plus decider de sa propre existence.
-    final estTablette = MediaQuery.sizeOf(context).width >= _seuilTablette;
+    final estTablette = MediaQuery.sizeOf(context).width >= seuilTablette;
 
     return BlocProvider<NotificationsCubit>(
       create: (_) => sl<NotificationsCubit>()..charger(),
