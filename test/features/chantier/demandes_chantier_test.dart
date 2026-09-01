@@ -1,6 +1,7 @@
 import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:suivie_chantier_mobile/core/routes/app_router.dart';
 import 'package:suivie_chantier_mobile/core/errors/failure.dart';
 import 'package:suivie_chantier_mobile/features/chantier/domain/entities/chantier.dart';
 import 'package:suivie_chantier_mobile/features/chantier/domain/repositories/chantier_repository.dart';
@@ -32,6 +33,25 @@ Plan _plan(String nom) => Plan(
     );
 
 void main() {
+  group('chemins des écrans de demande', () {
+    // `/chantiers/:id` est déclaré plus haut dans le routeur, à l'intérieur de
+    // la coquille, et go_router résout dans l'ORDRE DE DÉCLARATION. Un chemin
+    // sous `/chantiers/` y serait donc capturé comme un identifiant de
+    // chantier : ouvrir « Envoi Plan » chargeait la fiche du chantier
+    // « envoi-plan », et le serveur répondait 500 sur cet UUID impossible.
+    //
+    // Les remonter dans le fichier corrigerait le symptôme, mais la justesse
+    // dépendrait alors de la position relative de deux blocs éloignés.
+    test('vivent hors de l’espace /chantiers/', () {
+      expect(AppRoutes.demandesChantier.startsWith('/chantiers/'), isFalse);
+      expect(AppRoutes.envoiPlan.startsWith('/chantiers/'), isFalse);
+    });
+
+    test('ne se recouvrent pas entre eux', () {
+      expect(AppRoutes.demandesChantier, isNot(AppRoutes.envoiPlan));
+    });
+  });
+
   group('ChantierStatutX.fromString', () {
     test('reconnaît les deux statuts du circuit', () {
       // Sans eux, le défaut de `fromString` afficherait « En préparation » et

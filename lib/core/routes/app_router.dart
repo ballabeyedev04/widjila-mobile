@@ -67,8 +67,18 @@ class AppRoutes {
 
   /// Suivi des demandes de création de chantier, et dépôt d'une nouvelle
   /// demande accompagnée de ses plans.
-  static const demandesChantier = '/chantiers/demandes';
-  static const envoiPlan = '/chantiers/envoi-plan';
+  ///
+  /// Volontairement HORS de l'espace `/chantiers/` : `chantierDetail`
+  /// (`/chantiers/:id`) est déclaré plus haut, à l'intérieur de la coquille,
+  /// et go_router résout dans l'ordre de déclaration — `/chantiers/demandes`
+  /// aurait été capturé comme un chantier d'identifiant « demandes ».
+  ///
+  /// Les réordonner marcherait aussi, mais ferait dépendre la justesse de la
+  /// position relative de deux blocs éloignés : la prochaine réorganisation du
+  /// fichier recréerait le bug en silence. Des chemins distincts, eux, ne
+  /// peuvent pas entrer en collision.
+  static const demandesChantier = '/demandes-chantier';
+  static const envoiPlan = '/envoi-plan';
   static const equipe = '/equipe';
   static const intervenants = '/intervenants';
   static const profil = '/profil';
@@ -253,8 +263,8 @@ class AppRouter {
       // ── Plans — écrans pleins, hors coquille ──────────────────────────────
       // ── Demandes de chantier — écrans pleins, hors coquille ─────────────
       //
-      // Déclarées AVANT `chantierDetail` : `/chantiers/:id` capturerait
-      // sinon `/chantiers/demandes`, qu'il prendrait pour un identifiant.
+      // Leurs chemins sont hors de `/chantiers/` : voir la note sur
+      // `AppRoutes.demandesChantier`.
       GoRoute(
         path: AppRoutes.demandesChantier,
         builder: (_, _) => const DemandesChantierPage(),
