@@ -233,6 +233,7 @@ class _AppShellState extends State<AppShell> {
         label: l10n.actionTableauBordChantier,
         couleur: AppColors.primary,
         besoinChantier: true,
+        avecCreation: false,
         dansCoquille: false,
         route: (String? id) => '/chantiers/$id/tableau-de-bord',
       ),
@@ -242,6 +243,7 @@ class _AppShellState extends State<AppShell> {
           label: l10n.actionDocument,
           couleur: AppColors.success,
           besoinChantier: true,
+          avecCreation: false,
           dansCoquille: false,
           route: (String? id) => '/chantiers/$id/documents',
         ),
@@ -252,9 +254,13 @@ class _AppShellState extends State<AppShell> {
         icon: Icons.upload_file_rounded,
         label: l10n.envoiPlanTitre,
         couleur: AppColors.info,
-        besoinChantier: false,
+        // Passe par le sélecteur, comme les autres — mais celui-ci propose de
+        // CRÉER : c'est précisément l'action de qui n'a pas encore de
+        // chantier.
+        besoinChantier: true,
+        avecCreation: true,
         dansCoquille: false,
-        route: _versEnvoiPlan,
+        route: _versDepotPlans,
       ),
     ];
   }
@@ -281,6 +287,7 @@ class _AppShellState extends State<AppShell> {
             couleur: AppColors.accentDark,
             // Transversale à l'organisation : aucun chantier à choisir.
             besoinChantier: false,
+            avecCreation: false,
             dansCoquille: true,
             route: (String? _) => AppRoutes.equipe,
           ),
@@ -289,6 +296,7 @@ class _AppShellState extends State<AppShell> {
           label: l10n.actionChantiers,
           couleur: AppColors.primary,
           besoinChantier: false,
+          avecCreation: false,
           dansCoquille: true,
           route: _versChantiers,
         ),
@@ -297,6 +305,7 @@ class _AppShellState extends State<AppShell> {
           label: l10n.demandesTitre,
           couleur: AppColors.warning,
           besoinChantier: false,
+          avecCreation: false,
           dansCoquille: false,
           route: _versDemandes,
         ),
@@ -305,6 +314,7 @@ class _AppShellState extends State<AppShell> {
           label: l10n.actionIntervenants,
           couleur: AppColors.info,
           besoinChantier: false,
+          avecCreation: false,
           dansCoquille: true,
           route: _versIntervenants,
         ),
@@ -314,7 +324,8 @@ class _AppShellState extends State<AppShell> {
   // fermeture créée à la volée.
   static String _versChantiers(String? _) => AppRoutes.chantiers;
   static String _versDemandes(String? _) => AppRoutes.demandesChantier;
-  static String _versEnvoiPlan(String? _) => AppRoutes.envoiPlan;
+  static String _versDepotPlans(String? id) =>
+      AppRoutes.depotPlans.replaceFirst(':chantierId', id ?? '');
   static String _versIntervenants(String? _) => AppRoutes.intervenants;
 
   int _indexActif(String location, List<_Onglet> onglets) {
@@ -389,10 +400,17 @@ class _AppShellState extends State<AppShell> {
 
     // Le reste appartient toujours à un chantier : on le demande avant
     // d'ouvrir l'écran (voir chantier_picker_sheet).
-    final chantier = await choisirChantier(context, titre: action.label);
+    final chantier = await choisirChantier(
+      context,
+      titre: action.label,
+      avecCreation: action.avecCreation,
+    );
     if (chantier == null || !mounted || !context.mounted) return;
 
-    final destination = action.route(chantier.id);
+    // Le nom suit en query : les écrans pleins n'ont pas le chantier chargé,
+    // et un titre sec ferait perdre le contexte juste après le sélecteur.
+    final destination = '${action.route(chantier.id)}'
+        '?nom=${Uri.encodeComponent(chantier.nom)}';
     action.dansCoquille ? context.go(destination) : context.push(destination);
   }
 

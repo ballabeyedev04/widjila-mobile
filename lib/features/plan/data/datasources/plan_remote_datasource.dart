@@ -13,6 +13,11 @@ abstract class PlanRemoteDataSource {
     required String cheminFichier,
     required String nom,
     PlanFormat? format,
+    /// Niveau décrit par le plan — AU PLUS un des trois. Aucun des trois : le
+    /// plan est le plan global du chantier.
+    String? batimentId,
+    String? etageId,
+    String? zoneId,
   });
 }
 
@@ -63,11 +68,21 @@ class PlanRemoteDataSourceImpl implements PlanRemoteDataSource {
     required String cheminFichier,
     required String nom,
     PlanFormat? format,
+    /// Niveau décrit par le plan — AU PLUS un des trois. Aucun des trois : le
+    /// plan est le plan global du chantier.
+    String? batimentId,
+    String? etageId,
+    String? zoneId,
   }) async {
     try {
       final formData = FormData.fromMap({
         'nom': nom,
         if (format != null) 'format': format.raw,
+        // Les rattachements vides sont OMIS : le schéma tolère la chaîne vide,
+        // mais l'envoyer ferait échouer la validation UUID côté serveur.
+        if (batimentId != null && batimentId.isNotEmpty) 'batimentId': batimentId,
+        if (etageId != null && etageId.isNotEmpty) 'etageId': etageId,
+        if (zoneId != null && zoneId.isNotEmpty) 'zoneId': zoneId,
         'fichier': await MultipartFile.fromFile(cheminFichier),
       });
       final response = await dio.post('/chantiers/$chantierId/plans', data: formData);

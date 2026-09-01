@@ -7,6 +7,7 @@ import '../../features/chantier/presentation/cubit/chantiers_list_state.dart';
 import '../../features/chantier/presentation/widgets/chantier_statut_badge.dart';
 import '../../injection_container.dart';
 import '../../l10n/l10n_extension.dart';
+import '../../features/chantier/presentation/widgets/demande_chantier_sheet.dart';
 import '../theme/app_colors.dart';
 import 'empty_state.dart';
 import 'liste_chrome.dart';
@@ -22,22 +23,48 @@ import 'status_badge.dart';
 /// d'ouvrir le formulaire, plutôt que de deviner un chantier « courant » qui
 /// n'existe pas à ce niveau de l'application.
 ///
+/// [avecCreation] ajoute un « + » qui ouvre le formulaire de DEMANDE de
+/// chantier, et referme le sélecteur sur le chantier créé.
+///
+/// Optionnel, et `false` par défaut : les autres appels du sélecteur (tableau
+/// de bord d'un chantier, import d'un plan) y cherchent un chantier qui existe
+/// déjà, et leur proposer d'en créer un serait hors sujet. Seul le parcours
+/// « Envoi de plans » en a besoin — une entreprise qui n'a encore aucun
+/// chantier y tombait sur un écran vide sans issue.
+///
 /// Retourne le [Chantier] choisi, ou `null` si l'utilisateur referme.
-Future<Chantier?> choisirChantier(BuildContext context, {required String titre}) {
+Future<Chantier?> choisirChantier(
+  BuildContext context, {
+  required String titre,
+  bool avecCreation = false,
+}) {
   return showModalBottomSheet<Chantier>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (_) => BlocProvider(
       create: (_) => sl<ChantiersListCubit>()..charger(),
-      child: _ChantierPickerSheet(titre: titre),
+      child: _ChantierPickerSheet(titre: titre, avecCreation: avecCreation),
     ),
   );
 }
 
+/// Ouvre le formulaire de demande, et referme le sélecteur sur le résultat.
+///
+/// Le chantier créé est renvoyé tel quel — en statut « en attente de
+/// validation ». C'est voulu : l'entreprise doit pouvoir y déposer ses plans
+/// immédiatement, c'est même toute la raison du parcours.
+Future<void> _creerPuisFermer(BuildContext context) async {
+  final cree = await demanderChantier(context);
+  if (cree == null || !context.mounted) return;
+  Navigator.of(context).pop(cree);
+}
+
 class _ChantierPickerSheet extends StatefulWidget {
   final String titre;
-  const _ChantierPickerSheet({required this.titre});
+  final bool avecCreation;
+
+  const _ChantierPickerSheet({required this.titre, required this.avecCreation});
 
   @override
   State<_ChantierPickerSheet> createState() => _ChantierPickerSheetState();
@@ -71,9 +98,15 @@ class _ChantierPickerSheetState extends State<_ChantierPickerSheet> {
               _EnTeteDegrade(
                 titre: widget.titre,
                 controleurRecherche: _rechercheCtrl,
+                avecCreation: widget.avecCreation,
               ),
               const _LigneCompteur(),
-              Expanded(child: _Corps(scrollController: scrollController)),
+              Expanded(
+                child: _Corps(
+                  scrollController: scrollController,
+                  avecCreation: widget.avecCreation,
+                ),
+              ),
             ],
           ),
         );
@@ -91,8 +124,13 @@ class _ChantierPickerSheetState extends State<_ChantierPickerSheet> {
 class _EnTeteDegrade extends StatelessWidget {
   final String titre;
   final TextEditingController controleurRecherche;
+  final bool avecCreation;
 
-  const _EnTeteDegrade({required this.titre, required this.controleurRecherche});
+  const _EnTeteDegrade({
+    required this.titre,
+    required this.controleurRecherche,
+    this.avecCreation = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -158,6 +196,12 @@ class _EnTeteDegrade extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (avecCreation)
+                    IconButton(
+                      icon: const Icon(Icons.add_rounded, color: Colors.white),
+                      tooltip: l10n.demandeChantierTitre,
+                      onPressed: () => _creerPuisFermer(context),
+                    ),
                   IconButton(
                     icon: const Icon(Icons.close_rounded, color: Colors.white),
                     tooltip: l10n.commonClose,
@@ -310,7 +354,9 @@ class _LigneCompteur extends StatelessWidget {
 
 class _Corps extends StatefulWidget {
   final ScrollController scrollController;
-  const _Corps({required this.scrollController});
+  final bool avecCreation;
+
+  const _Corps({required this.scrollController, required this.avecCreation});
 
   @override
   State<_Corps> createState() => _CorpsState();
@@ -379,6 +425,20 @@ class _CorpsState extends State<_Corps> {
                   icon: enRecherche ? Icons.search_off_rounded : Icons.construction_outlined,
                   title: enRecherche ? l10n.commonNoResults : l10n.chantierAucun,
                   subtitle: enRecherche ? l10n.chantierAucunRecherche : l10n.chantierAucunSousTitre,
+                  // L'issue est ICI, pas seulement dans le « + » de l'en-tête :
+                  // l'écran vide est précisément le moment où l'utilisateur a
+                  // besoin de créer, et c'est là qu'il regarde.
+                  //
+                  // Rien pendant une RECHERCHE : « aucun résultat » n'appelle
+                  // pas à créer un chantier, mais à corriger la saisie.
+                  action: (widget.avecCreation && !enRecherche)
+                      ? FilledButton.icon(
+                          onPressed: () => _creerPuisFermer(context),
+                          icon: const Icon(Icons.add_rounded, size: 18),
+                          label: Text(l10n.demandeChantierTitre),
+                          style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                        )
+                      : null,
                 ),
               );
             }

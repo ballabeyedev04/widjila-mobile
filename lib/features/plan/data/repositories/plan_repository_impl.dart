@@ -43,6 +43,9 @@ class PlanRepositoryImpl implements PlanRepository {
     required String cheminFichier,
     required String nom,
     PlanFormat? format,
+    String? batimentId,
+    String? etageId,
+    String? zoneId,
   }) async {
     try {
       return Right(await remoteDataSource.uploaderPlan(
@@ -50,6 +53,9 @@ class PlanRepositoryImpl implements PlanRepository {
         cheminFichier: cheminFichier,
         nom: nom,
         format: format,
+        batimentId: batimentId,
+        etageId: etageId,
+        zoneId: zoneId,
       ));
     } catch (e) {
       return Left(exceptionToFailure(e));

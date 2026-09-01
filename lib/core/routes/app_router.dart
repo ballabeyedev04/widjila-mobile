@@ -31,7 +31,7 @@ import '../../features/plan/presentation/pages/plan_navigation_page.dart';
 import '../../features/plan/presentation/pages/plan_viewer_page.dart';
 import '../../features/plan/presentation/pages/plans_list_page.dart';
 import '../../features/chantier/presentation/pages/demandes_chantier_page.dart';
-import '../../features/chantier/presentation/pages/envoi_plan_page.dart';
+import '../../features/chantier/presentation/pages/depot_plans_page.dart';
 import '../../features/reserve/presentation/pages/chantier_dashboard_page.dart';
 import '../../features/reserve/presentation/pages/reserve_detail_page.dart';
 import '../../features/reserve/presentation/pages/reserve_wizard_page.dart';
@@ -65,8 +65,7 @@ class AppRoutes {
   static const chantiers = '/chantiers';
   static const chantierDetail = '/chantiers/:id';
 
-  /// Suivi des demandes de création de chantier, et dépôt d'une nouvelle
-  /// demande accompagnée de ses plans.
+  /// Suivi des demandes de création de chantier.
   ///
   /// Volontairement HORS de l'espace `/chantiers/` : `chantierDetail`
   /// (`/chantiers/:id`) est déclaré plus haut, à l'intérieur de la coquille,
@@ -78,7 +77,9 @@ class AppRoutes {
   /// fichier recréerait le bug en silence. Des chemins distincts, eux, ne
   /// peuvent pas entrer en collision.
   static const demandesChantier = '/demandes-chantier';
-  static const envoiPlan = '/envoi-plan';
+
+  /// Dépôt des plans d'un chantier — plan global, bâtiments, niveaux.
+  static const depotPlans = '/depot-plans/:chantierId';
   static const equipe = '/equipe';
   static const intervenants = '/intervenants';
   static const profil = '/profil';
@@ -270,8 +271,13 @@ class AppRouter {
         builder: (_, _) => const DemandesChantierPage(),
       ),
       GoRoute(
-        path: AppRoutes.envoiPlan,
-        builder: (_, _) => const EnvoiPlanPage(),
+        path: AppRoutes.depotPlans,
+        builder: (_, state) => DepotPlansPage(
+          chantierId: state.pathParameters['chantierId']!,
+          // Le nom passe en query : l'écran n'a pas le chantier chargé, et un
+          // titre sec ferait perdre le contexte après le sélecteur.
+          chantierNom: state.uri.queryParameters['nom'],
+        ),
       ),
       GoRoute(
         path: AppRoutes.chantierPlans,

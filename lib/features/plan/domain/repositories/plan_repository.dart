@@ -24,5 +24,10 @@ abstract class PlanRepository {
     required String cheminFichier,
     required String nom,
     PlanFormat? format,
+    /// Niveau décrit par le plan — AU PLUS un des trois. Aucun des trois : le
+    /// plan est le plan global du chantier.
+    String? batimentId,
+    String? etageId,
+    String? zoneId,
   });
 }

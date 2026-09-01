@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../referentiel/domain/entities/code_niveau.dart';
+
 /// Structure d'un chantier (bâtiments → étages → zones, + lots) — utilisée
 /// uniquement pour peupler les sélecteurs de localisation de l'assistant de
 /// création de réserve. Miroir partiel de la réponse de
@@ -32,17 +34,45 @@ class EtageStructure extends StructureRef {
   /// liste où SS2 se retrouve entre R+1 et R+2.
   final int niveau;
 
-  const EtageStructure({required super.id, required super.nom, this.zones = const [], this.niveau = 0});
+  /// Nature du niveau — range l'étage sous « SOUS-SOLS », « ÉTAGES » ou
+  /// « TOITURE ».
+  ///
+  /// Distincte de [niveau], qui est une COTE : rien dans un entier ne dit
+  /// qu'un niveau est une toiture. Les étages saisis avant ce champ valent
+  /// tous `etage`, par défaut du serveur.
+  final TypeNiveau typeNiveau;
+
+  /// Code du référentiel — « SS1 », « RDC », « R+1 ». Vide pour les niveaux
+  /// créés avant ce référentiel.
+  final String? codeNiveau;
+
+  /// Description saisie au dépôt du plan de ce niveau.
+  final String? description;
+
+  const EtageStructure({
+    required super.id,
+    required super.nom,
+    this.zones = const [],
+    this.niveau = 0,
+    this.typeNiveau = TypeNiveau.etage,
+    this.codeNiveau,
+    this.description,
+  });
 
   factory EtageStructure.fromJson(Map<String, dynamic> json) => EtageStructure(
         id: json['id'] as String,
         nom: json['nom'] as String? ?? '',
         niveau: (json['niveau'] as num?)?.toInt() ?? 0,
+        typeNiveau: TypeNiveauX.fromString(
+          (json['typeNiveau'] ?? json['type_niveau']) as String?,
+        ),
+        codeNiveau: (json['codeNiveau'] ?? json['code_niveau']) as String?,
+        description: json['description'] as String?,
         zones: (json['zones'] as List? ?? []).map((e) => ZoneStructure.fromJson(e as Map<String, dynamic>)).toList(),
       );
 
   @override
-  List<Object?> get props => [id, nom, niveau, zones];
+  List<Object?> get props => [id, nom, niveau, typeNiveau, codeNiveau, description, zones];
 }
 
 class BatimentStructure extends StructureRef {

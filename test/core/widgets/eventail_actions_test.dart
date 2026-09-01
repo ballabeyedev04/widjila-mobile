@@ -19,6 +19,7 @@ void main() {
         label: label,
         couleur: const Color(0xFFF2600C),
         besoinChantier: true,
+        avecCreation: false,
         dansCoquille: false,
         route: (String? id) => '/chantiers/$id',
       );

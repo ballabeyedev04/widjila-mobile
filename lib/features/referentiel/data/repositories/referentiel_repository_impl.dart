@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 
 import '../../../../core/errors/exception_to_failure.dart';
 import '../../../../core/errors/failure.dart';
+import '../../domain/entities/code_niveau.dart';
 import '../../domain/entities/pays.dart';
 import '../../domain/entities/type_referentiel.dart';
 import '../../domain/repositories/referentiel_repository.dart';
@@ -28,6 +29,12 @@ class ReferentielRepositoryImpl implements ReferentielRepository {
   /// n'apprendrait rien.
   List<Pays>? _cachePays;
 
+  /// Codes de niveau, gardés pour la session — même raison que les autres
+  /// référentiels. Ce cache est INVALIDÉ à chaque création : un code que
+  /// l'utilisateur vient de saisir doit apparaître immédiatement dans la
+  /// liste, faute de quoi il le ressaisirait en croyant l'avoir manqué.
+  List<CodeNiveau>? _cacheCodes;
+
   ReferentielRepositoryImpl(this.remoteDataSource);
 
   @override
@@ -41,6 +48,43 @@ class ReferentielRepositoryImpl implements ReferentielRepository {
     } catch (e) {
       final cache = _cache[referentiel];
       if (cache != null) return Right(cache);
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<CodeNiveau>>> getCodesNiveau() async {
+    try {
+      final liste = await remoteDataSource.getCodesNiveau();
+      _cacheCodes = liste;
+      return Right(liste);
+    } catch (e) {
+      final cache = _cacheCodes;
+      if (cache != null) return Right(cache);
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, CodeNiveau>> creerCodeNiveau({
+    required TypeNiveau typeNiveau,
+    required String code,
+    String? nom,
+  }) async {
+    try {
+      final cree = await remoteDataSource.creerCodeNiveau(
+        typeNiveau: typeNiveau, code: code, nom: nom,
+      );
+      // Le nouveau code rejoint le cache plutôt que de l'invalider : recharger
+      // la liste entière ferait un aller-retour de plus au moment précis où
+      // l'utilisateur attend de voir son code apparaître.
+      final courant = _cacheCodes;
+      if (courant != null) _cacheCodes = [...courant, cree];
+      return Right(cree);
+    } catch (e) {
+      // AUCUN repli sur le cache : une création qui a échoué n'a rien créé,
+      // et prétendre le contraire ferait perdre la saisie au moment de
+      // l'envoi des plans.
       return Left(exceptionToFailure(e));
     }
   }

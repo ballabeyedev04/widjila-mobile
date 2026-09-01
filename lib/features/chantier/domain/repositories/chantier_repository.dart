@@ -1,5 +1,7 @@
 import 'package:dartz/dartz.dart';
 import '../../../../core/errors/failure.dart';
+import '../../../referentiel/domain/entities/code_niveau.dart';
+import '../../../reserve/domain/entities/chantier_structure.dart';
 import '../entities/chantier.dart';
 
 /// Page de résultats — miroir du contrat de pagination backend
@@ -44,7 +46,32 @@ abstract class ChantierRepository {
   /// `en_attente_validation`.
   Future<Either<Failure, Chantier>> creerChantier({
     required String nom,
+    String? code,
     String? adresse,
     String? description,
+    double? latitude,
+    double? longitude,
+    DateTime? dateDebut,
+    DateTime? dateFin,
+    num? budget,
+    String? responsableId,
+  });
+
+  /// Ajoute un bâtiment au chantier.
+  Future<Either<Failure, BatimentStructure>> creerBatiment(
+    String chantierId, {
+    required String nom,
+    String? code,
+  });
+
+  /// Ajoute un niveau à un bâtiment.
+  Future<Either<Failure, EtageStructure>> creerEtage(
+    String chantierId,
+    String batimentId, {
+    required String nom,
+    required TypeNiveau typeNiveau,
+    String? codeNiveau,
+    String? description,
+    int? niveau,
   });
 }

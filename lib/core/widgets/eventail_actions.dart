@@ -14,6 +14,14 @@ typedef ActionRapide = ({
   /// chantier s'intercale avant la navigation.
   bool besoinChantier,
 
+  /// Le sélecteur propose-t-il de CRÉER un chantier ?
+  ///
+  /// Réservé aux actions qui peuvent viser un chantier qui n'existe pas
+  /// encore — le dépôt de plans d'une entreprise qui n'en a aucun. Ailleurs,
+  /// on cherche un chantier existant et proposer d'en créer un serait hors
+  /// sujet.
+  bool avecCreation,
+
   /// `true` : route de la coquille applicative — la barre du bas reste
   /// affichée, on y va avec `context.go`.
   /// `false` : écran plein hors coquille, empilé avec `context.push`.

@@ -6,6 +6,8 @@ import '../../../../core/errors/exceptions.dart';
 import '../../../../core/errors/failure.dart';
 import '../../../../core/offline/cache_chantiers.dart';
 import '../../../../core/offline/classification_erreur.dart';
+import '../../../referentiel/domain/entities/code_niveau.dart';
+import '../../../reserve/domain/entities/chantier_structure.dart';
 import '../../domain/entities/chantier.dart';
 import '../../domain/repositories/chantier_repository.dart';
 import '../datasources/chantier_remote_datasource.dart';
@@ -62,12 +64,28 @@ class ChantierRepositoryImpl implements ChantierRepository {
   @override
   Future<Either<Failure, Chantier>> creerChantier({
     required String nom,
+    String? code,
     String? adresse,
     String? description,
+    double? latitude,
+    double? longitude,
+    DateTime? dateDebut,
+    DateTime? dateFin,
+    num? budget,
+    String? responsableId,
   }) async {
     try {
       final chantier = await remoteDataSource.creerChantier(
-        nom: nom, adresse: adresse, description: description,
+        nom: nom,
+        code: code,
+        adresse: adresse,
+        description: description,
+        latitude: latitude,
+        longitude: longitude,
+        dateDebut: dateDebut,
+        dateFin: dateFin,
+        budget: budget,
+        responsableId: responsableId,
       );
       // Une DEMANDE ne rejoint pas le cache des chantiers : hors ligne, elle
       // s'afficherait comme un chantier en activité.
@@ -76,6 +94,46 @@ class ChantierRepositoryImpl implements ChantierRepository {
     } catch (e) {
       // Aucun repli hors ligne : une création ne se devine pas depuis un
       // cache, et prétendre qu'elle a réussi serait mentir.
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, BatimentStructure>> creerBatiment(
+    String chantierId, {
+    required String nom,
+    String? code,
+  }) async {
+    try {
+      return Right(await remoteDataSource.creerBatiment(chantierId, nom: nom, code: code));
+    } catch (e) {
+      // Aucun repli hors ligne : une création ne se devine pas depuis un
+      // cache, et prétendre qu'elle a réussi ferait perdre la saisie.
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, EtageStructure>> creerEtage(
+    String chantierId,
+    String batimentId, {
+    required String nom,
+    required TypeNiveau typeNiveau,
+    String? codeNiveau,
+    String? description,
+    int? niveau,
+  }) async {
+    try {
+      return Right(await remoteDataSource.creerEtage(
+        chantierId,
+        batimentId,
+        nom: nom,
+        typeNiveau: typeNiveau,
+        codeNiveau: codeNiveau,
+        description: description,
+        niveau: niveau,
+      ));
+    } catch (e) {
       return Left(exceptionToFailure(e));
     }
   }
