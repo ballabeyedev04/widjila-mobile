@@ -52,6 +52,9 @@ import 'features/chantier/domain/usecases/get_chantiers.dart';
 import 'features/chantier/presentation/cubit/chantier_detail_cubit.dart';
 import 'features/chantier/presentation/cubit/chantiers_list_cubit.dart';
 import 'features/chantier/domain/usecases/creer_chantier.dart';
+import 'features/referentiel/domain/usecases/creer_code_niveau.dart';
+import 'features/referentiel/domain/usecases/get_codes_niveau.dart';
+import 'features/chantier/domain/usecases/creer_structure.dart';
 import 'features/chantier/presentation/cubit/demandes_chantier_cubit.dart';
 import 'features/chantier/presentation/cubit/creer_chantier_cubit.dart';
 
@@ -271,6 +274,8 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetChantierDetail(sl()));
   sl.registerFactory(() => ChantiersListCubit(getChantiers: sl(), getDashboardStats: sl()));
   sl.registerLazySingleton(() => CreerChantier(sl()));
+  sl.registerLazySingleton(() => CreerBatiment(sl()));
+  sl.registerLazySingleton(() => CreerEtage(sl()));
   sl.registerFactory(() => DemandesChantierCubit(getChantiers: sl()));
   // `GetMembres` appartient au module Organisation, enregistre plus bas :
   // `sl()` le resout a la CONSTRUCTION du cubit, donc apres l'initialisation.
@@ -402,6 +407,8 @@ Future<void> init() async {
   sl.registerLazySingleton<ReferentielRepository>(() => ReferentielRepositoryImpl(sl()));
   sl.registerLazySingleton(() => GetTypesActifs(sl()));
   sl.registerLazySingleton(() => GetPays(sl()));
+  sl.registerLazySingleton(() => GetCodesNiveau(sl()));
+  sl.registerLazySingleton(() => CreerCodeNiveau(sl()));
   // Catalogue des pays du formulaire d'inscription — voir PaysCubit.
   sl.registerFactory(() => PaysCubit(getPays: sl()));
 

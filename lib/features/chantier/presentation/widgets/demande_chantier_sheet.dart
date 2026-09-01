@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/services/service_position.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../injection_container.dart';
 import '../../../../l10n/l10n_extension.dart';
@@ -56,6 +57,10 @@ class _FeuilleState extends State<_Feuille> {
   DateTime? _dateFin;
   String? _responsableId;
 
+  /// `true` pendant la recherche de position — le bouton montre l'attente
+  /// plutôt que de rester inerte pendant les douze secondes du délai.
+  bool _positionEnCours = false;
+
   @override
   void dispose() {
     for (final c in [_nom, _code, _description, _adresse, _latitude, _longitude, _budget]) {
@@ -83,6 +88,45 @@ class _FeuilleState extends State<_Feuille> {
         _dateFin = choisie;
       }
     });
+  }
+
+  /// Renseigne latitude et longitude depuis la position de l'appareil.
+  ///
+  /// Chaque cause d'échec a SON message : « activez la localisation » et
+  /// « autorisez l'application » demandent deux gestes opposés, dans deux
+  /// écrans de réglages différents. Un message générique enverrait chercher au
+  /// mauvais endroit.
+  Future<void> _utiliserMaPosition() async {
+    if (_positionEnCours) return;
+    setState(() => _positionEnCours = true);
+
+    final resultat = await const ServicePosition().obtenir();
+    if (!mounted) return;
+    setState(() => _positionEnCours = false);
+
+    final l10n = context.l10n;
+    if (resultat.reussi) {
+      setState(() {
+        // Cinq décimales : environ un mètre. Au-delà, on afficherait du bruit
+        // de mesure — aucun GPS de téléphone n'est précis au centimètre.
+        _latitude.text = resultat.latitude!.toStringAsFixed(5);
+        _longitude.text = resultat.longitude!.toStringAsFixed(5);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.positionRelevee), backgroundColor: AppColors.success),
+      );
+      return;
+    }
+
+    final message = switch (resultat.echec!) {
+      EchecPosition.serviceDesactive => l10n.positionServiceDesactive,
+      EchecPosition.refusee => l10n.positionRefusee,
+      EchecPosition.refuseeDefinitivement => l10n.positionRefuseeDefinitivement,
+      EchecPosition.indisponible => l10n.positionIndisponible,
+    };
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppColors.warning),
+    );
   }
 
   void _envoyer() {
@@ -168,6 +212,31 @@ class _FeuilleState extends State<_Feuille> {
                             icone: Icons.notes_outlined,
                             lignes: 3,
                           ),
+                          // Le bouton AVANT les champs : c'est le geste
+                          // attendu, la saisie manuelle n'est que le repli.
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: OutlinedButton.icon(
+                              onPressed: _positionEnCours ? null : _utiliserMaPosition,
+                              icon: _positionEnCours
+                                  ? const SizedBox(
+                                      width: 15,
+                                      height: 15,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.my_location_rounded, size: 18),
+                              label: Text(
+                                _positionEnCours
+                                    ? l10n.positionRecherche
+                                    : l10n.positionUtiliserMaPosition,
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.primary,
+                                side: const BorderSide(color: AppColors.primary),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
                           Row(
                             children: [
                               Expanded(
@@ -459,11 +528,18 @@ class _ChampResponsable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Seuls les comptes ACTIFS. La liste vient de `/organisation/membres` —
+    // filtrée par organisation côté serveur, donc jamais toute la base — mais
+    // elle contient tous les statuts. Un compte inactif, en attente de
+    // validation ou rejeté ne peut pas se connecter : le proposer comme
+    // responsable serait proposer l'impossible.
+    final actifs = membres.where((m) => m.statut == 'actif').toList();
+
     // Rien tant que la liste n'est pas revenue : un sélecteur vide donnerait
     // l'impression que l'organisation n'a aucun membre, alors que l'appel est
     // simplement en cours — ou a échoué sans conséquence, le champ étant
     // facultatif.
-    if (membres.isEmpty) return const SizedBox.shrink();
+    if (actifs.isEmpty) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
@@ -479,7 +555,7 @@ class _ChampResponsable extends StatelessWidget {
             value: null,
             child: Text(context.l10n.demandeChantierAucunResponsable),
           ),
-          for (final m in membres)
+          for (final m in actifs)
             DropdownMenuItem<String?>(
               value: m.id,
               child: Text('${m.prenom} ${m.nom}'.trim(), overflow: TextOverflow.ellipsis),

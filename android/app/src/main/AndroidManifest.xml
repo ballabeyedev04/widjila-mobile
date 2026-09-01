@@ -3,6 +3,15 @@
          l'utilisateur n'a pas donne son accord. La demande est faite au
          lancement par push_service.dart. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Position du chantier : le bouton « Utiliser ma position » du
+         formulaire de demande remplit la latitude et la longitude.
+         FINE et non COARSE : COARSE situe a 1-3 km pres, ce qui ne
+         designe pas un chantier.
+         La permission est demandee A L'USAGE, jamais au lancement -
+         voir core/services/service_position.dart. Le formulaire reste
+         utilisable sans elle, les deux champs se saisissant a la main. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <application
         android:label="Widjila"
         android:name="${applicationName}"

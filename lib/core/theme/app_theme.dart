@@ -99,6 +99,70 @@ class AppTheme {
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
+
+      // ── Sélecteur de date ────────────────────────────────────────────────
+      //
+      // Sans ce bloc, Material 3 dérive ses surfaces d'une graine sans rapport
+      // avec l'orange de l'application : le calendrier s'affichait sur un fond
+      // lavande, avec des accents violets.
+      //
+      // Habillé ici plutôt qu'au point d'appel : l'application ouvre aussi un
+      // calendrier pour la date limite d'une réserve, et deux calendriers
+      // d'aspect différent dans la même application se remarquent.
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+
+        // L'en-tête reprend l'aplat orange des feuilles modales : c'est le
+        // repère visuel de l'application, on le retrouve jusque dans ses
+        // dialogues.
+        headerBackgroundColor: AppColors.primary,
+        headerForegroundColor: Colors.white,
+        headerHeadlineStyle: textTheme.headlineSmall?.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+        ),
+        headerHelpStyle: textTheme.labelLarge?.copyWith(
+          color: Colors.white.withValues(alpha: 0.85),
+        ),
+
+        weekdayStyle: textTheme.labelMedium?.copyWith(
+          color: AppColors.textMuted,
+          fontWeight: FontWeight.w700,
+        ),
+        dayStyle: textTheme.bodyMedium,
+        dayForegroundColor: WidgetStateProperty.resolveWith((etats) {
+          if (etats.contains(WidgetState.selected)) return Colors.white;
+          if (etats.contains(WidgetState.disabled)) {
+            return AppColors.textMuted.withValues(alpha: 0.4);
+          }
+          return AppColors.textPrimary;
+        }),
+        dayBackgroundColor: WidgetStateProperty.resolveWith(
+          (etats) => etats.contains(WidgetState.selected) ? AppColors.primary : null,
+        ),
+        // Le jour COURANT se distingue par un liseré, pas par un aplat : deux
+        // pastilles pleines feraient croire à deux dates sélectionnées.
+        todayForegroundColor: WidgetStateProperty.resolveWith(
+          (etats) => etats.contains(WidgetState.selected) ? Colors.white : AppColors.primary,
+        ),
+        todayBorder: const BorderSide(color: AppColors.primary, width: 1.4),
+
+        yearForegroundColor: WidgetStateProperty.resolveWith(
+          (etats) => etats.contains(WidgetState.selected) ? Colors.white : AppColors.textPrimary,
+        ),
+        yearBackgroundColor: WidgetStateProperty.resolveWith(
+          (etats) => etats.contains(WidgetState.selected) ? AppColors.primary : null,
+        ),
+
+        cancelButtonStyle: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
+        confirmButtonStyle: TextButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
     );
   }
 }
