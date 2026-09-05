@@ -411,7 +411,20 @@ class _SelecteurPhoto extends StatelessWidget {
                   color: AppColors.primary.withValues(alpha: 0.12),
                   image: cheminLocal == null
                       ? null
-                      : DecorationImage(image: FileImage(File(cheminLocal!)), fit: BoxFit.cover),
+                      : DecorationImage(
+                          // La photo est déjà plafonnée à 1024 px par
+                          // `image_picker` (voir `_choisirPhoto`), mais un
+                          // `FileImage` nu la décoderait quand même à cette
+                          // pleine résolution pour un cercle de 96 px de
+                          // diamètre. `ResizeImage` demande le décodage à la
+                          // taille réellement affichée — même correctif que
+                          // `FichierImage` pour les photos venues du serveur.
+                          image: ResizeImage(
+                            FileImage(File(cheminLocal!)),
+                            width: (96 * MediaQuery.devicePixelRatioOf(context)).ceil(),
+                          ),
+                          fit: BoxFit.cover,
+                        ),
                 ),
                 alignment: Alignment.center,
                 child: cheminLocal != null

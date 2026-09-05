@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/services/service_position.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/liste_chrome.dart' show ContenuFormulaire;
 import '../../../../injection_container.dart';
 import '../../../../l10n/l10n_extension.dart';
 import '../../../organisation/domain/entities/membre.dart';
@@ -171,7 +172,14 @@ class _FeuilleState extends State<_Feuille> {
           maxChildSize: 0.95,
           expand: false,
           builder: (context, defilement) {
-            return Container(
+            // Sur une tablette, la feuille occupe toute la largeur — et les
+            // champs avec elle : pres de 1000 px pour saisir un nom de
+            // chantier. `ContenuFormulaire` ramene le contenu a 440 px
+            // centres, la largeur de reference des formulaires de
+            // l'application. Sans effet sur telephone, ou l'ecran est deja
+            // plus etroit que cette borne.
+            return ContenuFormulaire(
+                child: Container(
               decoration: const BoxDecoration(
                 color: AppColors.background,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -342,7 +350,7 @@ class _FeuilleState extends State<_Feuille> {
                   ),
                 ],
               ),
-            );
+            ));
           },
         );
       },

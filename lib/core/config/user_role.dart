@@ -165,6 +165,47 @@ extension UserRoleX on UserRole {
   /// OPERATIONNEL_CONTROLE : opérationnel + bureau de contrôle.
   bool get estOperationnelOuControle => estOperationnel || this == UserRole.bureauControle;
 
+  /// DEPOSANT (`backend/src/config/roles.js#DEPOSANT`) : peut DÉPOSER des
+  /// plans.
+  ///
+  /// Volontairement plus large que [estOperationnelOuControle]. Le parcours
+  /// « Envoi de plans » est écrit pour que l'ENTREPRISE joigne ses plans à sa
+  /// demande de chantier — c'est le serveur lui-même qui le dit, dans le
+  /// commentaire de `plan.route.js`. En conditionnant le bouton « Ajouter des
+  /// plans » au filtre opérationnel, l'app retirait à l'entreprise le seul
+  /// parcours prévu pour elle : le serveur acceptait le dépôt, l'écran ne
+  /// proposait rien.
+  ///
+  /// Filtre GROSSIER, exactement comme celui du serveur. La garde fine vit
+  /// dans `plan.service.js#upload` : un rôle hors OPERATIONNEL_CONTROLE ne
+  /// dépose que sur SA PROPRE demande encore en attente. On ne la duplique pas
+  /// ici — l'app ne connaît pas toujours le statut du chantier visé, et un
+  /// refus du serveur reste lisible, alors qu'un bouton absent ne l'est pas.
+  bool get peutDeposerPlans => _estDeposant;
+
+  /// Miroir du groupe `DEPOSANT` du backend, cote CREATION DE CHANTIER.
+  ///
+  /// La meme liste de roles garde `POST /chantiers` et `POST
+  /// /chantiers/:id/plans` : le serveur ne fait qu'un seul groupe des deux
+  /// parcours, parce que c'est le meme — une entreprise depose une demande de
+  /// chantier et y joint ses plans.
+  ///
+  /// Le nom differe neanmoins de [peutDeposerPlans] : demander un chantier et
+  /// deposer un plan sont deux actions distinctes pour qui lit l'ecran, et si
+  /// le serveur venait a les separer, c'est ici que la difference devrait
+  /// apparaitre — pas dans un appelant qui aurait detourne un getter de plans
+  /// pour parler de chantiers.
+  ///
+  /// Filtre GROSSIER, comme cote serveur : la demande naissante reste
+  /// « en_attente_validation » et n'existe comme chantier qu'apres validation.
+  bool get peutDemanderChantier => _estDeposant;
+
+  /// Le groupe lui-meme, ecrit une seule fois.
+  bool get _estDeposant =>
+      estOperationnelOuControle ||
+      this == UserRole.entreprise ||
+      this == UserRole.maitreOuvrage;
+
   /// PILOTAGE : valide chaque étape (changements de statut, validation de
   /// réserves, génération de rapports).
   bool get peutPiloter => estOperationnelOuControle || this == UserRole.maitreOuvrage;

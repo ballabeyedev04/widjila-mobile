@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/widgets/liste_chrome.dart' show ContenuFormulaire;
 import '../../../../core/theme/app_colors.dart';
 import '../../../../l10n/l10n_extension.dart';
 import '../../../referentiel/domain/entities/code_niveau.dart';
@@ -147,7 +148,12 @@ class _FeuilleNiveauState extends State<_FeuilleNiveau> {
           // Remonte la feuille au-dessus du clavier : sans cela, le champ de
           // création se retrouve caché au moment précis où on y tape.
           padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-          child: Container(
+          // Sur une tablette, la feuille s'etirait sur toute la largeur : un
+          // champ de saisie de pres de 1000 px pour nommer un etage. La borne
+          // de 440 px est celle de tous les formulaires de l'application, et
+          // reste sans effet sur telephone.
+          child: ContenuFormulaire(
+            child: Container(
             decoration: const BoxDecoration(
               color: AppColors.background,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -322,7 +328,7 @@ class _FeuilleNiveauState extends State<_FeuilleNiveau> {
               ),
             ),
           ),
-        );
+        ));
       },
     );
   }

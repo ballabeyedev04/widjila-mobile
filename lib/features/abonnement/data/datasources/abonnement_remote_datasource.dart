@@ -6,6 +6,7 @@ import '../../domain/entities/abonnement.dart';
 abstract class AbonnementRemoteDataSource {
   Future<List<FormuleAbonnement>> getFormules();
   Future<DroitsAbonnement> getDroits();
+  Future<List<SouscriptionHistorique>> getHistorique();
 }
 
 class AbonnementRemoteDataSourceImpl implements AbonnementRemoteDataSource {
@@ -35,6 +36,22 @@ class AbonnementRemoteDataSourceImpl implements AbonnementRemoteDataSource {
     try {
       final response = await dio.get('/abonnement/droits');
       return DroitsAbonnement.fromJson(_data(response));
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<List<SouscriptionHistorique>> getHistorique() async {
+    try {
+      // Route réservée à GESTION côté serveur (`subscription.route.js`) : un
+      // rôle qui ne peut pas engager de dépense ne voit pas la facturation.
+      // L'appelant doit donc savoir traiter un 403 comme un refus normal, et
+      // non comme une panne — voir `AbonnementCubit.charger`.
+      final response = await dio.get('/abonnement/historique');
+      return (_data(response)['souscriptions'] as List)
+          .map((e) => SouscriptionHistorique.fromJson(e as Map<String, dynamic>))
+          .toList();
     } on DioException catch (e) {
       throw mapDioException(e);
     }

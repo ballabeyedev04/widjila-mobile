@@ -39,7 +39,7 @@ description: |
   Moins d'allers-retours entre le chantier et le bureau, plus de photos perdues dans une galerie, plus de réserves oubliées dans un carnet : tout est daté, localisé, assigné et suivi.
 publish_to: 'none'
 
-version: 1.0.4+5
+version: 1.0.4+6
 
 environment:
   sdk: ^3.12.2
@@ -49,7 +49,6 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  cupertino_icons: ^1.0.8
 
   # État / architecture
   flutter_bloc: ^9.1.1
@@ -59,6 +58,13 @@ dependencies:
   go_router: ^16.2.4
 
   # Réseau
+  # Restaure apres verification : la compilation release signalait
+  # « Expected to find fonts for (packages/cupertino_icons/CupertinoIcons) ».
+  # Aucun fichier de `lib/` ne nomme `CupertinoIcons`, mais une dependance le
+  # fait — le retirer laissait une reference de police pendante, donc un
+  # glyphe manquant a l'ecran. Il reste declare, meme si le projet ne s'en
+  # sert pas directement.
+  cupertino_icons: ^1.0.8
   dio: ^5.8.0+1
   connectivity_plus: ^7.3.1
 
@@ -70,8 +76,6 @@ dependencies:
   # UI
   intl: ^0.20.2
   google_fonts: ^6.3.0
-  cached_network_image: ^3.4.1
-  flutter_svg: ^2.2.0
   shimmer: ^3.0.0
   # awesome_dialog retiré temporairement (audit build) : sa dépendance rive/
   # rive_native télécharge des binaires natifs pendant le build et a fait
@@ -79,15 +83,13 @@ dependencies:
   # au total, 197 Mo libres au moment du crash). Pas encore utilisé dans le
   # code (SnackBar/AlertDialog standard suffisent pour l'instant) — à
   # réintégrer si vraiment nécessaire, sur une machine avec plus de marge.
-  toastification: ^3.0.3
-  pull_to_refresh_flutter3: ^2.0.2
 
   # Fichiers / médias (photos réserves-inspections, documents, plans PDF)
   # NOTE path_provider (mise a jour apres verification de l'arbre de deps) :
   # il n'est PAS declare ici, mais il est bel et bien present dans le build en
-  # dependance transitive de `google_fonts` et `cached_network_image`
-  # (verifie avec `flutter pub deps`). Le retirer de la liste directe n'a donc
-  # jamais suffi a ecarter `path_provider_foundation` -> `objective_c`.
+  # dependance transitive de `google_fonts` (verifie avec `flutter pub deps`).
+  # Le retirer de la liste directe n'a donc jamais suffi a ecarter
+  # `path_provider_foundation` -> `objective_c`.
   # Consequence pratique : le stockage local hors ligne utilise `sqflite`, qui
   # resout son chemin de fichier nativement (`getDatabasesPath()`) et ne
   # DEPEND pas de path_provider -- on n'aggrave donc pas la situation, mais on
@@ -96,12 +98,14 @@ dependencies:
   # path_provider : DÉCLARÉ EN DIRECT depuis l'ouverture des documents.
   #
   # Cela n'ajoute STRICTEMENT RIEN au build : `flutter pub deps` le montre
-  # déjà résolu en 2.1.6 comme dépendance transitive de `flutter_cache_manager`
-  # (via cached_network_image) et de `flutter_secure_storage_windows`. La
-  # chaîne `path_provider_foundation -> objective_c` était donc présente que
-  # cette ligne existe ou non — c'est exactement ce que constate la note
-  # ci-dessus. Le retirer de la liste directe empêchait seulement de S'EN
-  # SERVIR, sans protéger le build iOS pour autant.
+  # déjà résolu en 2.1.6 comme dépendance transitive de
+  # `flutter_secure_storage_windows` (et, avant sa suppression pour cause
+  # d'usage nul — audit médias —, de `flutter_cache_manager` via
+  # `cached_network_image`). La chaîne `path_provider_foundation ->
+  # objective_c` était donc présente que cette ligne existe ou non — c'est
+  # exactement ce que constate la note ci-dessus. Le retirer de la liste
+  # directe empêchait seulement de S'EN SERVIR, sans protéger le build iOS
+  # pour autant.
   #
   # Il est requis pour écrire un fichier téléchargé dans un dossier temporaire
   # avant de le confier à `open_file` : /uploads/* exige le jeton

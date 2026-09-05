@@ -10,6 +10,7 @@ import '../../../../core/config/user_role.dart';
 import '../../../../core/config/breakpoints.dart';
 import '../../../referentiel/domain/entities/code_niveau.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/liste_chrome.dart' show colonnesAdaptatives;
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../injection_container.dart';
@@ -537,29 +538,70 @@ class _Liste extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            // Une colonne sur téléphone, quatre sur tablette. `shrinkWrap` :
-            // la grille vit dans la `ListView` de la page, elle doit se
-            // dimensionner sur son contenu plutôt que défiler séparément —
-            // deux zones de défilement imbriquées rendraient le geste
-            // imprévisible.
-            GridView.count(
-              crossAxisCount: estTablette ? 4 : 1,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 8,
-              crossAxisSpacing: 12,
-              // Une tuile est large et basse sur téléphone (pleine largeur),
-              // presque carrée sur tablette (un quart de la largeur).
-              childAspectRatio: estTablette ? 1.55 : 5.2,
-              children: [
-                for (final e in s.elements) _Tuile(element: e, sansPlan: sansPlan),
-              ],
+            // Colonnes derivees de la LARGEUR, hauteur posee explicitement.
+            //
+            // La version precedente basculait d'un coup — une colonne sous
+            // 700 dp, quatre au-dessus — et laissait la hauteur de tuile se
+            // deduire d'un rapport largeur/hauteur. Deux consequences :
+            //
+            //  - une tablette compacte de 600 dp en portrait recevait une
+            //    seule colonne de tuiles etirees sur toute sa largeur ;
+            //  - sur un telephone de 320 dp, le rapport 5,2 donnait une tuile
+            //    de 55 px de haut pour un contenu qui en demande 76 : elle
+            //    debordait par le bas de 21 px.
+            //
+            // Le contenu d'une tuile — pastille d'icone de 42, nom, et une
+            // ligne de metadonnees — ne depend pas de la largeur. C'est donc
+            // la HAUTEUR qu'on fixe, et les colonnes qu'on laisse varier.
+            //
+            // `shrinkWrap` : la grille vit dans la `ListView` de la page, elle
+            // se dimensionne sur son contenu plutot que de defiler a part —
+            // deux zones de defilement imbriquees rendraient le geste
+            // imprevisible.
+            LayoutBuilder(
+              builder: (context, contraintes) => GridView(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: colonnesAdaptatives(
+                    contraintes.maxWidth,
+                    min: 1,
+                    max: 4,
+                    largeurCible: 230,
+                  ),
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 12,
+                  mainAxisExtent: _hauteurTuile(context),
+                ),
+                children: [
+                  for (final e in s.elements) _Tuile(element: e, sansPlan: sansPlan),
+                ],
+              ),
             ),
             const SizedBox(height: 14),
           ],
       ],
     );
   }
+}
+
+/// Hauteur d'une tuile de plan, taille de police systeme comprise.
+///
+/// La tuile empile horizontalement une pastille d'icone de 42 px et deux
+/// lignes de texte. Aucun des deux ne depend de la largeur : figer un rapport
+/// largeur/hauteur revenait a ecraser la tuile des que la colonne se
+/// resserrait.
+///
+/// La part de texte suit l'echelle choisie par l'utilisateur dans les
+/// reglages de son telephone — sans quoi un texte agrandi rouvrirait le meme
+/// debordement.
+double _hauteurTuile(BuildContext context) {
+  // 24 px de marges verticales ; 52 px de contenu a l'echelle 1 — le nom
+  // (14 pt) et sa ligne de metadonnees (11,5 pt), interlignes compris, avec
+  // de quoi loger la pastille de 42 px.
+  const marges = 24.0;
+  const contenu = 52.0;
+  return marges + MediaQuery.textScalerOf(context).scale(contenu);
 }
 
 class _Tuile extends StatelessWidget {

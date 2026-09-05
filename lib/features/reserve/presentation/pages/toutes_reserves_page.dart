@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/config/user_role.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/apparition_en_cascade.dart';
 import '../../../../core/widgets/chantier_picker_sheet.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/liste_chrome.dart';
@@ -15,6 +16,7 @@ import '../cubit/reserves_list_state.dart';
 import '../cubit/toutes_reserves_cubit.dart';
 import '../widgets/reserve_card.dart';
 import '../widgets/reserves_chrome.dart';
+import '../../../../core/network/forcer_reseau.dart';
 
 /// Écran 2 de la maquette — toutes les réserves de l'organisation.
 class ToutesReservesPage extends StatelessWidget {
@@ -174,7 +176,7 @@ class _Liste extends StatelessWidget {
       color: AppColors.background,
       child: RefreshIndicator(
         color: AppColors.primary,
-        onRefresh: () => context.read<ToutesReservesCubit>().charger(),
+        onRefresh: forcerReseau(() => context.read<ToutesReservesCubit>().charger()),
         child: ContenuCentre(
           child: ListView.separated(
             controller: controller,
@@ -186,10 +188,13 @@ class _Liste extends StatelessWidget {
             itemBuilder: (context, i) {
               if (i < state.items.length) {
                 final reserve = state.items[i];
-                return ReserveCard(
-                  reserve: reserve,
-                  avecChantier: true,
-                  onTap: () => context.push('/reserves/${reserve.id}'),
+                return ApparitionEnCascade(
+                  rang: i,
+                  child: ReserveCard(
+                    reserve: reserve,
+                    avecChantier: true,
+                    onTap: () => context.push('/reserves/${reserve.id}'),
+                  ),
                 );
               }
               if (state.chargementPage && i == state.items.length) {
@@ -247,9 +252,20 @@ class _PiedDeListe extends StatelessWidget {
         children: [
           Icon(Icons.event_note_rounded, size: 16, color: AppColors.textMuted.withValues(alpha: 0.8)),
           const SizedBox(width: 8),
-          Text(
-            context.l10n.reserveAffichageSur(affiches, total),
-            style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted),
+          // `Flexible` et non un `Text` nu : la phrase traduite débordait de
+          // 106 px à 320 dp, 66 px à 360 et 36 px à 390 — c'est-à-dire sur la
+          // quasi-totalité du parc. Un `Row` dont un enfant n'a pas
+          // l'autorisation de rétrécir échoue à la mise en page, et Flutter
+          // lève À CHAQUE IMAGE : la zone se dégrade alors même que les
+          // réserves sont bien arrivées du serveur.
+          Flexible(
+            child: Text(
+              context.l10n.reserveAffichageSur(affiches, total),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted),
+            ),
           ),
         ],
       ),

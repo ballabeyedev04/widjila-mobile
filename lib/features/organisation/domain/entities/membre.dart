@@ -70,16 +70,30 @@ class Membre extends Equatable {
       [id, nom, prenom, email, telephone, photoProfil, fonction, role, statut, dernierConnexion, mdpTemporaire];
 }
 
-/// Résultat de la création d'un membre — le mot de passe temporaire (si
-/// généré, faute d'en avoir fourni un) n'est renvoyé qu'UNE SEULE FOIS par
-/// le backend et doit être communiqué au membre par un canal sûr avant de
-/// quitter l'écran.
+/// Résultat de la création d'un membre.
+///
+/// Le serveur envoie désormais ses identifiants au nouveau membre par
+/// courriel, à son adresse. [emailEnvoye] dit si ce message est bien parti.
+///
+/// [motDePasseTemporaire] reste renvoyé — c'est l'UNIQUE occasion de le lire,
+/// le serveur ne le conserve qu'en empreinte. L'écran ne l'affiche que si
+/// l'envoi a échoué : le taire alors ferait perdre le compte, l'afficher
+/// systématiquement le ferait circuler pour rien.
 class AjouterMembreResult extends Equatable {
   final Membre membre;
   final String? motDePasseTemporaire;
 
-  const AjouterMembreResult({required this.membre, this.motDePasseTemporaire});
+  /// `false` aussi quand le serveur n'a pas de fournisseur d'envoi configuré
+  /// (développement local) : dans ce cas rien n'est parti, et il faut bien
+  /// que quelqu'un transmette le mot de passe.
+  final bool emailEnvoye;
+
+  const AjouterMembreResult({
+    required this.membre,
+    this.motDePasseTemporaire,
+    this.emailEnvoye = false,
+  });
 
   @override
-  List<Object?> get props => [membre, motDePasseTemporaire];
+  List<Object?> get props => [membre, motDePasseTemporaire, emailEnvoye];
 }

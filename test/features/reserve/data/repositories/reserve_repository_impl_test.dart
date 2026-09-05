@@ -32,6 +32,9 @@ void main() {
   setUpAll(() {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
+    // Base PROPRE à ce fichier : `flutter test` exécute les fichiers en
+    // parallèle sur le même disque, et ils vident tous la base au démarrage.
+    BaseLocale.surchargeNomFichier = 'test_reserve_repo.db';
     // Fallback nécessaire pour `any(named: ...)` sur des types non
     // primitifs — mocktail l'exige avant tout `when()` qui s'en sert.
     registerFallbackValue(ReserveSeverite.moyenne);
@@ -69,6 +72,40 @@ void main() {
   tearDown(() async {
     await base.viderTout();
     await base.fermer();
+  });
+
+  group('Suppression — invalidation du miroir local', () {
+    test('supprimerReserve() retire AUSSI la ligne locale', () async {
+      // Conservee, la ligne reapparaissait au premier repli hors ligne : la
+      // liste la masquait tant qu'on etait en ligne — la reponse reseau fait
+      // autorite — puis elle revenait, et plus rien dans l'application ne
+      // permettait de s'en debarrasser.
+      await cache.enregistrer(_reserveServeur());
+      final id = _reserveServeur().id;
+      expect(await cache.lire(id), isNotNull);
+
+      when(() => remote.supprimerReserve(id)).thenAnswer((_) async {});
+
+      final resultat = await repository(DetecteurSimule(EtatReseau.enLigne)).supprimerReserve(id);
+
+      expect(resultat.isRight(), isTrue);
+      expect(await cache.lire(id), isNull, reason: 'le miroir local doit suivre le serveur');
+    });
+
+    test('un refus du serveur laisse la ligne locale intacte', () async {
+      // L'inverse compte autant : effacer localement une reserve que le
+      // serveur a refuse de supprimer la ferait disparaitre de l'ecran hors
+      // ligne alors qu'elle existe toujours.
+      await cache.enregistrer(_reserveServeur());
+      final id = _reserveServeur().id;
+
+      when(() => remote.supprimerReserve(id)).thenThrow(Exception('403'));
+
+      final resultat = await repository(DetecteurSimule(EtatReseau.enLigne)).supprimerReserve(id);
+
+      expect(resultat.isLeft(), isTrue);
+      expect(await cache.lire(id), isNotNull);
+    });
   });
 
   group('Lecture — cache en repli', () {

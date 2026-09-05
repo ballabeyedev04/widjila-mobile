@@ -13,6 +13,7 @@ import '../../domain/entities/chantier.dart';
 import '../cubit/chantiers_list_cubit.dart';
 import '../cubit/chantiers_list_state.dart';
 import '../widgets/chantier_statut_badge.dart';
+import '../../../../core/network/forcer_reseau.dart';
 
 /// Liste des chantiers — même armature que les onglets Réserves et Plans :
 /// en-tête de la maquette, barre de recherche arrondie, puces de filtre à
@@ -347,7 +348,7 @@ class _Liste extends StatelessWidget {
       color: AppColors.background,
       child: RefreshIndicator(
         color: AppColors.primary,
-        onRefresh: () => context.read<ChantiersListCubit>().charger(),
+        onRefresh: forcerReseau(() => context.read<ChantiersListCubit>().charger()),
         child: ContenuCentre(
           child: ListView.separated(
             controller: controller,
@@ -630,9 +631,19 @@ class _PiedDeListe extends StatelessWidget {
         children: [
           Icon(Icons.construction_rounded, size: 16, color: AppColors.textMuted.withValues(alpha: 0.8)),
           const SizedBox(width: 8),
-          Text(
-            context.l10n.chantierAffichageSur(affiches, total),
-            style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted),
+          // `Flexible` et non un `Text` nu : la phrase traduite débordait de
+          // 49 px dès 390 dp — largeur d'un téléphone courant. Un `Row` dont
+          // un enfant n'a pas l'autorisation de rétrécir échoue à la mise en
+          // page, et Flutter lève À CHAQUE IMAGE. `Flexible` préserve le
+          // centrage tant que la place suffit, et cède quand elle manque.
+          Flexible(
+            child: Text(
+              context.l10n.chantierAffichageSur(affiches, total),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted),
+            ),
           ),
         ],
       ),

@@ -100,6 +100,17 @@ class DroitsAbonnement extends Equatable {
 
   final bool essaiEnCours;
   final DateTime? dateFin;
+
+  /// Jours restants avant [dateFin], calculés PAR LE SERVEUR.
+  ///
+  /// Les recalculer ici reviendrait à faire confiance à l'horloge du
+  /// téléphone — souvent fausse de plusieurs jours sur un appareil de chantier
+  /// — pour une information qui déclenche une décision d'achat.
+  ///
+  /// `null` = aucune échéance connue, à ne pas confondre avec `0` qui signifie
+  /// « expire aujourd'hui ».
+  final int? joursRestants;
+
   final UsageRessource utilisateurs;
   final UsageRessource chantiers;
 
@@ -111,6 +122,7 @@ class DroitsAbonnement extends Equatable {
     this.fonctionnalites,
     this.essaiEnCours = false,
     this.dateFin,
+    this.joursRestants,
     this.utilisateurs = const UsageRessource(courant: 0),
     this.chantiers = const UsageRessource(courant: 0),
   });
@@ -130,6 +142,7 @@ class DroitsAbonnement extends Equatable {
       fonctionnalites: liste?.cast<String>(),
       essaiEnCours: droits['essaiEnCours'] as bool? ?? false,
       dateFin: droits['dateFin'] != null ? DateTime.tryParse(droits['dateFin'] as String) : null,
+      joursRestants: droits['joursRestants'] as int?,
       utilisateurs: UsageRessource.fromJson(usage['utilisateurs'] as Map<String, dynamic>?),
       chantiers: UsageRessource.fromJson(usage['chantiers'] as Map<String, dynamic>?),
     );
@@ -145,4 +158,85 @@ class DroitsAbonnement extends Equatable {
   @override
   List<Object?> get props =>
       [actif, source, planNom, planCode, fonctionnalites, essaiEnCours, dateFin, utilisateurs, chantiers];
+}
+
+
+/// Une ligne de l'historique d'abonnement — ce que l'organisation a souscrit,
+/// et à quel prix.
+///
+/// Le prix est FIGÉ au moment de la souscription (`prix_paye` côté serveur) :
+/// une hausse de tarif ultérieure ne réécrit pas ce qui a été facturé. C'est
+/// pourquoi l'historique ne se reconstruit pas depuis le catalogue courant.
+class SouscriptionHistorique extends Equatable {
+  final String id;
+  final String? planCode;
+  final String? planNom;
+
+  /// `null` = formule sur devis, sans prix public.
+  final double? prixPaye;
+  final String devise;
+
+  /// `mois` ou `an`.
+  final String periode;
+
+  /// `en_attente`, `active`, `echec`, `annulee` ou `expiree`.
+  ///
+  /// `en_attente` mérite une attention particulière : c'est une souscription
+  /// engagée dont le paiement n'a jamais été confirmé par le serveur. Elle
+  /// n'ouvre AUCUN droit, et l'afficher comme un achat abouti tromperait.
+  final String statut;
+
+  final DateTime? dateDebut;
+  final DateTime? dateFin;
+  final DateTime? creeLe;
+
+  const SouscriptionHistorique({
+    required this.id,
+    this.planCode,
+    this.planNom,
+    this.prixPaye,
+    this.devise = 'EUR',
+    this.periode = 'mois',
+    this.statut = 'en_attente',
+    this.dateDebut,
+    this.dateFin,
+    this.creeLe,
+  });
+
+  factory SouscriptionHistorique.fromJson(Map<String, dynamic> json) {
+    DateTime? date(String cle) {
+      final brut = json[cle];
+      return brut is String ? DateTime.tryParse(brut) : null;
+    }
+
+    return SouscriptionHistorique(
+      id: json['id'] as String,
+      planCode: json['planCode'] as String?,
+      planNom: json['planNom'] as String?,
+      // Le serveur renvoie un nombre JSON, mais une décimale SQL peut arriver
+      // en chaîne selon le pilote : on accepte les deux plutôt que de risquer
+      // un cast qui ferait tomber tout l'historique.
+      prixPaye: switch (json['prixPaye']) {
+        final num n => n.toDouble(),
+        final String s => double.tryParse(s),
+        _ => null,
+      },
+      devise: json['devise'] as String? ?? 'EUR',
+      periode: json['periode'] as String? ?? 'mois',
+      statut: json['statut'] as String? ?? 'en_attente',
+      dateDebut: date('dateDebut'),
+      dateFin: date('dateFin'),
+      creeLe: date('creeLe'),
+    );
+  }
+
+  /// Vrai si cette ligne correspond à un paiement réellement abouti.
+  ///
+  /// Seul le serveur en juge — via le webhook Stripe. On se contente de lire
+  /// son verdict.
+  bool get estPayee => statut == 'active' || statut == 'expiree';
+
+  @override
+  List<Object?> get props =>
+      [id, planCode, planNom, prixPaye, devise, periode, statut, dateDebut, dateFin, creeLe];
 }

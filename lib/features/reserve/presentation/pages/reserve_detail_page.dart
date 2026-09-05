@@ -22,6 +22,7 @@ import '../widgets/reserve_statut_badge.dart';
 import 'affecter_reserve_sheet.dart';
 import 'modifier_reserve_sheet.dart';
 import 'qr_reserve_sheet.dart';
+import '../../../../core/network/forcer_reseau.dart';
 
 class ReserveDetailPage extends StatelessWidget {
   final String reserveId;
@@ -259,7 +260,7 @@ class _DetailBody extends StatelessWidget {
       color: AppColors.background,
       child: RefreshIndicator(
       color: AppColors.primary,
-      onRefresh: () => context.read<ReserveDetailCubit>().charger(),
+      onRefresh: forcerReseau(() => context.read<ReserveDetailCubit>().charger()),
       child: ContenuCentre(
         child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
@@ -422,7 +423,12 @@ class _DetailBody extends StatelessWidget {
       builder: (_) => Dialog(
         backgroundColor: Colors.black,
         insetPadding: const EdgeInsets.all(12),
-        child: InteractiveViewer(child: FichierImage(url: url, fit: BoxFit.contain)),
+        child: InteractiveViewer(
+          // Le seul endroit qui a besoin des pixels d'origine : on zoome
+          // dedans. Partout ailleurs l'image est décodée à sa taille
+          // d'affichage (voir FichierImage.pleineResolution).
+          child: FichierImage(url: url, fit: BoxFit.contain, pleineResolution: true),
+        ),
       ),
     );
   }
@@ -454,7 +460,13 @@ class _DetailBody extends StatelessWidget {
     );
     if (source == null) return;
 
-    final fichier = await ImagePicker().pickImage(source: source, imageQuality: 85);
+    // `maxWidth: 1920` — même plafond que la création de réserve
+    // (`nouvelle_reserve_sheet.dart`) : sans lui, une photo prise avec
+    // l'appareil photo (12 Mpx et plus) part à sa résolution native, souvent
+    // 3 à 8 Mo, pour un affichage qui ne dépasse jamais l'écran du
+    // téléphone. Le réseau de chantier est aussi celui qui en a le moins
+    // besoin.
+    final fichier = await ImagePicker().pickImage(source: source, imageQuality: 85, maxWidth: 1920);
     if (fichier == null || !context.mounted) return;
 
     final ok = await cubit.ajouterPhoto(fichier.path);

@@ -274,7 +274,16 @@ class AuthBackdrop extends StatelessWidget {
                   // `Center` ne centre que s'il reste de la place : le
                   // formulaire est au milieu sur un grand écran, et défile
                   // normalement sur un petit ou clavier ouvert.
-                  constraints: BoxConstraints(minHeight: contraintes.maxHeight - 48),
+                  //
+                  // Le plancher à zéro n'est pas décoratif : `maxHeight` tombe
+                  // sous 48 dès que la zone visible se réduit à une bande —
+                  // clavier logiciel déployé sur un petit écran, fenêtre de
+                  // navigateur redimensionnée. Une contrainte de hauteur
+                  // minimale NÉGATIVE fait échouer la mise en page, et l'écran
+                  // de connexion devient blanc.
+                  constraints: BoxConstraints(
+                    minHeight: (contraintes.maxHeight - 48).clamp(0.0, double.infinity),
+                  ),
                   child: Center(
                     child: ConstrainedBox(
                       // Un formulaire pleine largeur devient illisible sur

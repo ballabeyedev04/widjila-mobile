@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,7 +41,7 @@ void main() {
       );
 
   blocTest<ReservesListCubit, ReservesListState>(
-    'charger() charge la liste et les compteurs de statut en parallèle',
+    'charger() finit avec la liste ET les compteurs',
     build: () {
       when(() => getReserves(chantierId: _chantierId, page: 1, limit: 20, search: '', statut: null))
           .thenAnswer((_) async => Right(ReservePage(items: [_reserve('a'), _reserve('b')], total: 2)));
@@ -49,14 +51,39 @@ void main() {
       return build();
     },
     act: (cubit) => cubit.charger(),
+    // Les deux appels partent ensemble et arrivent SÉPARÉMENT : les compteurs
+    // se posent dès qu'ils sont là, sans attendre la liste, d'où un état
+    // intermédiaire encore en chargement. C'est le prix — et le point — de la
+    // désolidarisation vérifiée par le test suivant.
+    skip: 1,
     expect: () => [
-      const ReservesListState(status: ReservesListStatus.chargement),
+      isA<ReservesListState>()
+          .having((s) => s.status, 'status', ReservesListStatus.chargement)
+          .having((s) => s.statutsCount.total, 'statutsCount.total', 2),
       isA<ReservesListState>()
           .having((s) => s.status, 'status', ReservesListStatus.succes)
           .having((s) => s.items.length, 'items.length', 2)
           .having((s) => s.statutsCount.total, 'statutsCount.total', 2),
     ],
   );
+
+  test('la liste s’affiche même si les compteurs ne répondent JAMAIS', () async {
+    // Les compteurs ne chiffrent que les puces de filtre. Attendus avant le
+    // moindre `emit`, ils retenaient la liste en otage : sur un chantier sans
+    // réserve, l'écran gardait son squelette de chargement et le message
+    // « Aucune réserve » n'apparaissait jamais.
+    when(() => getReserves(chantierId: _chantierId, page: 1, limit: 20, search: '', statut: null))
+        .thenAnswer((_) async => const Right(ReservePage(items: [], total: 0)));
+    when(() => getReserveStatutsCount(_chantierId))
+        .thenAnswer((_) => Completer<Either<Failure, ReserveStatutsCount>>().future);
+
+    final cubit = build();
+    await cubit.charger();
+
+    expect(cubit.state.status, ReservesListStatus.succes);
+    expect(cubit.state.items, isEmpty);
+    await cubit.close();
+  });
 
   blocTest<ReservesListCubit, ReservesListState>(
     'filtrerParStatut() relance charger() avec le filtre et repart de la page 1',

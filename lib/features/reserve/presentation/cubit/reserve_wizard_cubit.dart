@@ -116,6 +116,13 @@ class ReserveWizardCubit extends Cubit<ReserveWizardState> {
 
   void allerEtape(int etape) => emit(state.copyWith(etape: etape));
 
+  /// Rattache la réserve au plan par lequel l'assistant a été ouvert.
+  ///
+  /// Appelé une seule fois, à la construction de la page : le plan est un
+  /// CONTEXTE d'arrivée, pas un champ que l'utilisateur modifie ensuite.
+  void definirPlan({required String id, String? nom}) =>
+      emit(state.copyWith(planId: id, planNom: nom));
+
   Future<Reserve?> soumettre() async {
     // Verrou de double soumission — LE plus important de l'app : deux appuis
     // sur « Créer la réserve » créaient deux réserves distinctes (chacune
@@ -135,6 +142,12 @@ class ReserveWizardCubit extends Cubit<ReserveWizardState> {
       zoneId: state.zone?.id,
       lotId: state.lot?.id,
       dateLimite: state.dateLimite,
+      // Sans position : l'assistant demande le plan, pas l'endroit exact. Le
+      // pointage sur le plan reste le geste de `PlanViewerPage`, où l'on voit
+      // le dessin. Le serveur accepte `planId` seul (`positionX`/`positionY`
+      // sont facultatifs) — la réserve est donc bien rattachée au plan, sans
+      // repère faussement précis.
+      planId: state.planId,
     );
     if (isClosed) return null;
     return result.fold(

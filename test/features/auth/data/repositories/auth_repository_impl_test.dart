@@ -9,6 +9,7 @@ import 'package:suivie_chantier_mobile/core/services/token_service.dart';
 import 'package:suivie_chantier_mobile/core/services/user_cache.dart';
 import 'package:suivie_chantier_mobile/features/auth/data/datasources/auth_remote_datasource.dart';
 import 'package:suivie_chantier_mobile/features/auth/data/models/user_model.dart';
+import 'package:suivie_chantier_mobile/core/network/cache_reponses_get.dart';
 import 'package:suivie_chantier_mobile/features/auth/data/repositories/auth_repository_impl.dart';
 
 class MockAuthRemoteDataSource extends Mock implements AuthRemoteDataSource {}
@@ -45,6 +46,9 @@ void main() {
       tokenService: tokenService,
       userCache: userCache,
       sessionLocale: sessionLocale,
+      // Instance reelle plutot qu'un mock : le cache n'a pas d'effet de bord
+      // hors de lui-meme, et `vider()` sur un cache vide est sans risque.
+      cacheHttp: CacheReponsesGet(),
     );
 
     when(() => tokenService.setToken(any())).thenAnswer((_) async {});

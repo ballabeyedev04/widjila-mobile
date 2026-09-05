@@ -12,6 +12,7 @@ import '../../domain/entities/reserve_evolution.dart';
 import '../cubit/chantier_dashboard_cubit.dart';
 import '../cubit/chantier_dashboard_state.dart';
 import '../widgets/reserve_statut_donut.dart';
+import '../../../../core/network/forcer_reseau.dart';
 
 class ChantierDashboardPage extends StatelessWidget {
   final String chantierId;
@@ -65,7 +66,7 @@ class _ChantierDashboardView extends StatelessWidget {
                         color: AppColors.background,
                         child: RefreshIndicator(
                           color: AppColors.primary,
-                          onRefresh: () => context.read<ChantierDashboardCubit>().charger(),
+                          onRefresh: forcerReseau(() => context.read<ChantierDashboardCubit>().charger()),
                           child: ContenuCentre(
                             child: ListView(
                               padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),

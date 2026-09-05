@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 /// Base de données locale — socle du mode hors ligne.
@@ -30,6 +31,17 @@ class BaseLocale {
 
   static const String _nomFichier = 'suivi_chantier_offline.db';
 
+  /// Nom de fichier de substitution — RÉSERVÉ AUX TESTS, `null` en production.
+  ///
+  /// `flutter test` exécute les fichiers de test en parallèle, dans des
+  /// isolats distincts mais sur le même disque. Quatre d'entre eux ouvrent
+  /// cette base et la vident dans leur `setUp` : sans nom propre à chacun, ils
+  /// se marchent dessus et échouent selon l'ordre d'exécution, alors que
+  /// chacun passe parfaitement isolé. Un échec dont la cause est le voisin est
+  /// le pire genre — on cherche le défaut dans le code testé, qui n'a rien.
+  @visibleForTesting
+  static String? surchargeNomFichier;
+
   /// Version du schéma. À incrémenter à CHAQUE modification de structure, en
   /// ajoutant la migration correspondante dans [_migrer] — sans quoi les
   /// appareils déjà installés garderont l'ancien schéma et planteront à la
@@ -41,7 +53,7 @@ class BaseLocale {
   Future<Database> get base async => _db ??= await _ouvrir();
 
   Future<Database> _ouvrir() async {
-    final chemin = '${await getDatabasesPath()}/$_nomFichier';
+    final chemin = '${await getDatabasesPath()}/${surchargeNomFichier ?? _nomFichier}';
     return openDatabase(
       chemin,
       version: _version,

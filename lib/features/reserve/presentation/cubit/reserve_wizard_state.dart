@@ -31,6 +31,16 @@ class ReserveWizardState extends Equatable {
   final ReserveSeverite priorite;
   final String description;
 
+  /// Plan sur lequel la réserve est ouverte, quand l'assistant a été atteint
+  /// PAR un plan (bouton « + » : chantier, puis plan, puis ce formulaire).
+  ///
+  /// Purement contextuel côté mobile — c'est le serveur qui rattache la
+  /// réserve au plan (`planId` de `POST /reserves`). Le nom n'est conservé que
+  /// pour l'afficher : sans lui, l'utilisateur qui vient de choisir un plan ne
+  /// verrait plus nulle part lequel.
+  final String? planId;
+  final String? planNom;
+
   // Étape 2 — localisation
   final BatimentStructure? batiment;
   final EtageStructure? etage;
@@ -51,6 +61,8 @@ class ReserveWizardState extends Equatable {
     this.phaseId,
     this.priorite = ReserveSeverite.moyenne,
     this.description = '',
+    this.planId,
+    this.planNom,
     this.batiment,
     this.etage,
     this.zone,
@@ -95,6 +107,8 @@ class ReserveWizardState extends Equatable {
     String? phaseId,
     ReserveSeverite? priorite,
     String? description,
+    String? planId,
+    String? planNom,
     BatimentStructure? batiment,
     bool effacerBatiment = false,
     EtageStructure? etageValue,
@@ -119,6 +133,8 @@ class ReserveWizardState extends Equatable {
       phaseId: phaseId ?? this.phaseId,
       priorite: priorite ?? this.priorite,
       description: description ?? this.description,
+      planId: planId ?? this.planId,
+      planNom: planNom ?? this.planNom,
       batiment: effacerBatiment ? null : (batiment ?? this.batiment),
       etage: effacerEtage ? null : (etageValue ?? etage),
       zone: effacerZone ? null : (zoneValue ?? zone),
@@ -131,6 +147,6 @@ class ReserveWizardState extends Equatable {
   List<Object?> get props => [
         etape, structureStatus, structure, soumissionStatus, erreur, titre,
         corpsEtatDisponibles, corpsEtatId, phasesDisponibles, phaseId, priorite, description,
-        batiment, etage, zone, lot, dateLimite,
+        planId, planNom, batiment, etage, zone, lot, dateLimite,
       ];
 }

@@ -15,6 +15,7 @@ import '../../domain/entities/chantier.dart';
 import '../../domain/repositories/chantier_repository.dart';
 import '../cubit/demandes_chantier_cubit.dart';
 import '../widgets/chantier_statut_badge.dart';
+import '../../../../core/network/forcer_reseau.dart';
 
 /// Rôles qui tranchent une demande — miroir de `GESTION` côté serveur.
 ///
@@ -127,7 +128,7 @@ class _Corps extends StatelessWidget {
 
     return RefreshIndicator(
       color: AppColors.primary,
-      onRefresh: cubit.charger,
+      onRefresh: forcerReseau(cubit.charger),
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         itemCount: etat.items.length,

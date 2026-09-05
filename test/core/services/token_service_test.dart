@@ -127,4 +127,92 @@ void main() {
       verify(() => storage.delete(key: 'sc_refresh_token')).called(1);
     });
   });
+
+  /// Le stockage sécurisé n'est lu QU'UNE FOIS par session.
+  ///
+  /// ## Ce que ça coûtait
+  ///
+  /// L'intercepteur Dio demande le jeton avant CHAQUE requête. Chaque appel
+  /// descendait au trousseau : aller-retour de canal de plateforme, plus un
+  /// déchiffrement — et sur Android, l'initialisation du magasin de clés au
+  /// premier accès. Un écran qui lance quatre requêtes payait quatre fois ce
+  /// prix avant que la moindre n'atteigne le réseau.
+  ///
+  /// Ces tests décrivent le contrat qui rend le raccourci sûr : la mémoire
+  /// suit TOUTE écriture, et le stockage reste la source de vérité.
+  group('TokenService — lectures du stockage', () {
+    test('ne lit le stockage qu’une seule fois, quel que soit le nombre d’appels', () async {
+      final jeton = _fakeJwt({
+        'id': 'u1',
+        'exp': DateTime.now().add(const Duration(hours: 1)).millisecondsSinceEpoch ~/ 1000,
+      });
+      when(() => storage.read(key: 'sc_jwt_token')).thenAnswer((_) async => jeton);
+
+      for (var i = 0; i < 10; i++) {
+        expect(await service.getValidToken(), jeton);
+      }
+
+      verify(() => storage.read(key: 'sc_jwt_token')).called(1);
+    });
+
+    test('une session SANS jeton ne relit pas non plus le stockage', () async {
+      // Le piège : distinguer « pas encore lu » de « lu, et vide ». Sans ce
+      // soin, un utilisateur déconnecté rouvrait le trousseau à chaque appel.
+      when(() => storage.read(key: any(named: 'key'))).thenAnswer((_) async => null);
+
+      for (var i = 0; i < 5; i++) {
+        expect(await service.getValidToken(), isNull);
+      }
+
+      verify(() => storage.read(key: 'sc_jwt_token')).called(1);
+    });
+
+    test('setToken met la copie mémoire à jour, sans relire le stockage', () async {
+      when(() => storage.write(key: any(named: 'key'), value: any(named: 'value')))
+          .thenAnswer((_) async {});
+
+      final nouveau = _fakeJwt({
+        'id': 'u2',
+        'exp': DateTime.now().add(const Duration(hours: 1)).millisecondsSinceEpoch ~/ 1000,
+      });
+      await service.setToken(nouveau);
+
+      expect(await service.getValidToken(), nouveau);
+      verifyNever(() => storage.read(key: 'sc_jwt_token'));
+    });
+
+    test('clearToken oublie le jeton — sans quoi la déconnexion ne déconnecterait rien', () async {
+      final jeton = _fakeJwt({
+        'id': 'u1',
+        'exp': DateTime.now().add(const Duration(hours: 1)).millisecondsSinceEpoch ~/ 1000,
+      });
+      when(() => storage.read(key: 'sc_jwt_token')).thenAnswer((_) async => jeton);
+      when(() => storage.delete(key: any(named: 'key'))).thenAnswer((_) async {});
+
+      expect(await service.getValidToken(), jeton);
+      await service.clearToken();
+
+      expect(await service.getValidToken(), isNull,
+          reason: 'la copie mémoire doit suivre l’effacement');
+    });
+
+    test('le refresh token suit la même règle', () async {
+      when(() => storage.read(key: 'sc_refresh_token')).thenAnswer((_) async => 'r-1');
+
+      expect(await service.getRefreshToken(), 'r-1');
+      expect(await service.getRefreshToken(), 'r-1');
+
+      verify(() => storage.read(key: 'sc_refresh_token')).called(1);
+    });
+
+    test('setRefreshToken remplace la copie mémoire', () async {
+      when(() => storage.write(key: any(named: 'key'), value: any(named: 'value')))
+          .thenAnswer((_) async {});
+
+      await service.setRefreshToken('r-2');
+
+      expect(await service.getRefreshToken(), 'r-2');
+      verifyNever(() => storage.read(key: 'sc_refresh_token'));
+    });
+  });
 }

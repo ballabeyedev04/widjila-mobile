@@ -5,8 +5,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/config/user_role.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/apparition_en_cascade.dart';
 import '../../../../core/widgets/app_alert.dart';
 import '../../../../core/widgets/chantier_picker_sheet.dart';
+import '../../../../core/routes/app_router.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/liste_chrome.dart';
 import '../../../../core/widgets/loading_list.dart';
@@ -18,6 +20,7 @@ import '../cubit/plans_list_cubit.dart';
 import '../widgets/plan_vignette.dart';
 import '../widgets/plans_chrome.dart';
 import '../widgets/import_plan_sheet.dart';
+import '../../../../core/network/forcer_reseau.dart';
 
 /// Extensions acceptées à l'import.
 ///
@@ -53,19 +56,43 @@ class _PlansListView extends StatefulWidget {
 class _PlansListViewState extends State<_PlansListView> {
   bool get _estSousEcran => widget.chantierId != null;
 
-  /// Parcours d'import : chantier → fichier → nom et format → envoi.
+  /// Ajout de plans depuis l'onglet transversal : chantier, puis l'écran de
+  /// dépôt.
   ///
-  /// Le chantier n'est demandé que depuis l'onglet transversal ; ouvert depuis
-  /// un chantier, l'écran connaît déjà le sien.
+  /// ## Pourquoi le sélecteur de chantier puis un ÉCRAN, et non un fichier
+  ///
+  /// Un plan appartient à un chantier — l'onglet, lui, est transversal : il
+  /// faut donc désigner le chantier avant toute chose. Le sélecteur propose
+  /// aussi d'en CRÉER un : une entreprise qui arrive avec ses plans et aucun
+  /// chantier enregistré tombait jusqu'ici sur une liste vide sans issue.
+  ///
+  /// Ensuite vient l'écran de dépôt et non un simple choix de fichier : les
+  /// plans d'un chantier forment une structure — le plan global, puis les
+  /// bâtiments, puis les niveaux de chacun. Envoyer les fichiers un à un
+  /// laissait à l'utilisateur la charge de reconstituer cette structure
+  /// ensuite, à la main, depuis un autre écran.
+  Future<void> _ajouterPlans() async {
+    final chantier = await choisirChantier(
+      context,
+      titre: context.l10n.planAjouterBouton,
+      avecCreation: true,
+    );
+    if (chantier == null || !mounted || !context.mounted) return;
+
+    context.push(
+      '${AppRoutes.depotPlans.replaceFirst(':chantierId', chantier.id)}'
+      '?nom=${Uri.encodeComponent(chantier.nom)}',
+    );
+  }
+
+  /// Import d'un plan ISOLÉ — réservé à l'écran d'un chantier donné.
+  ///
+  /// Ici le chantier est connu et la structure existe déjà : on vient
+  /// simplement ajouter une pièce, souvent une nouvelle version. Passer par
+  /// l'écran de dépôt complet pour un seul fichier serait disproportionné.
   Future<void> _importer() async {
     final cubit = context.read<PlansListCubit>();
-
-    var chantierId = widget.chantierId;
-    if (chantierId == null) {
-      final chantier = await choisirChantier(context, titre: context.l10n.planImporterBouton);
-      if (chantier == null || !mounted) return;
-      chantierId = chantier.id;
-    }
+    final chantierId = widget.chantierId!;
 
     final choix = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -95,14 +122,33 @@ class _PlansListViewState extends State<_PlansListView> {
     // Le serveur réserve l'import aux rôles OPERATIONNEL_CONTROLE (voir
     // `backend/src/modules/plan/route/plan.route.js`).
     final peutImporter = context.select(
-      (AuthBloc b) => b.state.utilisateur?.role.estOperationnelOuControle ?? false,
+      (AuthBloc b) => b.state.utilisateur?.role.peutDeposerPlans ?? false,
     );
+    final l10n = context.l10n;
 
     return Scaffold(
       // Blanc, comme la maquette. La LISTE repose sur le gris de fond (voir
       // _Liste) : des cartes blanches sur une page blanche perdraient tout
       // relief.
       backgroundColor: AppColors.surface,
+      // Le bouton d'ajout doit rester atteignable une fois la liste REMPLIE.
+      //
+      // Il ne vivait que dans l'état vide : dès le premier plan déposé, plus
+      // rien sur cet écran ne permettait d'en ajouter un deuxième. Le « + » de
+      // la barre ne le propose plus non plus — il crée désormais une réserve.
+      floatingActionButton: !peutImporter
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _estSousEcran ? _importer : _ajouterPlans,
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              elevation: 6,
+              icon: Icon(_estSousEcran ? Icons.cloud_upload_outlined : Icons.add_rounded),
+              label: Text(
+                _estSousEcran ? l10n.planImporterBouton : l10n.planAjouterBouton,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
       body: SafeArea(
         bottom: false,
         child: BlocConsumer<PlansListCubit, PlansListState>(
@@ -120,7 +166,6 @@ class _PlansListViewState extends State<_PlansListView> {
             }
           },
           builder: (context, state) {
-            final l10n = context.l10n;
             return Column(
               children: [
                 ContenuCentre(
@@ -174,7 +219,8 @@ class _PlansListViewState extends State<_PlansListView> {
                             rechercheActive: state.filtreEnPlace,
                             peutImporter: peutImporter,
                             importEnCours: state.importEnCours,
-                            onImporter: _importer,
+                            sousEcranChantier: _estSousEcran,
+                            onAjouter: _estSousEcran ? _importer : _ajouterPlans,
                           )
                         : _Liste(
                             plans: state.itemsFiltres,
@@ -196,13 +242,19 @@ class _EtatVide extends StatelessWidget {
   final bool rechercheActive;
   final bool peutImporter;
   final bool importEnCours;
-  final VoidCallback onImporter;
+
+  /// Ouvert depuis UN chantier : le bouton importe un fichier. Depuis
+  /// l'onglet transversal, il ouvre le parcours de dépôt complet.
+  final bool sousEcranChantier;
+
+  final VoidCallback onAjouter;
 
   const _EtatVide({
     required this.rechercheActive,
     required this.peutImporter,
     required this.importEnCours,
-    required this.onImporter,
+    required this.sousEcranChantier,
+    required this.onAjouter,
   });
 
   @override
@@ -222,10 +274,10 @@ class _EtatVide extends StatelessWidget {
       description: peutImporter ? l10n.planAucunDescriptionPeutImporter : l10n.planAucunDescriptionSansDroit,
       cta: peutImporter
           ? BoutonAction(
-              icon: Icons.cloud_upload_outlined,
-              label: l10n.planImporterBouton,
+              icon: sousEcranChantier ? Icons.cloud_upload_outlined : Icons.add_rounded,
+              label: sousEcranChantier ? l10n.planImporterBouton : l10n.planAjouterBouton,
               enCours: importEnCours,
-              onTap: onImporter,
+              onTap: onAjouter,
             )
           : null,
     );
@@ -245,35 +297,68 @@ class _Liste extends StatelessWidget {
       color: AppColors.background,
       child: RefreshIndicator(
         color: AppColors.primary,
-        onRefresh: () => context.read<PlansListCubit>().charger(chantierId: chantierId),
+        onRefresh: forcerReseau(() => context.read<PlansListCubit>().charger(chantierId: chantierId)),
+        // `CustomScrollView` et non un `ListView` à enfants explicites.
+        //
+        // ## Pourquoi ce n'est pas cosmétique
+        //
+        // Un `ListView(children: [...])` construit TOUS ses enfants dès la
+        // première image. Or chaque carte porte une [PlanVignette], qui
+        // télécharge le PDF et en rasterise la première page. Trente plans,
+        // c'était donc trente téléchargements et trente rendus natifs lancés
+        // ensemble — pour deux ou trois cartes réellement visibles. L'écran
+        // se figeait à l'ouverture, et le reste de l'application avec lui.
+        //
+        // Un sliver paresseux ne construit que ce qui approche de l'écran :
+        // les vignettes se rendent au fil du défilement.
         child: ContenuCentre(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 100),
-            children: [
-              // « Mes plans » met en avant le plan le plus récemment déposé :
-              // c'est celui sur lequel on revient le plus souvent juste après
-              // l'avoir importé. Le reste suit dans la liste complète.
-              TitreSectionPlans(context.l10n.planMesPlans),
-              const SizedBox(height: 10),
-              _CartePlan(
-                plan: plans.first,
-                avecChantier: avecChantier,
-                miseEnAvant: true,
-                onTap: () => context.push('/plans/${plans.first.id}'),
+          child: CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                sliver: SliverList.list(
+                  children: [
+                    // « Mes plans » met en avant le plan le plus récemment
+                    // déposé : c'est celui sur lequel on revient le plus
+                    // souvent juste après l'avoir importé. Le reste suit dans
+                    // la liste complète.
+                    TitreSectionPlans(context.l10n.planMesPlans),
+                    const SizedBox(height: 10),
+                    ApparitionEnCascade(
+                      rang: 0,
+                      child: _CartePlan(
+                        plan: plans.first,
+                        avecChantier: avecChantier,
+                        miseEnAvant: true,
+                        onTap: () => context.push('/plans/${plans.first.id}'),
+                      ),
+                    ),
+                    if (plans.length > 1) ...[
+                      const SizedBox(height: 22),
+                      TitreSectionPlans(context.l10n.planTousLesPlans, compteur: plans.length - 1),
+                      const SizedBox(height: 10),
+                    ],
+                  ],
+                ),
               ),
-              if (plans.length > 1) ...[
-                const SizedBox(height: 22),
-                TitreSectionPlans(context.l10n.planTousLesPlans, compteur: plans.length - 1),
-                const SizedBox(height: 10),
-                for (var i = 1; i < plans.length; i++) ...[
-                  _CartePlan(
-                    plan: plans[i],
-                    avecChantier: avecChantier,
-                    onTap: () => context.push('/plans/${plans[i].id}'),
-                  ),
-                  if (i < plans.length - 1) const SizedBox(height: 10),
-                ],
-              ],
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                sliver: SliverList.separated(
+                  itemCount: plans.length > 1 ? plans.length - 1 : 0,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (context, i) {
+                    final plan = plans[i + 1];
+                    return ApparitionEnCascade(
+                      rang: i + 1,
+                      child: _CartePlan(
+                        plan: plan,
+                        avecChantier: avecChantier,
+                        onTap: () => context.push('/plans/${plan.id}'),
+                      ),
+                    );
+                  },
+                ),
+              ),
             ],
           ),
         ),

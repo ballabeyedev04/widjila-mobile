@@ -10,6 +10,7 @@ import '../config/env.dart';
 import '../errors/error_codes.dart';
 import '../services/auth_event_bus.dart';
 import '../services/token_service.dart';
+import 'cache_reponses_get.dart';
 
 /// Construit le client Dio central de l'app : base URL, timeouts, pinning de
 /// certificat (best-effort), Bearer token automatique, refresh silencieux
@@ -22,7 +23,27 @@ import '../services/token_service.dart';
 class DioClientFactory {
   DioClientFactory._();
 
-  static Future<Dio> create({required TokenService tokenService}) async {
+  /// Delai maximal accorde a la preparation du jeton, AVANT que la requete
+  /// parte.
+  ///
+  /// Les `connectTimeout` / `receiveTimeout` de Dio ne courent qu'a partir du
+  /// moment ou la requete est emise. Tout ce qui se passe avant — lecture du
+  /// stockage securise, rafraichissement silencieux — se deroule donc hors de
+  /// tout delai. Une lecture qui ne rend jamais la main n'echouait pas : elle
+  /// ne se terminait tout simplement pas. La requete n'etait jamais emise,
+  /// aucun timeout ne se declenchait, et l'ecran restait sur son indicateur de
+  /// chargement indefiniment, sans erreur ni bouton pour reessayer.
+  ///
+  /// Cinq secondes : bien au-dela d'une lecture de trousseau normale (quelques
+  /// millisecondes) et d'un rafraichissement de jeton, assez court pour que
+  /// l'utilisateur recoive une erreur exploitable plutot qu'un ecran fige.
+  static const delaiPreparationJeton = Duration(seconds: 5);
+
+  static Future<Dio> create({
+    required TokenService tokenService,
+    required CacheReponsesGet cache,
+    Duration delaiJeton = delaiPreparationJeton,
+  }) async {
     final dio = Dio(
       BaseOptions(
         baseUrl: Env.apiBaseUrl,
@@ -35,7 +56,13 @@ class DioClientFactory {
     );
 
     await _applyCertificatePinning(dio);
-    dio.interceptors.add(_buildAuthInterceptor(dio, tokenService));
+
+    // Le cache AVANT l'authentification : une réponse déjà connue se résout
+    // sans même aller chercher le jeton. L'ordre compte — placé après, il
+    // aurait quand même payé la lecture du jeton pour une requête qui ne part
+    // jamais.
+    dio.interceptors.add(cache);
+    dio.interceptors.add(_buildAuthInterceptor(dio, tokenService, cache, delaiJeton));
 
     return dio;
   }
@@ -77,7 +104,12 @@ class DioClientFactory {
         extra['skipAuthInterceptor'] == true;
   }
 
-  static InterceptorsWrapper _buildAuthInterceptor(Dio dio, TokenService tokenService) {
+  static InterceptorsWrapper _buildAuthInterceptor(
+    Dio dio,
+    TokenService tokenService,
+    CacheReponsesGet cache,
+    Duration delaiJeton,
+  ) {
     // Sérialise les tentatives de refresh concurrentes : si 3 requêtes
     // échouent en 401 en même temps, une seule vraie tentative de refresh
     // est faite, les deux autres attendent son résultat puis rejouent.
@@ -130,7 +162,25 @@ class DioClientFactory {
         if (kDebugMode) debugPrint('🌐 [${options.method}] ${options.path}');
 
         if (!_isAuthExemptPath(options.path, options.extra)) {
-          final token = await tokenService.getValidToken();
+          final String? token;
+          try {
+            token = await tokenService.getValidToken().timeout(delaiJeton);
+          } on TimeoutException {
+            // Rejet en `connectionTimeout` et NON en 401 : un blocage de la
+            // preparation du jeton ne dit rien sur la validite de la session.
+            // Le traiter comme une authentification refusee purgerait la
+            // session et deconnecterait l'utilisateur pour un incident
+            // passager. En erreur reseau, il retrouve « Reessayer » — et les
+            // depots peuvent servir leur cache hors ligne.
+            return handler.reject(
+              DioException(
+                requestOptions: options,
+                type: DioExceptionType.connectionTimeout,
+                error: 'Preparation du jeton interrompue',
+              ),
+              true,
+            );
+          }
           if (token != null) options.headers['Authorization'] = 'Bearer $token';
         }
         return handler.next(options);
@@ -155,6 +205,10 @@ class DioClientFactory {
             }
           }
           await tokenService.clearToken();
+          // La session tombe : plus rien de ce qui a été retenu n'appartient
+          // à qui se connectera ensuite. Une purge de sécurité, pas de
+          // performance.
+          cache.vider();
           AuthEventBus.instance.emitLogout();
         }
 

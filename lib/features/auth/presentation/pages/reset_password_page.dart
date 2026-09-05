@@ -10,6 +10,8 @@ import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
 import '../widgets/auth_chrome.dart';
+import '../../../../core/routes/app_router.dart';
+import '../../../../core/routes/retour.dart';
 
 // MIROIR EXACT du backend — voir `backend/src/validations/common.js#motDePasse`
 // et `resetPasswordSchema` (`backend/src/modules/auth/validation/auth.validation.js`).
@@ -99,7 +101,8 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
           },
           builder: (context, state) {
             return AuthBackdrop(
-              onRetour: () => context.pop(),
+              // Ouvert depuis le lien d'un courriel : aucune pile derrière.
+              onRetour: () => context.retourVers(AppRoutes.login),
               contenu: (context, m) => Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

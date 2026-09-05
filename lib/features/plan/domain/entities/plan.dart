@@ -91,9 +91,7 @@ class PlanReserve extends Equatable {
         position: json['position'] != null
             ? PlanPosition.fromJson(json['position'] as Map<String, dynamic>)
             : null,
-        photoApercu: (json['medias'] is List && (json['medias'] as List).isNotEmpty)
-            ? ((json['medias'] as List).first as Map<String, dynamic>)['url'] as String?
-            : null,
+        photoApercu: _apercu(json['medias']),
       );
 
   @override
@@ -261,4 +259,23 @@ class Plan extends Equatable {
         id, chantierId, nom, version, fichierUrl, format, nombrePages, fichierNom, createdAt,
         chantierNom, reserves, batiment, etage, zone, hotspots,
       ];
+}
+
+/// URL d'aperçu d'une liste de médias — la VIGNETTE d'abord.
+///
+/// Le serveur sélectionne explicitement `thumbnail_url` pour ces requêtes
+/// d'aperçu (voir `reserve.service.js` et `plan.service.js`), et le mobile
+/// lisait quand même `url` : il jetait ce qu'on lui envoyait et rapatriait
+/// l'original — plusieurs mégaoctets sortis d'un appareil photo — pour une
+/// vignette de carte.
+///
+/// Le repli sur l'original reste indispensable : les médias envoyés AVANT que
+/// le serveur ne produise des vignettes n'en ont pas, et n'en auront jamais.
+String? _apercu(Object? medias) {
+  if (medias is! List || medias.isEmpty) return null;
+  final premier = medias.first;
+  if (premier is! Map<String, dynamic>) return null;
+  final vignette = premier['thumbnail_url'] as String?;
+  if (vignette != null && vignette.isNotEmpty) return vignette;
+  return premier['url'] as String?;
 }

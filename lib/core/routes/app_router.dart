@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../config/user_role.dart';
@@ -39,6 +38,7 @@ import '../../features/reserve/presentation/pages/reserves_list_page.dart';
 import '../../features/reserve/presentation/pages/toutes_reserves_page.dart';
 import '../../features/synchronisation/presentation/pages/taches_synchronisation_page.dart';
 import '../widgets/app_shell.dart';
+import '../widgets/pile_onglets.dart';
 
 class AppRoutes {
   AppRoutes._();
@@ -115,6 +115,84 @@ class AppRoutes {
   static const inspections = '/chantiers/:chantierId/inspections';
   static const inspectionDetail = '/inspections/:id';
   static const rapports = '/chantiers/:chantierId/rapports';
+}
+
+/// Transition commune à tous les écrans PLEINS (ceux empilés hors de la
+/// coquille).
+///
+/// ## Pourquoi une transition sur mesure
+///
+/// Par défaut, go_router applique la transition de la plateforme. Sur Android
+/// c'est une montée verticale, sur le web un simple remplacement sans
+/// animation : d'un appareil à l'autre, l'application ne se déplaçait pas de
+/// la même manière, et sur navigateur elle ne se déplaçait pas du tout —
+/// l'écran changeait d'une image à la suivante, sans rien dire du fait qu'on
+/// venait d'ENTRER quelque part.
+///
+/// ## Ce qu'elle fait
+///
+/// La page qui arrive glisse depuis la droite en se révélant ; celle qui reste
+/// dessous recule légèrement vers la gauche et s'estompe. Ce sont les deux
+/// moitiés d'un même geste : sans le recul de la page du dessous, la nouvelle
+/// semble se poser sur une image figée.
+///
+///  - **300 ms à l'aller, 240 au retour** : revenir doit être un peu plus vif
+///    qu'aller — c'est un geste que l'on répète, et qui ne demande pas d'être
+///    accompagné aussi longuement ;
+///  - **glissement de 6 %** de la largeur : assez pour donner la direction,
+///    trop peu pour donner l'impression de faire défiler un carrousel ;
+///  - `easeOutCubic` à l'entrée : la page décélère, elle « se pose ».
+CustomTransitionPage<void> _pagePleine(GoRouterState state, Widget enfant) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    transitionDuration: const Duration(milliseconds: 300),
+    reverseTransitionDuration: const Duration(milliseconds: 240),
+    child: enfant,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final entree = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+      final sortie = CurvedAnimation(parent: secondaryAnimation, curve: Curves.easeOutCubic);
+      return SlideTransition(
+        // Le décalage de la page du DESSOUS quand une autre vient la couvrir.
+        position: Tween<Offset>(begin: Offset.zero, end: const Offset(-0.03, 0)).animate(sortie),
+        child: FadeTransition(
+          opacity: entree,
+          child: SlideTransition(
+            position: Tween<Offset>(begin: const Offset(0.06, 0), end: Offset.zero).animate(entree),
+            child: child,
+          ),
+        ),
+      );
+    },
+  );
+}
+
+/// Transition des ecrans de la COQUILLE — les quatre onglets et les ecrans
+/// du menu « Plus ».
+///
+/// Volontairement differente de [_pagePleine] : entre deux onglets il n'y a ni
+/// avant ni apres, et le glissement lateral d'un empilement raconterait une
+/// hierarchie qui n'existe pas. Un fondu, avec une montee de 1,5 % pour donner
+/// de la matiere, suffit a marquer le changement sans le commenter.
+///
+/// Plus court aussi (220 ms contre 300) : passer d'un onglet a l'autre est un
+/// geste que l'on repete, il ne doit jamais se faire attendre.
+CustomTransitionPage<void> _pageOnglet(GoRouterState state, Widget enfant) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    transitionDuration: const Duration(milliseconds: 220),
+    reverseTransitionDuration: const Duration(milliseconds: 160),
+    child: enfant,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final entree = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+      return FadeTransition(
+        opacity: entree,
+        child: SlideTransition(
+          position: Tween<Offset>(begin: const Offset(0, 0.015), end: Offset.zero).animate(entree),
+          child: child,
+        ),
+      );
+    },
+  );
 }
 
 /// Pont entre un `Stream` (ici, le `Stream<AuthState>` du bloc) et
@@ -207,58 +285,128 @@ class AppRouter {
       ),
 
       // ── Coquille applicative (barre de navigation adaptée au rôle) ────────
-      ShellRoute(
-        builder: (context, state, child) => AppShell(child: child),
-        routes: [
-          // Les quatre onglets de la barre
-          GoRoute(path: AppRoutes.dashboard, builder: (_, _) => const DashboardPage()),
-          GoRoute(path: AppRoutes.reserves, builder: (_, _) => const ToutesReservesPage()),
-          GoRoute(path: AppRoutes.plans, builder: (_, _) => const PlansListPage()),
+      StatefulShellRoute(
+        builder: (context, state, navigationShell) => AppShell(navigationShell: navigationShell),
 
-          // Écrans secondaires — la barre reste visible, l'onglet « Plus »
-          // reste allumé (voir la liste `prefixes` dans AppShell).
-          GoRoute(path: AppRoutes.chantiers, builder: (_, _) => const ChantiersListPage()),
-          GoRoute(
-            path: AppRoutes.chantierDetail,
-            builder: (_, state) => ChantierDetailPage(chantierId: state.pathParameters['id']!),
+        // Conteneur MAISON plutôt que `StatefulShellRoute.indexedStack` : ce
+        // dernier conserve l'état mais bascule sans transition, ce qui aurait
+        // coûté le fondu marquant le changement d'onglet. `PileOnglets` fait
+        // les deux — voir son en-tête.
+        navigatorContainerBuilder: (context, navigationShell, children) =>
+            PileOnglets(index: navigationShell.currentIndex, enfants: children),
+
+        // UNE BRANCHE PAR ONGLET. Chacune a son propre navigateur, et garde
+        // donc son état : listes chargées, filtres saisis, position de
+        // défilement. Avant, tout cela repartait de zéro — et le cubit de
+        // l'écran rappelait le serveur — à chaque retour sur l'onglet.
+        branches: [
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: AppRoutes.dashboard,
+              pageBuilder: (_, state) => _pageOnglet(state, const DashboardPage()),
+            ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: AppRoutes.reserves,
+              pageBuilder: (_, state) => _pageOnglet(state, const ToutesReservesPage()),
+            ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: AppRoutes.plans,
+              pageBuilder: (_, state) => _pageOnglet(state, const PlansListPage()),
+            ),
+          ]),
+
+          // Quatrième branche : TOUT ce que dessert le menu « Plus ». L'onglet
+          // n'y conduit pas directement (il ouvre un éventail), mais il reste
+          // allumé pendant qu'on navigue dedans — c'est cette branche qui le
+          // dit désormais, au lieu d'une liste de préfixes à tenir à jour.
+          //
+          // `initialLocation` est nécessaire : sans elle, go_router prendrait
+          // la première route de la branche, et `/chantiers` s'ouvrirait tout
+          // seul au premier affichage de la coquille.
+          StatefulShellBranch(
+            initialLocation: AppRoutes.chantiers,
+            routes: [
+              GoRoute(
+                path: AppRoutes.chantiers,
+                pageBuilder: (_, state) => _pageOnglet(state, const ChantiersListPage()),
+              ),
+              GoRoute(
+                path: AppRoutes.chantierDetail,
+                pageBuilder: (_, state) =>
+                    _pageOnglet(state, ChantierDetailPage(chantierId: state.pathParameters['id']!)),
+              ),
+              GoRoute(
+                path: AppRoutes.equipe,
+                pageBuilder: (_, state) => _pageOnglet(state, const MembresListPage()),
+              ),
+              GoRoute(
+                path: AppRoutes.intervenants,
+                pageBuilder: (_, state) => _pageOnglet(state, const IntervenantsListPage()),
+              ),
+              GoRoute(
+                path: AppRoutes.profil,
+                pageBuilder: (_, state) => _pageOnglet(state, const ProfilPage()),
+              ),
+              GoRoute(
+                path: AppRoutes.parametres,
+                pageBuilder: (_, state) => _pageOnglet(state, const SettingsPage()),
+              ),
+              GoRoute(
+                path: AppRoutes.abonnement,
+                pageBuilder: (_, state) => _pageOnglet(state, const AbonnementPage()),
+              ),
+              // Dans la coquille : l'écran garde la barre du bas, comme
+              // Réserves et Plans dont il partage l'armature.
+              GoRoute(
+                path: AppRoutes.notifications,
+                pageBuilder: (_, state) => _pageOnglet(state, const NotificationsPage()),
+              ),
+            ],
           ),
-          GoRoute(path: AppRoutes.equipe, builder: (_, _) => const MembresListPage()),
-          GoRoute(path: AppRoutes.intervenants, builder: (_, _) => const IntervenantsListPage()),
-          GoRoute(path: AppRoutes.profil, builder: (_, _) => const ProfilPage()),
-          GoRoute(path: AppRoutes.parametres, builder: (_, _) => const SettingsPage()),
-          GoRoute(path: AppRoutes.abonnement, builder: (_, _) => const AbonnementPage()),
-          // Dans la coquille : l'écran garde la barre du bas, comme Réserves
-          // et Plans dont il partage l'armature.
-          GoRoute(path: AppRoutes.notifications, builder: (_, _) => const NotificationsPage()),
         ],
       ),
 
       // ── Réserves — écrans pleins, hors coquille ───────────────────────────
       GoRoute(
         path: AppRoutes.reservesListe,
-        builder: (_, state) => ReservesListPage(chantierId: state.pathParameters['chantierId']!),
+        pageBuilder: (_, state) => _pagePleine(state, ReservesListPage(chantierId: state.pathParameters['chantierId']!)),
       ),
       GoRoute(
         path: AppRoutes.reserveNouvelle,
-        builder: (_, state) => ReserveWizardPage(chantierId: state.pathParameters['chantierId']!),
+        pageBuilder: (_, state) => _pagePleine(
+          state,
+          ReserveWizardPage(
+            chantierId: state.pathParameters['chantierId']!,
+            // Le plan arrive en query et non en segment de chemin : il est
+            // FACULTATIF. On atteint aussi l'assistant depuis la liste des
+            // réserves d'un chantier, sans plan désigné — un segment aurait
+            // exigé une seconde route pour dire la même chose.
+            planId: state.uri.queryParameters['planId'],
+            planNom: state.uri.queryParameters['planNom'],
+          ),
+        ),
       ),
       GoRoute(
         path: AppRoutes.reserveDetail,
-        builder: (_, state) => ReserveDetailPage(reserveId: state.pathParameters['id']!),
+        pageBuilder: (_, state) => _pagePleine(state, ReserveDetailPage(reserveId: state.pathParameters['id']!)),
       ),
       GoRoute(
         path: AppRoutes.chantierDashboard,
-        builder: (_, state) => ChantierDashboardPage(chantierId: state.pathParameters['chantierId']!),
+        pageBuilder: (_, state) => _pagePleine(state, ChantierDashboardPage(chantierId: state.pathParameters['chantierId']!)),
       ),
       GoRoute(
         path: AppRoutes.documents,
-        builder: (_, state) => DocumentsListPage(chantierId: state.pathParameters['chantierId']!),
+        pageBuilder: (_, state) => _pagePleine(state, DocumentsListPage(chantierId: state.pathParameters['chantierId']!)),
       ),
 
       // ── Synchronisation — écran plein, hors coquille ──────────────────────
       GoRoute(
         path: AppRoutes.tachesSynchronisation,
-        builder: (_, _) => const TachesSynchronisationPage(),
+        pageBuilder: (_, state) => _pagePleine(state, const TachesSynchronisationPage()),
       ),
 
       // ── Plans — écrans pleins, hors coquille ──────────────────────────────
@@ -268,20 +416,20 @@ class AppRouter {
       // `AppRoutes.demandesChantier`.
       GoRoute(
         path: AppRoutes.demandesChantier,
-        builder: (_, _) => const DemandesChantierPage(),
+        pageBuilder: (_, state) => _pagePleine(state, const DemandesChantierPage()),
       ),
       GoRoute(
         path: AppRoutes.depotPlans,
-        builder: (_, state) => DepotPlansPage(
+        pageBuilder: (_, state) => _pagePleine(state, DepotPlansPage(
           chantierId: state.pathParameters['chantierId']!,
           // Le nom passe en query : l'écran n'a pas le chantier chargé, et un
           // titre sec ferait perdre le contexte après le sélecteur.
           chantierNom: state.uri.queryParameters['nom'],
-        ),
+        )),
       ),
       GoRoute(
         path: AppRoutes.chantierPlans,
-        builder: (_, state) => PlansListPage(chantierId: state.pathParameters['chantierId']!),
+        pageBuilder: (_, state) => _pagePleine(state, PlansListPage(chantierId: state.pathParameters['chantierId']!)),
       ),
       // Déclarée AVANT `planDetail` sans ambiguïté : les deux motifs ne se
       // recouvrent pas. En revanche l'ordre compte face à `chantierPlans`,
@@ -290,46 +438,38 @@ class AppRouter {
       // lecture du fichier suive la hiérarchie réelle.
       GoRoute(
         path: AppRoutes.chantierPlansParcours,
-        builder: (_, state) => PlanNavigationPage(
+        pageBuilder: (_, state) => _pagePleine(state, PlanNavigationPage(
           chantierId: state.pathParameters['chantierId']!,
           chantierNom: state.uri.queryParameters['nom'],
-        ),
+        )),
       ),
       GoRoute(
         path: AppRoutes.planDetail,
-        builder: (_, state) => PlanViewerPage(planId: state.pathParameters['id']!),
+        pageBuilder: (_, state) => _pagePleine(state, PlanViewerPage(planId: state.pathParameters['id']!)),
       ),
 
       // ── Inspections — écrans pleins, hors coquille ────────────────────────
       GoRoute(
         path: AppRoutes.inspections,
-        builder: (_, state) => InspectionsListPage(
+        pageBuilder: (_, state) => _pagePleine(state, InspectionsListPage(
           chantierId: state.pathParameters['chantierId']!,
           chantierNom: state.uri.queryParameters['nom'],
-        ),
+        )),
       ),
       GoRoute(
         path: AppRoutes.inspectionDetail,
-        builder: (_, state) => InspectionDetailPage(inspectionId: state.pathParameters['id']!),
+        pageBuilder: (_, state) => _pagePleine(state, InspectionDetailPage(inspectionId: state.pathParameters['id']!)),
       ),
 
       // ── Rapports — écran plein, hors coquille ─────────────────────────────
       GoRoute(
         path: AppRoutes.rapports,
-        builder: (_, state) => RapportsListPage(
+        pageBuilder: (_, state) => _pagePleine(state, RapportsListPage(
           chantierId: state.pathParameters['chantierId']!,
           chantierNom: state.uri.queryParameters['nom'],
-        ),
+        )),
       ),
     ],
   );
 
-}
-
-/// Fournit le routeur à `MaterialApp.router` en écoutant le [AuthBloc]
-/// existant plutôt que d'en créer une nouvelle instance — le bloc de session
-/// doit rester unique dans toute l'app.
-GoRouter buildAppRouter(BuildContext context) {
-  final authBloc = context.read<AuthBloc>();
-  return AppRouter(authBloc).router;
 }

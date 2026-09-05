@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/services/auth_event_bus.dart';
 import '../../../../core/services/locale_controller.dart';
+import '../../../../core/widgets/fichier_image.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/usecases/forgot_password.dart';
 import '../../domain/usecases/login_user.dart';
@@ -129,10 +130,19 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   Future<void> _onLogoutRequested(AuthLogoutRequested event, Emitter<AuthState> emit) async {
     await logoutUser();
+    // Un téléphone de chantier est souvent partagé entre plusieurs membres
+    // d'une équipe : sans ce nettoyage, les photos du compte qui se
+    // déconnecte restent décodées dans le cache mémoire, statique et commun
+    // à toute l'application, prêtes à réapparaître pour le suivant.
+    FichierImage.viderCache();
     emit(state.copyWith(status: AuthStatus.nonAuthentifie, effacerUtilisateur: true, effacerErreur: true));
   }
 
   void _onSessionExpired(AuthSessionExpired event, Emitter<AuthState> emit) {
+    // Même nettoyage qu'une déconnexion volontaire — voir le commentaire de
+    // `_onLogoutRequested`. Une session expirée précède tout aussi souvent un
+    // changement de compte sur l'appareil.
+    FichierImage.viderCache();
     emit(state.copyWith(
       status: AuthStatus.nonAuthentifie,
       effacerUtilisateur: true,

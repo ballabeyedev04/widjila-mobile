@@ -153,6 +153,10 @@ class ReserveRepositoryImpl implements ReserveRepository {
   Future<Either<Failure, void>> supprimerReserve(String id) async {
     try {
       await remoteDataSource.supprimerReserve(id);
+      // Le miroir local doit suivre : conservée, la ligne réapparaîtrait au
+      // premier repli hors ligne, et rien dans l'application ne permettrait
+      // plus de s'en débarrasser.
+      await _cache.supprimer(id);
       return const Right(null);
     } catch (e) {
       return Left(exceptionToFailure(e));

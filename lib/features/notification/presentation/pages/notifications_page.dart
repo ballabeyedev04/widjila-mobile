@@ -10,6 +10,7 @@ import '../../../../l10n/l10n_extension.dart';
 import '../../domain/entities/notification.dart';
 import '../cubit/notifications_cubit.dart';
 import '../widgets/notification_card.dart';
+import '../../../../core/network/forcer_reseau.dart';
 
 /// Filtres de la rangée de puces.
 enum _Filtre { toutes, nonLues, lues }
@@ -221,7 +222,7 @@ class _Liste extends StatelessWidget {
       color: AppColors.background,
       child: RefreshIndicator(
         color: AppColors.primary,
-        onRefresh: () => context.read<NotificationsCubit>().charger(),
+        onRefresh: forcerReseau(() => context.read<NotificationsCubit>().charger()),
         child: ContenuCentre(
           child: ListView.separated(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),

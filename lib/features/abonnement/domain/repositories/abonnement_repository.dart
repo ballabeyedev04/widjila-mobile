@@ -9,4 +9,10 @@ abstract class AbonnementRepository {
 
   /// Droits et consommation courants de l'organisation.
   Future<Either<Failure, DroitsAbonnement>> getDroits();
+
+  /// Historique des souscriptions — formule, montant figé, statut, dates.
+  ///
+  /// Réservé aux rôles de GESTION côté serveur : un `AuthFailure` ici signifie
+  /// « pas le droit de voir la facturation », pas « panne ».
+  Future<Either<Failure, List<SouscriptionHistorique>>> getHistorique();
 }

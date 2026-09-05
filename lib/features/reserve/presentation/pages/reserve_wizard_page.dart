@@ -15,7 +15,22 @@ import '../cubit/reserve_wizard_state.dart';
 
 class ReserveWizardPage extends StatelessWidget {
   final String chantierId;
-  const ReserveWizardPage({super.key, required this.chantierId});
+
+  /// Plan par lequel l'assistant a été atteint, le cas échéant.
+  ///
+  /// Renseigné par le parcours du bouton « + » de la barre : chantier, puis
+  /// plan, puis ce formulaire. La réserve créée est alors rattachée à ce plan
+  /// côté serveur. Nul quand on arrive par la liste des réserves d'un
+  /// chantier, où aucun plan n'a été désigné.
+  final String? planId;
+  final String? planNom;
+
+  const ReserveWizardPage({
+    super.key,
+    required this.chantierId,
+    this.planId,
+    this.planNom,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -23,10 +38,14 @@ class ReserveWizardPage extends StatelessWidget {
       // Les deux chargements partent ensemble mais restent INDÉPENDANTS :
       // l'échec du catalogue ne doit pas empêcher l'assistant de s'ouvrir
       // (voir `chargerCorpsEtat`, dont l'erreur est volontairement ignorée).
-      create: (_) => sl<ReserveWizardCubit>(param1: chantierId)
-        ..chargerStructure()
-        ..chargerCorpsEtat()
-        ..chargerPhases(),
+      create: (_) {
+        final cubit = sl<ReserveWizardCubit>(param1: chantierId)
+          ..chargerStructure()
+          ..chargerCorpsEtat()
+          ..chargerPhases();
+        if (planId != null) cubit.definirPlan(id: planId!, nom: planNom);
+        return cubit;
+      },
       child: const _WizardView(),
     );
   }
@@ -354,6 +373,42 @@ class _Label extends StatelessWidget {
 }
 
 // ═══════════════════════════ ÉTAPE 2 ═══════════════════════════
+/// Rappel discret du plan sur lequel la réserve sera rattachée.
+class _BandeauPlan extends StatelessWidget {
+  final String nom;
+  const _BandeauPlan({required this.nom});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.primary100,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary200),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.map_rounded, size: 19, color: AppColors.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              context.l10n.reserveWizardPlanAssocie(nom),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primaryDark,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Etape2Localisation extends StatelessWidget {
   const _Etape2Localisation();
 
@@ -390,6 +445,15 @@ class _Etape2Localisation extends StatelessWidget {
           child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            // Rappel du plan choisi juste avant.
+            //
+            // Sans lui, l'utilisateur qui vient de traverser deux sélecteurs
+            // n'a plus aucune trace de ce qu'il a désigné, et ne peut pas
+            // vérifier qu'il ne s'est pas trompé de plan avant d'enregistrer.
+            if (state.planNom != null) ...[
+              _BandeauPlan(nom: state.planNom!),
+              const SizedBox(height: 18),
+            ],
             _Label(l10n.wizardChampBatiment),
             DropdownButtonFormField<BatimentStructure>(
               initialValue: state.batiment,

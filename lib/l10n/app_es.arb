@@ -646,14 +646,6 @@
   "membreStatutInactif": "Inactivo",
   "membreStatutEnAttente": "Pendiente",
   "membreDialogueTitre": "Miembro añadido",
-  "membreDialogueMessage": "{nom} fue añadido. Comuníquele esta contraseña temporal (se muestra una sola vez) — deberá cambiarla en su primer inicio de sesión.",
-  "@membreDialogueMessage": {
-    "placeholders": {
-      "nom": {
-        "type": "String"
-      }
-    }
-  },
   "membreDialogueBouton": "Entendido",
   "membreFormTitre": "Nuevo miembro",
   "membreFormPrenom": "Nombre",
@@ -890,6 +882,10 @@
   "dashboardApercuInspections": "Inspecciones",
   "dashboardApercuDocuments": "Documentos",
   "dashboardApercuMembres": "Miembros",
+  "dashboardAucunChantier": "Ninguna obra por ahora",
+  "dashboardAucunChantierAction": "Cree su primera obra: sus reservas, planos e informes aparecerán aquí en cuanto se valide.",
+  "dashboardAucunChantierLecture": "Todavía no tiene ninguna obra asignada. En cuanto un responsable le asigne una, su seguimiento aparecerá aquí.",
+  "dashboardAucunChantierBouton": "Ver mis obras",
   "chantierPickerCompteur": "{count, plural, one{{count} obra} other{{count} obras}}",
   "@chantierPickerCompteur": {
     "placeholders": {
@@ -1035,6 +1031,37 @@
   "abonnementFAnnotations": "Anotaciones en planos",
   "abonnementFApi": "Acceso API",
   "abonnementIndisponible": "Esta función no está incluida en su plan.",
+  "abonnementRequisTitre": "Se necesita una suscripción",
+  "abonnementLimiteTitre": "Has alcanzado el límite",
+  "abonnementFonctionnaliteTitre": "No incluido en tu plan",
+  "abonnementPlusTard": "Más tarde",
+  "abonnementJoursRestants": "Te quedan {n} días",
+  "@abonnementJoursRestants": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "abonnementDernierJour": "Último día",
+  "abonnementHistoriqueTitre": "Historial de pagos",
+  "abonnementHistoriqueVide": "Aún no hay pagos.",
+  "abonnementHistoriqueVideDescription": "Tus suscripciones aparecerán aquí, con su importe.",
+  "abonnementStatutActive": "Pagado",
+  "abonnementStatutEnAttente": "Pago no confirmado",
+  "abonnementStatutEchec": "Fallido",
+  "abonnementStatutAnnulee": "Cancelado",
+  "abonnementStatutExpiree": "Caducado",
+  "abonnementHistoriqueReserve": "La facturación está reservada a los roles de gestión.",
+  "abonnementSouscritLe": "Suscrito el {date}",
+  "@abonnementSouscritLe": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "abonnementTotalRegle": "Total pagado",
   "profilEntrepriseEssai": "Prueba hasta el {date}",
   "@profilEntrepriseEssai": {
     "placeholders": {
@@ -1231,5 +1258,36 @@
   "corpsEtatAucun": "— Ninguno —",
   "phaseLabel": "Fase",
   "phaseChoisir": "— Elegir una fase —",
-  "phaseRequise": "Seleccione una fase."
+  "phaseRequise": "Seleccione una fase.",
+  "planChoisirTitre": "Elegir un plano",
+  "planChoisirSousTitre": "¿En qué plano?",
+  "planAucunSurChantier": "Ningún plano en esta obra",
+  "planAucunSurChantierAide": "Suba uno desde «Envío de planos» y vuelva aquí.",
+  "planAjouterBouton": "Añadir planos",
+  "menuPlusTitre": "¿Qué desea hacer?",
+  "reserveWizardPlanAssocie": "Plano: {nom}",
+  "@reserveWizardPlanAssocie": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
+  "membreAjouteEmailEnvoye": "Se ha añadido a {nom}. Sus credenciales acaban de enviarse por correo.",
+  "@membreAjouteEmailEnvoye": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
+  "membreDialogueEmailEchoue": "No se pudo enviar el correo. Comunique usted mismo esta contraseña temporal a {nom}:",
+  "@membreDialogueEmailEchoue": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
+  "planContinuerSansPlan": "Continuar sin plano"
 }

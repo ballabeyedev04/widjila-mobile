@@ -6,11 +6,14 @@ import 'package:suivie_chantier_mobile/core/errors/failure.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/entities/abonnement.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_droits.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_formules.dart';
+import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_historique_abonnement.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/presentation/cubit/abonnement_cubit.dart';
 
 class MockGetFormules extends Mock implements GetFormules {}
 
 class MockGetDroits extends Mock implements GetDroits {}
+
+class MockGetHistorique extends Mock implements GetHistoriqueAbonnement {}
 
 const tEssentiel = FormuleAbonnement(
   id: 'a1',
@@ -42,14 +45,19 @@ const tDroits = DroitsAbonnement(
 void main() {
   late MockGetFormules getFormules;
   late MockGetDroits getDroits;
+  late MockGetHistorique getHistorique;
 
   setUp(() {
     getFormules = MockGetFormules();
     getDroits = MockGetDroits();
+    getHistorique = MockGetHistorique();
   });
 
-  AbonnementCubit construire() =>
-      AbonnementCubit(getFormules: getFormules, getDroits: getDroits);
+  AbonnementCubit construire() => AbonnementCubit(
+        getFormules: getFormules,
+        getDroits: getDroits,
+        getHistorique: getHistorique,
+      );
 
   group('chargement', () {
     blocTest<AbonnementCubit, AbonnementState>(
@@ -193,6 +201,149 @@ void main() {
       });
       expect(formule.prix, 29.5);
       expect(formule.surDevis, isFalse);
+    });
+  });
+
+  group('historique des paiements', () {
+    const tPayee = SouscriptionHistorique(
+      id: 's1', planCode: 'essentiel', planNom: 'Essentiel',
+      prixPaye: 29, devise: 'EUR', periode: 'mois', statut: 'active',
+    );
+    const tEnAttente = SouscriptionHistorique(
+      id: 's2', planCode: 'pro', planNom: 'Pro',
+      prixPaye: 79, devise: 'EUR', periode: 'mois', statut: 'en_attente',
+    );
+    const tExpiree = SouscriptionHistorique(
+      id: 's3', planCode: 'essentiel', planNom: 'Essentiel',
+      prixPaye: 29, devise: 'EUR', periode: 'mois', statut: 'expiree',
+    );
+
+    void stubsNominaux() {
+      when(() => getFormules()).thenAnswer((_) async => const Right([tEssentiel]));
+      when(() => getDroits()).thenAnswer((_) async => const Right(tDroits));
+    }
+
+    blocTest<AbonnementCubit, AbonnementState>(
+      'n’est PAS demandé quand le rôle n’y a pas droit',
+      build: () {
+        stubsNominaux();
+        return construire();
+      },
+      act: (cubit) => cubit.charger(),
+      verify: (_) {
+        // La route est gardée par GESTION côté serveur. L'appeler pour un
+        // autre rôle ne produirait qu'un 403 : une requête perdue et un
+        // message d'erreur sur un écran par ailleurs parfaitement utilisable.
+        verifyNever(() => getHistorique());
+      },
+    );
+
+    blocTest<AbonnementCubit, AbonnementState>(
+      'est chargé et exposé quand le rôle y a droit',
+      build: () {
+        stubsNominaux();
+        when(() => getHistorique())
+            .thenAnswer((_) async => const Right([tPayee, tEnAttente]));
+        return construire();
+      },
+      act: (cubit) => cubit.charger(avecHistorique: true),
+      skip: 1,
+      expect: () => [
+        isA<AbonnementState>()
+            .having((s) => s.historique.length, 'lignes', 2)
+            .having((s) => s.historiqueDemande, 'historiqueDemande', true),
+      ],
+      verify: (_) => verify(() => getHistorique()).called(1),
+    );
+
+    blocTest<AbonnementCubit, AbonnementState>(
+      'une facturation en panne ne fait PAS échouer l’écran',
+      build: () {
+        stubsNominaux();
+        when(() => getHistorique())
+            .thenAnswer((_) async => const Left(ServerFailure(errorMessage: 'Indisponible')));
+        return construire();
+      },
+      act: (cubit) => cubit.charger(avecHistorique: true),
+      skip: 1,
+      expect: () => [
+        isA<AbonnementState>()
+            .having((s) => s.status, 'status', AbonnementStatus.succes)
+            .having((s) => s.formules.length, 'formules', 1)
+            .having((s) => s.historique, 'historique', isEmpty),
+      ],
+    );
+
+    test('totalPaye ne compte que ce que le SERVEUR reconnaît comme payé', () {
+      // `en_attente` est un parcours engagé dont le paiement n'a jamais été
+      // confirmé par le webhook. Le compter gonflerait le total d'un montant
+      // que personne n'a versé.
+      const etat = AbonnementState(historique: [tPayee, tEnAttente, tExpiree]);
+
+      expect(etat.totalPaye, 58);
+    });
+
+    test('totalPaye vaut zéro quand rien n’a abouti', () {
+      const etat = AbonnementState(historique: [tEnAttente]);
+      expect(etat.totalPaye, 0);
+    });
+  });
+
+  group('SouscriptionHistorique.fromJson', () {
+    test('lit la forme servie par l’API', () {
+      final ligne = SouscriptionHistorique.fromJson(const {
+        'id': 's1',
+        'planCode': 'essentiel',
+        'planNom': 'Essentiel',
+        'prixPaye': 29.9,
+        'devise': 'EUR',
+        'periode': 'mois',
+        'statut': 'active',
+        'dateDebut': '2026-01-15T00:00:00.000Z',
+        'creeLe': '2026-01-15T10:30:00.000Z',
+      });
+
+      expect(ligne.prixPaye, 29.9);
+      expect(ligne.statut, 'active');
+      expect(ligne.estPayee, isTrue);
+      expect(ligne.dateDebut, DateTime.utc(2026, 1, 15));
+    });
+
+    test('accepte un prix rendu en CHAÎNE par le pilote SQL', () {
+      // Une colonne DECIMAL peut arriver en chaîne selon le pilote. Un cast
+      // direct ferait tomber TOUT l'historique sur une seule ligne.
+      final ligne = SouscriptionHistorique.fromJson(const {'id': 's1', 'prixPaye': '49.50'});
+      expect(ligne.prixPaye, 49.5);
+    });
+
+    test('une formule sur devis n’a pas de prix, et ce n’est pas une erreur', () {
+      final ligne = SouscriptionHistorique.fromJson(const {'id': 's1', 'prixPaye': null});
+      expect(ligne.prixPaye, isNull);
+    });
+
+    test('retombe sur des valeurs sûres quand des champs manquent', () {
+      final ligne = SouscriptionHistorique.fromJson(const {'id': 's1'});
+      expect(ligne.devise, 'EUR');
+      expect(ligne.statut, 'en_attente');
+      expect(ligne.estPayee, isFalse, reason: 'ne jamais présumer qu’un paiement a abouti');
+    });
+  });
+
+  group('joursRestants', () {
+    test('est lu tel quel depuis les droits servis par le serveur', () {
+      // Jamais recalculé localement : l'horloge d'un téléphone de chantier
+      // est souvent fausse, et ce chiffre déclenche une décision d'achat.
+      final droits = DroitsAbonnement.fromJson(<String, dynamic>{
+        'droits': <String, dynamic>{'actif': true, 'source': 'abonnement', 'joursRestants': 12},
+        'usage': <String, dynamic>{},
+      });
+      expect(droits.joursRestants, 12);
+    });
+
+    test('reste nul quand le serveur ne le fournit pas', () {
+      final droits = DroitsAbonnement.fromJson(
+          <String, dynamic>{'droits': <String, dynamic>{}, 'usage': <String, dynamic>{}});
+      expect(droits.joursRestants, isNull);
     });
   });
 }

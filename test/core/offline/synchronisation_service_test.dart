@@ -45,6 +45,9 @@ void main() {
   setUpAll(() {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
+    // Base PROPRE à ce fichier : `flutter test` exécute les fichiers en
+    // parallèle sur le même disque, et ils vident tous la base au démarrage.
+    BaseLocale.surchargeNomFichier = 'test_synchronisation.db';
   });
 
   late BaseLocale base;

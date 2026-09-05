@@ -473,9 +473,7 @@ class Reserve extends Equatable {
       assigne: json['assigne'] != null ? ReserveUtilisateurRef.fromJson(json['assigne'] as Map<String, dynamic>) : null,
       createur: json['createur'] != null ? ReserveUtilisateurRef.fromJson(json['createur'] as Map<String, dynamic>) : null,
       motifRefus: json['motif_refus'] as String?,
-      photoApercu: (json['medias'] is List && (json['medias'] as List).isNotEmpty)
-          ? ((json['medias'] as List).first as Map<String, dynamic>)['url'] as String?
-          : null,
+      photoApercu: _apercu(json['medias']),
       medias: json['medias'] is List
           ? (json['medias'] as List).map((e) => ReserveMedia.fromJson(e as Map<String, dynamic>)).toList()
           : const [],
@@ -551,4 +549,23 @@ class Reserve extends Equatable {
         id, numero, chantierId, titre, description, severite, priorite, categorie, statut, dateLimite, createdAt,
         batiment, etage, zone, lot, entreprise, partenaire, chantier, assigne, createur, motifRefus, photoApercu, medias, historiques,
       ];
+}
+
+/// URL d'aperçu d'une liste de médias — la VIGNETTE d'abord.
+///
+/// Le serveur sélectionne explicitement `thumbnail_url` pour ces requêtes
+/// d'aperçu (voir `reserve.service.js` et `plan.service.js`), et le mobile
+/// lisait quand même `url` : il jetait ce qu'on lui envoyait et rapatriait
+/// l'original — plusieurs mégaoctets sortis d'un appareil photo — pour une
+/// vignette de carte.
+///
+/// Le repli sur l'original reste indispensable : les médias envoyés AVANT que
+/// le serveur ne produise des vignettes n'en ont pas, et n'en auront jamais.
+String? _apercu(Object? medias) {
+  if (medias is! List || medias.isEmpty) return null;
+  final premier = medias.first;
+  if (premier is! Map<String, dynamic>) return null;
+  final vignette = premier['thumbnail_url'] as String?;
+  if (vignette != null && vignette.isNotEmpty) return vignette;
+  return premier['url'] as String?;
 }

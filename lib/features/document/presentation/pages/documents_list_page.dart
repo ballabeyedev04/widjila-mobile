@@ -17,6 +17,7 @@ import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../domain/entities/document.dart';
 import '../cubit/documents_list_cubit.dart';
 import '../cubit/documents_list_state.dart';
+import '../../../../core/network/forcer_reseau.dart';
 
 /// Écran 6 de la maquette — « Photos & documents » d'un chantier.
 ///
@@ -70,8 +71,13 @@ class _MediathequeViewState extends State<_MediathequeView> with SingleTickerPro
     if (source == null) return;
 
     final picker = ImagePicker();
+    // `maxWidth: 1920` — même plafond que les photos de réserve
+    // (`nouvelle_reserve_sheet.dart`) : sans lui, une photo de document prise
+    // à l'appareil part à sa résolution native (souvent 3 à 8 Mo) pour un
+    // rendu qui ne dépasse jamais l'écran. 1920 px reste largement suffisant
+    // pour relire le texte d'un document photographié.
     final fichier = onglet == 0
-        ? await picker.pickImage(source: source, imageQuality: 85)
+        ? await picker.pickImage(source: source, imageQuality: 85, maxWidth: 1920)
         : await picker.pickVideo(source: source);
     if (fichier == null) return;
 
@@ -306,7 +312,7 @@ class _GrilleMedias extends StatelessWidget {
       color: AppColors.background,
       child: RefreshIndicator(
       color: AppColors.primary,
-      onRefresh: () => context.read<DocumentsListCubit>().charger(),
+      onRefresh: forcerReseau(() => context.read<DocumentsListCubit>().charger()),
       child: ContenuCentre(
         // `LayoutBuilder` : le nombre de colonnes suit la largeur RESTANTE
         // après le plafond de `ContenuCentre`, pas la largeur brute de
@@ -409,7 +415,7 @@ class _ListeDocuments extends StatelessWidget {
       color: AppColors.background,
       child: RefreshIndicator(
         color: AppColors.primary,
-        onRefresh: () => context.read<DocumentsListCubit>().charger(),
+        onRefresh: forcerReseau(() => context.read<DocumentsListCubit>().charger()),
         child: ContenuCentre(
           child: ListView.separated(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),

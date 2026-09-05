@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../../../core/config/user_role.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/fichier_image.dart';
 import '../../../../core/widgets/liste_chrome.dart';
 import '../../../../injection_container.dart';
 import '../../../../l10n/generated/app_localizations.dart';
@@ -228,14 +229,23 @@ class _Avatar extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: (photo != null && photo.isNotEmpty)
-          // `errorBuilder` : les fichiers sont servis par une route
-          // AUTHENTIFIÉE (`/uploads/*`), qu'un simple <img> n'atteint pas
-          // toujours. On retombe alors sur les initiales plutôt que sur
-          // l'icône d'image cassée de Flutter.
-          ? Image.network(
-              photo,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => _Initiales(user: user),
+          // `FichierImage` et non `Image.network`.
+          //
+          // Les fichiers sont servis par une route AUTHENTIFIÉE
+          // (`/uploads/*`), et l'URL stockée est RELATIVE. `Image.network`
+          // n'avait donc ni hôte ni jeton : la requête partait à chaque
+          // ouverture de l'écran, échouait, et l'`errorBuilder` retombait sur
+          // les initiales — au prix d'un aller-retour réseau perdu et d'un
+          // avatar qui ne s'affichait jamais.
+          //
+          // `FichierImage` passe par le Dio de l'application, qui porte le
+          // jeton et la `baseUrl`, met les octets en cache et décode à la
+          // taille d'affichage.
+          ? FichierImage(
+              url: photo,
+              width: 68,
+              height: 68,
+              placeholder: _Initiales(user: user),
             )
           : _Initiales(user: user),
     );
@@ -268,14 +278,27 @@ class _PastilleClaire extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
         ),
+        // Le `Wrap` parent transmet bien sa largeur disponible comme borne
+        // haute, mais un `Text` nu la ignore et prend sa largeur naturelle :
+        // « Conducteur de travaux » debordait de 46 px sur un telephone de
+        // 390 dp. `Flexible` rend la borne effective, l'ellipse absorbe ce
+        // qui depasse — un libelle de role rogne mieux qu'il ne deborde.
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icone, size: 13, color: Colors.white),
             const SizedBox(width: 5),
-            Text(
-              texte,
-              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white),
+            Flexible(
+              child: Text(
+                texte,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
             ),
           ],
         ),
