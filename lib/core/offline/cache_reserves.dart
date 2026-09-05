@@ -32,9 +32,36 @@ class CacheReserves {
   }
 
   Future<void> enregistrerTous(List<Reserve> reserves) async {
+    if (reserves.isEmpty) return;
     final db = await _base.base;
+
+    // Les lignes EN ATTENTE sont épargnées.
+    //
+    // Elles portent une modification faite hors ligne que le serveur ne
+    // connaît pas encore : l'action correspondante est toujours dans la file.
+    // La version qui arrive du réseau est donc l'ANCIENNE. L'écrire par-dessus
+    // — ce que faisait `ConflictAlgorithm.replace` avec `en_attente: 0` —
+    // remettait le texte d'avant à l'écran et faisait disparaître le badge
+    // « en attente d'envoi », donnant une donnée périmée pour confirmée.
+    //
+    // C'est une vraie course : au retour du réseau, le rafraîchissement de la
+    // liste et la vidange de la file partent en même temps. La ligne redevient
+    // normale d'elle-même quand l'action aboutit — c'est `ExecuteurActions`
+    // qui la réécrit alors avec `enAttente: false`.
+    //
+    // Une seule requête, sans clause `IN` : les lignes en attente sont par
+    // nature peu nombreuses, et cela évite la limite de variables de SQLite.
+    final enAttente = (await db.query(
+      BaseLocale.tableReserves,
+      columns: ['id'],
+      where: 'en_attente = 1',
+    ))
+        .map((l) => l['id'] as String)
+        .toSet();
+
     final lot = db.batch();
     for (final r in reserves) {
+      if (enAttente.contains(r.id)) continue;
       lot.insert(
         BaseLocale.tableReserves,
         {
@@ -42,16 +69,23 @@ class CacheReserves {
           'chantier_id': r.chantierId,
           'donnees': jsonEncode(r.toJson()),
           'maj_le': DateTime.now().millisecondsSinceEpoch,
-          // Une réserve qui arrive du RÉSEAU est par définition confirmée :
-          // ne jamais écraser un `en_attente` local avec `enregistrerTous`
-          // serait une erreur, mais ce chemin ne sert justement qu'aux
-          // réponses serveur.
           'en_attente': 0,
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }
     await lot.commit(noResult: true);
+  }
+
+  /// Retire une réserve du miroir local.
+  ///
+  /// Sans elle, une réserve supprimée sur le serveur restait indéfiniment en
+  /// base : la liste la masquait tant qu'on était en ligne — la réponse
+  /// réseau fait autorité — puis elle RÉAPPARAISSAIT au premier repli hors
+  /// ligne, sans qu'aucune action de l'utilisateur puisse la faire partir.
+  Future<void> supprimer(String id) async {
+    final db = await _base.base;
+    await db.delete(BaseLocale.tableReserves, where: 'id = ?', whereArgs: [id]);
   }
 
   Future<Reserve?> lire(String id) async {

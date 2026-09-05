@@ -25,6 +25,7 @@ import '../widgets/section_notifications.dart';
 import 'changer_mot_de_passe_sheet.dart';
 import '../cubit/settings_state.dart';
 import '../widgets/mfa_setup_sheet.dart';
+import '../../../../core/network/forcer_reseau.dart';
 
 /// Écran Paramètres — accessible depuis le menu de compte
 /// (`_MenuCompte` de `DashboardPage`), à côté de « Mon profil ».
@@ -67,7 +68,7 @@ class _SettingsView extends StatelessWidget {
             color: AppColors.background,
             child: RefreshIndicator(
             color: AppColors.primary,
-            onRefresh: () => context.read<SettingsCubit>().charger(),
+            onRefresh: forcerReseau(() => context.read<SettingsCubit>().charger()),
             child: ContenuCentre(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 40),
@@ -112,12 +113,26 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Le fond de la carte est un `Material`, pas un `Container` coloré.
+    //
+    // Un `ListTile` peint son fond et ses ondes de contact sur le `Material`
+    // le plus proche AU-DESSUS de lui. La carte étant un simple
+    // `DecoratedBox` blanc, elle s'intercalait et les masquait : appuyer sur
+    // « Changer mon mot de passe » ne produisait aucune onde, et Flutter le
+    // signalait à chaque construction — « ListTile background color or ink
+    // splashes may be invisible », en boucle dans le journal.
+    //
+    // L'ombre reste portée par un `Container` EXTÉRIEUR, dont la décoration
+    // n'a pas de couleur : sans couleur, il ne s'interpose plus.
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 14, offset: const Offset(0, 4))],
       ),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -130,6 +145,8 @@ class _SectionCard extends StatelessWidget {
           const SizedBox(height: 12),
           ...children,
         ],
+      ),
+        ),
       ),
     );
   }

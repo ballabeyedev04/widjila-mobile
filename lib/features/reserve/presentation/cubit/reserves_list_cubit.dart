@@ -34,24 +34,24 @@ class ReservesListCubit extends Cubit<ReservesListState> {
     final jeton = ++_jetonListe;
     emit(state.copyWith(status: ReservesListStatus.chargement));
 
-    // Les deux appels sont indépendants : lancés avant le premier `await`,
-    // ils partent donc en parallèle sans avoir besoin de `Future.wait`
-    // (qui imposerait un type de liste homogène alors que les deux `Either`
-    // portent des types de succès différents).
-    final statutsCountFuture = getReserveStatutsCount(chantierId);
+    // Les deux appels partent ENSEMBLE, mais ne sont plus ATTENDUS ensemble.
+    //
+    // Ils l'étaient : `await` sur la liste, puis `await` sur les compteurs,
+    // avant le moindre `emit`. Les compteurs ne servent qu'à chiffrer les
+    // puces de filtre, mais ils retenaient la liste — tant que
+    // `GET /reserves/statuts-count` n'avait pas répondu, l'écran gardait son
+    // squelette de chargement alors que les réserves étaient déjà là. Sur un
+    // chantier sans aucune réserve, l'état vide n'apparaissait donc jamais.
+    unawaited(_rafraichirCompteurs(jeton));
+
     final pageResult = await getReserves(
       chantierId: chantierId, page: 1, limit: _limit, search: state.recherche, statut: state.filtreStatut,
     );
-    final statutsResult = await statutsCountFuture;
 
     // `isClosed` : l'utilisateur a pu quitter l'écran pendant le chargement.
     // Émettre sur un cubit fermé lève une `StateError` non gérée, remontée
     // comme crash fatal par `runZonedGuarded` (voir main.dart).
     if (isClosed || jeton != _jetonListe) return;
-
-    // Les compteurs de statut sont un complément d'affichage : une panne sur
-    // ce seul appel ne doit pas empêcher la liste elle-même de s'afficher.
-    final statutsCount = statutsResult.fold((_) => state.statutsCount, (v) => v);
 
     pageResult.fold(
       (failure) => emit(state.copyWith(status: ReservesListStatus.erreur, erreur: failure.errorMessage)),
@@ -60,11 +60,24 @@ class ReservesListCubit extends Cubit<ReservesListState> {
         items: page.items,
         total: page.total,
         page: 1,
-        statutsCount: statutsCount,
         // Une pagination éventuellement en vol devient caduque : son résultat
         // sera rejeté par le jeton, et l'indicateur ne doit pas rester bloqué.
         chargementPage: false,
       )),
+    );
+  }
+
+  /// Charge la répartition par statut SANS bloquer la liste.
+  ///
+  /// Un échec ne fait rien échouer : les puces gardent les derniers chiffres
+  /// connus, et la liste — la seule chose que l'utilisateur est venu voir —
+  /// s'affiche de toute façon.
+  Future<void> _rafraichirCompteurs(int jeton) async {
+    final result = await getReserveStatutsCount(chantierId);
+    if (isClosed || jeton != _jetonListe) return;
+    result.fold(
+      (_) {},
+      (compteurs) => emit(state.copyWith(statutsCount: compteurs)),
     );
   }
 

@@ -653,14 +653,6 @@
   "membreStatutInactif": "Inactif",
   "membreStatutEnAttente": "En attente",
   "membreDialogueTitre": "Membre ajouté",
-  "membreDialogueMessage": "{nom} a été ajouté. Communiquez-lui ce mot de passe temporaire (affiché une seule fois) — il devra le changer à sa première connexion.",
-  "@membreDialogueMessage": {
-    "placeholders": {
-      "nom": {
-        "type": "String"
-      }
-    }
-  },
   "membreDialogueBouton": "J'ai noté",
   "membreFormTitre": "Nouveau membre",
   "membreFormPrenom": "Prénom",
@@ -897,6 +889,10 @@
   "dashboardApercuInspections": "Inspections",
   "dashboardApercuDocuments": "Documents",
   "dashboardApercuMembres": "Membres",
+  "dashboardAucunChantier": "Aucun chantier pour le moment",
+  "dashboardAucunChantierAction": "Créez votre premier chantier : vos réserves, plans et rapports s'afficheront ici dès qu'il sera validé.",
+  "dashboardAucunChantierLecture": "Aucun chantier ne vous est encore rattaché. Dès qu'un responsable vous en affectera un, son suivi apparaîtra ici.",
+  "dashboardAucunChantierBouton": "Voir mes chantiers",
   "chantierPickerCompteur": "{count, plural, one{{count} chantier} other{{count} chantiers}}",
   "@chantierPickerCompteur": {
     "placeholders": {
@@ -1021,17 +1017,17 @@
   "abonnementEssaiJusquau": "Essai jusqu’au {date}",
   "@abonnementEssaiJusquau": {
     "placeholders": {
-        "date": {
-          "type": "String"
-        }
+      "date": {
+        "type": "String"
+      }
     }
   },
   "abonnementRenouvellement": "Échéance le {date}",
   "@abonnementRenouvellement": {
     "placeholders": {
-        "date": {
-          "type": "String"
-        }
+      "date": {
+        "type": "String"
+      }
     }
   },
   "abonnementUtilisateurs": "Utilisateurs",
@@ -1048,9 +1044,9 @@
   "abonnementUtilisateursMax": "Jusqu’à {n} utilisateurs",
   "@abonnementUtilisateursMax": {
     "placeholders": {
-        "n": {
-          "type": "int"
-        }
+      "n": {
+        "type": "int"
+      }
     }
   },
   "abonnementOuvertureImpossible": "Impossible d’ouvrir la page de paiement.",
@@ -1063,6 +1059,37 @@
   "abonnementFAnnotations": "Annotations sur plans",
   "abonnementFApi": "Accès API",
   "abonnementIndisponible": "Cette fonctionnalité n’est pas incluse dans votre formule.",
+  "abonnementRequisTitre": "Un abonnement est nécessaire",
+  "abonnementLimiteTitre": "Vous avez atteint la limite",
+  "abonnementFonctionnaliteTitre": "Non incluse dans votre formule",
+  "abonnementPlusTard": "Plus tard",
+  "abonnementJoursRestants": "Il vous reste {n} jours",
+  "@abonnementJoursRestants": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "abonnementDernierJour": "Dernier jour",
+  "abonnementHistoriqueTitre": "Historique des paiements",
+  "abonnementHistoriqueVide": "Aucun paiement pour le moment.",
+  "abonnementHistoriqueVideDescription": "Vos souscriptions apparaîtront ici, avec leur montant.",
+  "abonnementStatutActive": "Payé",
+  "abonnementStatutEnAttente": "Paiement non confirmé",
+  "abonnementStatutEchec": "Échec",
+  "abonnementStatutAnnulee": "Annulé",
+  "abonnementStatutExpiree": "Expiré",
+  "abonnementHistoriqueReserve": "La facturation est réservée aux rôles de gestion.",
+  "abonnementSouscritLe": "Souscrit le {date}",
+  "@abonnementSouscritLe": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "abonnementTotalRegle": "Total réglé",
   "profilEntrepriseEssai": "Essai jusqu’au {date}",
   "@profilEntrepriseEssai": {
     "placeholders": {
@@ -1269,5 +1296,36 @@
   "corpsEtatAucun": "— Aucun —",
   "phaseLabel": "Phase",
   "phaseChoisir": "— Choisir une phase —",
-  "phaseRequise": "Veuillez sélectionner une phase."
+  "phaseRequise": "Veuillez sélectionner une phase.",
+  "planChoisirTitre": "Choisir un plan",
+  "planChoisirSousTitre": "Sur quel plan ?",
+  "planAucunSurChantier": "Aucun plan sur ce chantier",
+  "planAucunSurChantierAide": "Déposez-en un depuis « Envoi de plans », puis revenez ici.",
+  "planAjouterBouton": "Ajouter des plans",
+  "menuPlusTitre": "Que voulez-vous faire ?",
+  "reserveWizardPlanAssocie": "Plan : {nom}",
+  "@reserveWizardPlanAssocie": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
+  "membreAjouteEmailEnvoye": "{nom} a été ajouté. Ses identifiants de connexion viennent de lui être envoyés par email.",
+  "@membreAjouteEmailEnvoye": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
+  "membreDialogueEmailEchoue": "L’email n’a pas pu être envoyé. Communiquez vous-même ce mot de passe temporaire à {nom} :",
+  "@membreDialogueEmailEchoue": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
+  "planContinuerSansPlan": "Continuer sans plan"
 }

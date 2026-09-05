@@ -646,14 +646,6 @@
   "membreStatutInactif": "Inactive",
   "membreStatutEnAttente": "Pending",
   "membreDialogueTitre": "Member added",
-  "membreDialogueMessage": "{nom} was added. Share this temporary password with them (shown only once) — they'll need to change it on first login.",
-  "@membreDialogueMessage": {
-    "placeholders": {
-      "nom": {
-        "type": "String"
-      }
-    }
-  },
   "membreDialogueBouton": "Got it",
   "membreFormTitre": "New member",
   "membreFormPrenom": "First name",
@@ -890,6 +882,10 @@
   "dashboardApercuInspections": "Inspections",
   "dashboardApercuDocuments": "Documents",
   "dashboardApercuMembres": "Members",
+  "dashboardAucunChantier": "No site yet",
+  "dashboardAucunChantierAction": "Create your first site: your snags, drawings and reports will appear here once it is approved.",
+  "dashboardAucunChantierLecture": "No site is assigned to you yet. As soon as a manager assigns one, its follow-up will appear here.",
+  "dashboardAucunChantierBouton": "View my sites",
   "chantierPickerCompteur": "{count, plural, one{{count} site} other{{count} sites}}",
   "@chantierPickerCompteur": {
     "placeholders": {
@@ -1035,6 +1031,37 @@
   "abonnementFAnnotations": "Plan annotations",
   "abonnementFApi": "API access",
   "abonnementIndisponible": "This feature is not included in your plan.",
+  "abonnementRequisTitre": "A subscription is required",
+  "abonnementLimiteTitre": "You have reached the limit",
+  "abonnementFonctionnaliteTitre": "Not included in your plan",
+  "abonnementPlusTard": "Later",
+  "abonnementJoursRestants": "{n} days remaining",
+  "@abonnementJoursRestants": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "abonnementDernierJour": "Last day",
+  "abonnementHistoriqueTitre": "Payment history",
+  "abonnementHistoriqueVide": "No payments yet.",
+  "abonnementHistoriqueVideDescription": "Your subscriptions will appear here, with their amount.",
+  "abonnementStatutActive": "Paid",
+  "abonnementStatutEnAttente": "Payment not confirmed",
+  "abonnementStatutEchec": "Failed",
+  "abonnementStatutAnnulee": "Cancelled",
+  "abonnementStatutExpiree": "Expired",
+  "abonnementHistoriqueReserve": "Billing is restricted to management roles.",
+  "abonnementSouscritLe": "Subscribed on {date}",
+  "@abonnementSouscritLe": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "abonnementTotalRegle": "Total paid",
   "profilEntrepriseEssai": "Trial until {date}",
   "@profilEntrepriseEssai": {
     "placeholders": {
@@ -1231,5 +1258,36 @@
   "corpsEtatAucun": "— None —",
   "phaseLabel": "Phase",
   "phaseChoisir": "— Pick a phase —",
-  "phaseRequise": "Please select a phase."
+  "phaseRequise": "Please select a phase.",
+  "planChoisirTitre": "Choose a plan",
+  "planChoisirSousTitre": "On which plan?",
+  "planAucunSurChantier": "No plan on this site",
+  "planAucunSurChantierAide": "Upload one from “Send plans”, then come back here.",
+  "planAjouterBouton": "Add plans",
+  "menuPlusTitre": "What would you like to do?",
+  "reserveWizardPlanAssocie": "Plan: {nom}",
+  "@reserveWizardPlanAssocie": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
+  "membreAjouteEmailEnvoye": "{nom} has been added. Their sign-in details have just been emailed to them.",
+  "@membreAjouteEmailEnvoye": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
+  "membreDialogueEmailEchoue": "The email could not be sent. Pass this temporary password on to {nom} yourself:",
+  "@membreDialogueEmailEchoue": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
+  "planContinuerSansPlan": "Continue without a plan"
 }

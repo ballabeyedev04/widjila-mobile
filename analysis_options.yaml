@@ -21,8 +21,27 @@ linter:
   # `// ignore_for_file: name_of_lint` syntax on the line or in the file
   # producing the lint.
   rules:
-    # avoid_print: false  # Uncomment to disable the `avoid_print` rule
-    # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
+    # ── Regles de SURETE, activees explicitement ─────────────────────────
+    #
+    # Elles ne relevent pas du style : chacune designe une classe de defaut
+    # qui ne se voit qu'a l'execution, souvent chez l'utilisateur.
+
+    # Utiliser un `BuildContext` apres un `await` alors que l'ecran a pu
+    # etre quitte entre-temps. Symptome : une exception au retour d'une
+    # requete lente, donc surtout sur un reseau de chantier.
+    use_build_context_synchronously: true
+
+    # Une souscription de flux jamais annulee continue de reveiller un
+    # widget detruit, et retient toute sa branche en memoire.
+    cancel_subscriptions: true
+
+    # Idem pour un `StreamController` jamais ferme.
+    close_sinks: true
+
+    # `print` ecrit dans les journaux de l'appareil, en production comme
+    # ailleurs. Le projet a un journal dedie ; `print` le contourne et peut
+    # y deverser un jeton ou une adresse.
+    avoid_print: true
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options

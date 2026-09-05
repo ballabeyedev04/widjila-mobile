@@ -5,7 +5,9 @@ import 'package:flutter/foundation.dart';
 
 import '../../../../core/errors/exception_to_failure.dart';
 import '../../../../core/errors/failure.dart';
+import '../../../../core/errors/exceptions.dart';
 import '../../../../core/offline/session_locale.dart';
+import '../../../../core/network/cache_reponses_get.dart';
 import '../../../../core/services/token_service.dart';
 import '../../../../core/services/user_cache.dart';
 import '../../domain/entities/login_result.dart';
@@ -20,11 +22,23 @@ class AuthRepositoryImpl implements AuthRepository {
   final UserCache userCache;
   final SessionLocale sessionLocale;
 
+  /// Cache memoire des reponses `GET` (30 s), a purger avec les jetons.
+  ///
+  /// La deconnexion est ENTIEREMENT LOCALE : aucune requete ne part, donc la
+  /// purge automatique declenchee par toute ecriture (voir
+  /// [CacheReponsesGet.onRequest]) ne s'execute jamais ici. Sans cette
+  /// dependance, jusqu'a soixante reponses du compte precedent — tableau de
+  /// bord, reserves, membres — restaient servibles pendant trente secondes au
+  /// compte suivant. Les donnees SQLite et le cache utilisateur etaient deja
+  /// purges juste a cote ; ce cache-ci manquait a la liste.
+  final CacheReponsesGet cacheHttp;
+
   AuthRepositoryImpl({
     required this.remoteDataSource,
     required this.tokenService,
     required this.userCache,
     required this.sessionLocale,
+    required this.cacheHttp,
   });
 
   Future<void> _persisterSession(String? token, String? refreshToken, UserModel utilisateur) async {
@@ -190,6 +204,7 @@ class AuthRepositoryImpl implements AuthRepository {
     }
     await tokenService.clearToken();
     await userCache.clear();
+    cacheHttp.vider();
   }
 
   @override
@@ -215,6 +230,25 @@ class AuthRepositoryImpl implements AuthRepository {
         debugPrint('[session] Contrôle du propriétaire des données locales indisponible ($e).');
       }
       return utilisateur;
+    } on NetworkException catch (_) {
+      // PAS DE RÉSEAU — surtout ne rien effacer.
+      //
+      // Ce cas tombait dans le `catch` ci-dessous et effaçait les jetons :
+      // démarrer l'application sans signal DÉCONNECTAIT l'utilisateur, et lui
+      // retirait du même coup l'accès à ses réserves hors ligne et à sa file
+      // d'envoi. Exactement la situation pour laquelle le mode hors ligne
+      // existe — un sous-sol, un chantier sans couverture.
+      //
+      // Le profil chiffré écrit à chaque connexion servait précisément à cela
+      // et n'était jamais relu : `readJson()` n'avait aucun appelant. On s'en
+      // sert ici plutôt que d'inventer un stockage de plus.
+      //
+      // Les jetons restent en place : ils seront revalidés au retour du
+      // réseau, et c'est le serveur — jamais ce repli — qui décidera alors
+      // si la session est encore valable.
+      final profil = await userCache.readJson();
+      if (profil == null) return null;
+      return UserModel.fromJson(profil);
     } catch (_) {
       // Session non restaurable (jeton révoqué, compte désactivé…). On efface
       // les jetons, mais PAS les données locales : elles peuvent contenir du
@@ -223,6 +257,7 @@ class AuthRepositoryImpl implements AuthRepository {
       // DIFFÉRENT qui déclenchera la purge — voir `SessionLocale`.
       await tokenService.clearToken();
       await userCache.clear();
+      cacheHttp.vider();
       return null;
     }
   }

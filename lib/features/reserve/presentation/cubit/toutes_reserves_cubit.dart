@@ -1,8 +1,12 @@
 import 'dart:async';
 
+import 'package:dartz/dartz.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/errors/exception_to_failure.dart';
+import '../../../../core/errors/failure.dart';
 import '../../domain/entities/reserve.dart';
+import '../../domain/repositories/reserve_repository.dart';
 import '../../domain/usecases/get_reserve_statuts_count.dart';
 import '../../domain/usecases/get_toutes_reserves.dart';
 import 'reserves_list_state.dart';
@@ -46,23 +50,20 @@ class ToutesReservesCubit extends Cubit<ReservesListState> {
     final jeton = ++_jetonListe;
     emit(state.copyWith(status: ReservesListStatus.chargement));
 
-    // Les deux requêtes sont indépendantes : lancées ENSEMBLE, elles ne
-    // coûtent qu'un aller-retour au lieu de deux, et les puces de filtre
-    // apparaissent avec leurs compteurs en même temps que la liste plutôt
-    // qu'un instant après.
-    final listeFuture = getToutesReserves(
-      page: 1, limit: limite, search: state.recherche, statut: state.filtreStatut,
-    );
-    final compteursFuture = avecCompteurs ? getStatutsCountGlobal() : null;
+    // Les deux requêtes partent ENSEMBLE — un seul aller-retour au lieu de
+    // deux — mais elles ne sont plus ATTENDUES ensemble.
+    //
+    // La version précédente enchaînait `await liste` puis `await compteurs`
+    // avant le moindre `emit`. Les compteurs ne servent qu'à décorer les
+    // puces de filtre, mais ils retenaient la liste en otage : tant que
+    // `GET /dashboard` n'avait pas répondu, l'état restait « chargement » et
+    // l'écran gardait son squelette gris. Une organisation sans aucune
+    // réserve ne voyait donc JAMAIS le message « Aucune réserve » — juste six
+    // rectangles qui scintillent, sans rien pour comprendre.
+    if (avecCompteurs) unawaited(_rafraichirCompteurs(jeton));
 
-    final result = await listeFuture;
-    final compteurs = await compteursFuture;
+    final result = await _lister(page: 1);
     if (isClosed || jeton != _jetonListe) return;
-
-    // Un échec des COMPTEURS ne doit pas faire échouer l'écran : la liste
-    // reste utilisable, les puces gardent simplement les derniers chiffres
-    // connus.
-    final statutsCount = compteurs?.fold((_) => state.statutsCount, (v) => v) ?? state.statutsCount;
 
     result.fold(
       (failure) => emit(state.copyWith(status: ReservesListStatus.erreur, erreur: failure.errorMessage)),
@@ -72,9 +73,46 @@ class ToutesReservesCubit extends Cubit<ReservesListState> {
         total: page.total,
         page: 1,
         chargementPage: false,
-        statutsCount: statutsCount,
       )),
     );
+  }
+
+  /// Charge la répartition par statut SANS bloquer la liste.
+  ///
+  /// Un échec ne fait rien échouer : les puces gardent les derniers chiffres
+  /// connus, et la liste — la seule chose que l'utilisateur est venu voir —
+  /// s'affiche de toute façon.
+  Future<void> _rafraichirCompteurs(int jeton) async {
+    final result = await _protege(getStatutsCountGlobal.call);
+    if (isClosed || jeton != _jetonListe) return;
+    result.fold(
+      (_) {},
+      (compteurs) => emit(state.copyWith(statutsCount: compteurs)),
+    );
+  }
+
+  Future<Either<Failure, ReservePage>> _lister({required int page}) => _protege(
+        () => getToutesReserves(
+          page: page, limit: limite, search: state.recherche, statut: state.filtreStatut,
+        ),
+      );
+
+  /// Convertit une exception ÉCHAPPÉE en `Left`.
+  ///
+  /// Les dépôts renvoient normalement un `Either` et n'exposent pas
+  /// d'exception. « Normalement » ne suffit pas ici : si une seule s'échappe,
+  /// le `Future` se termine en erreur, aucun `emit` n'a lieu, et l'écran reste
+  /// bloqué sur son squelette — l'utilisateur n'a alors ni liste, ni message,
+  /// ni bouton pour réessayer. Une erreur affichée vaut mieux qu'un écran
+  /// figé.
+  Future<Either<Failure, T>> _protege<T>(
+    Future<Either<Failure, T>> Function() action,
+  ) async {
+    try {
+      return await action();
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
   }
 
   /// Recherche debouncée (400 ms) — même délai que partout ailleurs.
@@ -95,9 +133,7 @@ class ToutesReservesCubit extends Cubit<ReservesListState> {
     final jeton = ++_jetonListe;
     emit(state.copyWith(chargementPage: true));
     final prochainePage = state.page + 1;
-    final result = await getToutesReserves(
-      page: prochainePage, limit: limite, search: state.recherche, statut: state.filtreStatut,
-    );
+    final result = await _lister(page: prochainePage);
     if (isClosed || jeton != _jetonListe) return;
     result.fold(
       (failure) => emit(state.copyWith(chargementPage: false, erreur: failure.errorMessage)),

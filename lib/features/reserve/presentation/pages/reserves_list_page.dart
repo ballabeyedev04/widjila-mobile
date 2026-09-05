@@ -14,6 +14,7 @@ import '../cubit/reserves_list_cubit.dart';
 import '../cubit/reserves_list_state.dart';
 import '../widgets/reserve_card.dart';
 import '../widgets/reserves_chrome.dart';
+import '../../../../core/network/forcer_reseau.dart';
 
 /// Réserves d'UN chantier.
 ///
@@ -215,7 +216,7 @@ class _Liste extends StatelessWidget {
       color: AppColors.background,
       child: RefreshIndicator(
         color: AppColors.primary,
-        onRefresh: () => context.read<ReservesListCubit>().charger(),
+        onRefresh: forcerReseau(() => context.read<ReservesListCubit>().charger()),
         child: ContenuCentre(
           child: ListView.separated(
             controller: controller,
@@ -266,9 +267,20 @@ class _PiedDeListe extends StatelessWidget {
         children: [
           Icon(Icons.event_note_rounded, size: 16, color: AppColors.textMuted.withValues(alpha: 0.8)),
           const SizedBox(width: 8),
-          Text(
-            context.l10n.reserveAffichageSur(affiches, total),
-            style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted),
+          // `Flexible` et non un `Text` nu : la phrase traduite débordait de
+          // 106 px à 320 dp, 66 px à 360 et 36 px à 390 — c'est-à-dire sur la
+          // quasi-totalité du parc. Un `Row` dont un enfant n'a pas
+          // l'autorisation de rétrécir échoue à la mise en page, et Flutter
+          // lève À CHAQUE IMAGE : la zone se dégrade alors même que les
+          // réserves sont bien arrivées du serveur.
+          Flexible(
+            child: Text(
+              context.l10n.reserveAffichageSur(affiches, total),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted),
+            ),
           ),
         ],
       ),

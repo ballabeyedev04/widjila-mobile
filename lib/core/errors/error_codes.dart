@@ -16,4 +16,17 @@ class ErrCodes {
   static const rateLimit = '__ERR_RATE_LIMIT__';
   static const serviceUnavailable = '__ERR_SERVICE_UNAVAILABLE__';
   static const generic = '__ERR_GENERIC__';
+
+  /// PREFIXE — et non un marqueur entier comme ceux du dessus.
+  ///
+  /// Quand le serveur refuse une action pour une raison d'ABONNEMENT, son
+  /// message est déjà le bon : il nomme la formule en cours et le plafond
+  /// atteint (« Votre abonnement Essentiel est limité à 2 utilisateurs »).
+  /// Le remplacer par un texte générique perdrait précisément ce qui aide.
+  ///
+  /// On le préfixe donc au lieu de l'écraser. [AppAlert] reconnaît le
+  /// préfixe, le retire, et présente une invitation à s'abonner plutôt qu'une
+  /// alerte d'erreur — un refus de quota n'est pas une panne, c'est une
+  /// limite qu'on peut lever.
+  static const prefixeAbonnement = '__ERR_ABONNEMENT__|';
 }

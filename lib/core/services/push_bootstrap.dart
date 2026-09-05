@@ -51,6 +51,16 @@ class _PushBootstrapState extends State<PushBootstrap> {
   /// Évite de redéclarer le même jeton à chaque reconstruction du widget.
   bool _enregistre = false;
 
+  /// Écran visé par une alerte touchée avant que la session soit résolue.
+  ///
+  /// Au lancement DEPUIS une alerte, `getInitialMessage()` répond bien avant
+  /// `AuthBloc` : la vérification de session s'impose un plancher de 1200 ms
+  /// (`_dureeMinSplash`). Naviguer tout de suite ne mène nulle part — la
+  /// redirection du routeur ramène sur `/splash` tant que le statut est
+  /// `inconnu`, puis sur le tableau de bord une fois la session restaurée.
+  /// La destination est donc mise de côté, et rejouée à l'ouverture de session.
+  String? _destinationEnAttente;
+
   @override
   void initState() {
     super.initState();
@@ -83,7 +93,31 @@ class _PushBootstrapState extends State<PushBootstrap> {
   /// superposés que d'alertes ouvertes.
   void _surOuverture(Map<String, dynamic> donnees) {
     if (!mounted) return;
-    GoRouter.of(context).go(DestinationNotification.resoudre(donnees));
+    final destination = DestinationNotification.resoudre(donnees);
+
+    // Session pas encore établie : la redirection du routeur écraserait cette
+    // navigation. On garde la destination pour l'ouverture de session.
+    if (!context.read<AuthBloc>().state.estAuthentifie) {
+      _destinationEnAttente = destination;
+      return;
+    }
+
+    GoRouter.of(context).go(destination);
+  }
+
+  /// Rejoue la destination mise de côté, une fois la session ouverte.
+  ///
+  /// Après la frame : la bascule d'authentification déclenche elle-même une
+  /// redirection vers le tableau de bord, et naviguer pendant la même frame
+  /// nous ferait passer AVANT elle — donc écraser.
+  void _consommerDestinationEnAttente() {
+    final destination = _destinationEnAttente;
+    if (destination == null) return;
+    _destinationEnAttente = null;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) GoRouter.of(context).go(destination);
+    });
   }
 
   /// Enregistre le jeton dès qu'un utilisateur authentifié ET un jeton sont
@@ -115,8 +149,13 @@ class _PushBootstrapState extends State<PushBootstrap> {
       listener: (context, state) {
         if (state.estAuthentifie) {
           _synchroniser();
+          _consommerDestinationEnAttente();
         } else {
           _oublier();
+          // Une alerte touchée puis une déconnexion : la destination n'a plus
+          // de sens et ne doit pas s'ouvrir à la prochaine connexion, sur un
+          // compte éventuellement différent.
+          _destinationEnAttente = null;
         }
       },
       child: widget.child,

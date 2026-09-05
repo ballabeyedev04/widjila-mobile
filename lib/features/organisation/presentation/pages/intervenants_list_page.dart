@@ -21,6 +21,7 @@ import '../../domain/entities/partenaire.dart';
 import '../cubit/partenaires_cubit.dart';
 import 'ajouter_partenaire_sheet.dart';
 import 'detail_partenaire_sheet.dart';
+import '../../../../core/network/forcer_reseau.dart';
 
 /// Teinte du badge par type d'intervenant.
 BadgeTone toneTypePartenaire(PartenaireType type) => switch (type) {
@@ -411,7 +412,7 @@ class _Corps extends StatelessWidget {
         }
         return RefreshIndicator(
           color: AppColors.primary,
-          onRefresh: () => context.read<PartenairesCubit>().charger(),
+          onRefresh: forcerReseau(() => context.read<PartenairesCubit>().charger()),
           child: ContenuCentre(
             child: ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 110),

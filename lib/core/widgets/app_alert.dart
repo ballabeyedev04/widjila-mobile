@@ -6,6 +6,7 @@ import '../../l10n/generated/app_localizations.dart';
 import '../../l10n/l10n_extension.dart';
 import '../errors/error_codes.dart';
 import '../theme/app_colors.dart';
+import 'modale_abonnement.dart';
 
 /// Style d'alerte centralisé — succès / erreur — utilisé PARTOUT dans l'app
 /// à la place des `SnackBar` (bannière plate en bas d'écran, peu visible).
@@ -50,6 +51,16 @@ class AppAlert {
     String? title,
     String? bouton,
   }) {
+    // Refus d'ABONNEMENT : ce n'est pas une panne, mais la seule catégorie de
+    // refus que l'utilisateur peut lever lui-même. On l'oriente vers les
+    // formules au lieu de lui annoncer un échec avec un simple « OK ».
+    //
+    // Ici plutôt que dans chaque écran : `AppAlert.error` est l'unique point
+    // d'affichage d'erreur de l'application. Les trente-huit appels existants
+    // en bénéficient sans qu'aucun ne change.
+    final refus = RefusAbonnementDecode.tenter(message);
+    if (refus != null) return afficherModaleAbonnement(context, refus);
+
     final l10n = context.l10n;
     return _show(
       context,

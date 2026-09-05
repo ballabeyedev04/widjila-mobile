@@ -310,12 +310,20 @@ class _AjouterMembreSheetState extends State<AjouterMembreSheet> {
                           // Bloc mot de passe encadré : l'interrupteur pilote
                           // l'apparition du champ, les deux se lisent donc
                           // comme UNE décision, pas deux réglages voisins.
-                          Container(
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
+                          // Encadré porté par un `Material` et non par un
+                          // `Container` coloré : le `SwitchListTile` qu'il
+                          // contient peint son fond et son onde de contact sur
+                          // le `Material` le plus proche. Un fond coloré
+                          // intercalé les masquait, et Flutter le signalait à
+                          // chaque construction du formulaire.
+                          Material(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(14),
+                            shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: AppColors.border),
+                              side: const BorderSide(color: AppColors.border),
                             ),
+                            child: Padding(
                             padding: const EdgeInsets.fromLTRB(14, 4, 8, 4),
                             child: Column(
                               children: [
@@ -375,6 +383,7 @@ class _AjouterMembreSheetState extends State<AjouterMembreSheet> {
                                         ),
                                 ),
                               ],
+                            ),
                             ),
                           ),
                           const SizedBox(height: 16),

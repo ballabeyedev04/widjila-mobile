@@ -11,6 +11,7 @@ import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
 import '../widgets/auth_chrome.dart';
+import '../../../../core/routes/retour.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -87,7 +88,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           builder: (context, state) {
             final l10n = context.l10n;
             return AuthBackdrop(
-              onRetour: () => context.pop(),
+              onRetour: () => context.retourVers(AppRoutes.login),
               contenu: (context, m) => Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -98,7 +99,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   AuthFooterLink(
                     question: l10n.forgotVousSouvenez,
                     action: l10n.authSeConnecter,
-                    onPressed: () => context.pop(),
+                    onPressed: () => context.retourVers(AppRoutes.login),
                   ),
                 ],
               ),

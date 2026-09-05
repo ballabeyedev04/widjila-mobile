@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'core/network/cache_reponses_get.dart';
 import 'core/network/dio_client_factory.dart';
 import 'core/network/network_info.dart';
 import 'core/offline/base_locale.dart';
@@ -101,6 +102,7 @@ import 'features/abonnement/data/repositories/abonnement_repository_impl.dart';
 import 'features/abonnement/domain/repositories/abonnement_repository.dart';
 import 'features/abonnement/domain/usecases/get_droits.dart';
 import 'features/abonnement/domain/usecases/get_formules.dart';
+import 'features/abonnement/domain/usecases/get_historique_abonnement.dart';
 import 'features/abonnement/presentation/cubit/abonnement_cubit.dart';
 import 'features/referentiel/data/datasources/referentiel_remote_datasource.dart';
 import 'features/referentiel/data/repositories/referentiel_repository_impl.dart';
@@ -187,7 +189,12 @@ Future<void> init() async {
   sl.registerLazySingleton(() => OuvertureFichier(dio: sl()));
   sl.registerLazySingleton<UserCache>(() => UserCacheImpl(secureStorage: sl()));
 
-  sl.registerLazySingletonAsync<Dio>(() => DioClientFactory.create(tokenService: sl()));
+  // Un SEUL cache pour toute l'application : il est aussi visé directement
+  // par `forcerReseau` (rafraîchissement manuel) et par la déconnexion.
+  sl.registerLazySingleton(() => CacheReponsesGet());
+  sl.registerLazySingletonAsync<Dio>(
+    () => DioClientFactory.create(tokenService: sl(), cache: sl()),
+  );
   await sl.isReady<Dio>();
 
   //================================================
@@ -235,6 +242,7 @@ Future<void> init() async {
         tokenService: sl(),
         userCache: sl(),
         sessionLocale: sl(),
+        cacheHttp: sl(),
       ));
   sl.registerLazySingleton(() => LoginUser(sl()));
   sl.registerLazySingleton(() => VerifierMfa(sl()));
@@ -393,7 +401,12 @@ Future<void> init() async {
   sl.registerLazySingleton<AbonnementRepository>(() => AbonnementRepositoryImpl(sl()));
   sl.registerLazySingleton(() => GetFormules(sl()));
   sl.registerLazySingleton(() => GetDroits(sl()));
-  sl.registerFactory(() => AbonnementCubit(getFormules: sl(), getDroits: sl()));
+  sl.registerLazySingleton(() => GetHistoriqueAbonnement(sl()));
+  sl.registerFactory(() => AbonnementCubit(
+        getFormules: sl(),
+        getDroits: sl(),
+        getHistorique: sl(),
+      ));
 
   //================================================
   // FEATURE — RÉFÉRENTIELS DE TYPE (documents, intervenants, inspections)

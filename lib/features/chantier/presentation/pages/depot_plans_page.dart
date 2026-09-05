@@ -13,6 +13,7 @@ import '../../../referentiel/domain/entities/code_niveau.dart';
 import '../../../reserve/domain/entities/chantier_structure.dart';
 import '../cubit/depot_plans_cubit.dart';
 import '../widgets/niveau_sheet.dart';
+import '../../../../core/network/forcer_reseau.dart';
 
 /// Extensions acceptées — les mêmes que l'import de plan existant, et que
 /// celles vérifiées par le serveur (`upload.validateMagicBytes`).
@@ -182,7 +183,7 @@ class _Contenu extends StatelessWidget {
 
     return RefreshIndicator(
       color: AppColors.primary,
-      onRefresh: context.read<DepotPlansCubit>().charger,
+      onRefresh: forcerReseau(context.read<DepotPlansCubit>().charger),
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
@@ -489,6 +490,9 @@ Future<String?> _demanderNomBatiment(BuildContext context) {
   final l10n = context.l10n;
   final ctrl = TextEditingController();
 
+  // Le contrôleur est libéré À LA FERMETURE du dialogue, pas avant : il vit
+  // aussi longtemps que le champ. Sans cela, chaque bâtiment ajouté laissait
+  // derrière lui un `ChangeNotifier` et son écouteur de texte.
   return showDialog<String>(
     context: context,
     builder: (dialogContext) => AlertDialog(
@@ -513,5 +517,5 @@ Future<String?> _demanderNomBatiment(BuildContext context) {
         ),
       ],
     ),
-  );
+  ).whenComplete(ctrl.dispose);
 }

@@ -15,6 +15,8 @@ import '../../../reserve/domain/entities/reserve.dart';
 import '../../../reserve/presentation/widgets/reserve_statut_badge.dart';
 import '../../domain/entities/plan.dart';
 import '../cubit/plan_detail_cubit.dart';
+import '../../../../core/routes/app_router.dart';
+import '../../../../core/routes/retour.dart';
 
 /// Écran 5 de la maquette — le plan et les réserves qui y sont rattachées.
 ///
@@ -129,7 +131,9 @@ class _BandeauViewer extends StatelessWidget {
             icon: const Icon(Icons.arrow_back_rounded),
             color: AppColors.primary,
             tooltip: context.l10n.commonBack,
-            onPressed: () => context.pop(),
+            // Cet écran est une destination de notification : ouvert par `go`, il
+            // n'a alors aucune pile. Repli sur l'onglet Plans.
+            onPressed: () => context.retourVers(AppRoutes.plans),
           ),
           Container(
             width: 38,
@@ -181,7 +185,22 @@ class _Document extends StatefulWidget {
 
 class _DocumentState extends State<_Document> {
   Uint8List? _octets;
-  String? _erreur;
+
+  /// Le telechargement a echoue — un DRAPEAU, pas un message.
+  ///
+  /// La version precedente rangeait ici le libelle traduit, lu depuis
+  /// `context.l10n` a l'interieur du `catch`. Or ce `catch` peut s'executer
+  /// AVANT que `initState` soit termine : il suffit que l'appel echoue de
+  /// maniere synchrone (URL malformee, dependance absente du conteneur), et
+  /// Flutter interdit de consulter un widget herite — ce que fait
+  /// `AppLocalizations.of` — a ce moment-la. L'assertion qui suit fait
+  /// tomber l'ecran entier, alors que le seul incident etait un fichier
+  /// introuvable.
+  ///
+  /// Le libelle est donc resolu dans `build`, ou le contexte est toujours
+  /// pret. Au passage, l'ecran suit un changement de langue en cours de
+  /// route au lieu de conserver la phrase figee au moment de l'echec.
+  bool _echecTelechargement = false;
 
   @override
   void initState() {
@@ -199,7 +218,7 @@ class _DocumentState extends State<_Document> {
       if (data == null) throw Exception('Réponse vide');
       if (mounted) setState(() => _octets = Uint8List.fromList(data));
     } catch (_) {
-      if (mounted) setState(() => _erreur = context.l10n.planViewerErreurChargement);
+      if (mounted) setState(() => _echecTelechargement = true);
     }
   }
 
@@ -217,8 +236,12 @@ class _DocumentState extends State<_Document> {
         action: _BoutonOuvrirExterne(plan: widget.plan),
       );
     }
-    if (_erreur != null) {
-      return _Message(icon: Icons.error_outline_rounded, titre: l10n.planViewerIndisponible, texte: _erreur!);
+    if (_echecTelechargement) {
+      return _Message(
+        icon: Icons.error_outline_rounded,
+        titre: l10n.planViewerIndisponible,
+        texte: l10n.planViewerErreurChargement,
+      );
     }
     if (_octets == null) {
       return const Center(child: CircularProgressIndicator(color: AppColors.primary));
@@ -402,13 +425,25 @@ class _PanneauReserves extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+              // Un `Row` a enfant unique et sans contrainte : le libelle
+              // « N reserves sur ce plan » debordait de 21 px sur un
+              // telephone etroit, en francais comme en allemand. `Expanded`
+              // lui rend la largeur disponible, l'ellipse absorbe le reste.
               child: Row(
                 children: [
-                  Text(
-                    reserves.isEmpty
-                        ? context.l10n.planViewerAucuneReserve
-                        : context.l10n.planViewerReservesSurPlan(reserves.length),
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.textPrimary),
+                  Expanded(
+                    child: Text(
+                      reserves.isEmpty
+                          ? context.l10n.planViewerAucuneReserve
+                          : context.l10n.planViewerReservesSurPlan(reserves.length),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
                   ),
                 ],
               ),

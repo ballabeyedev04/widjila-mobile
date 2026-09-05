@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/config/user_role.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/couleurs_avatar.dart';
 import '../../../../core/widgets/app_alert.dart';
+import '../../../../core/widgets/apparition_en_cascade.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/liste_chrome.dart';
 import '../../../../core/widgets/loading_list.dart';
@@ -19,6 +19,8 @@ import '../cubit/membres_cubit.dart';
 import '../cubit/membres_state.dart';
 import 'ajouter_membre_sheet.dart';
 import 'detail_membre_sheet.dart';
+import '../../../../core/network/forcer_reseau.dart';
+import '../../../../core/routes/retour.dart';
 
 /// Teinte de badge par rôle — même mapping que
 /// `admin/src/utils/constants.js#ROLES` (cohérence visuelle web/mobile).
@@ -104,18 +106,39 @@ class _MembresListView extends StatelessWidget {
     final l10n = context.l10n;
 
     return BlocConsumer<MembresCubit, MembresState>(
-      // Le popup de confirmation (mot de passe temporaire éventuel) n'est
-      // affiché QU'UNE FOIS par ajout réussi — voir `accuserReceptionAjout`.
+      // La confirmation n'est donnée QU'UNE FOIS par ajout réussi — voir
+      // `accuserReceptionAjout`.
       listenWhen: (a, b) => a.dernierAjout != b.dernierAjout && b.dernierAjout != null,
       listener: (context, state) {
         final ajout = state.dernierAjout!;
-        final motDePasse = ajout.motDePasseTemporaire;
         context.read<MembresCubit>().accuserReceptionAjout();
+
+        // Cas normal : le serveur a envoyé ses identifiants au nouveau membre.
+        // Rien à noter, rien à transmettre — un simple accusé suffit.
+        //
+        // Auparavant, une fenêtre affichait le mot de passe temporaire avec un
+        // bouton « J'ai noté ». Le serveur ne le renvoie qu'une fois : la
+        // refermer trop vite rendait le compte inutilisable, et il restait de
+        // toute façon à le transmettre à l'intéressé par un autre moyen.
+        if (ajout.emailEnvoye) {
+          AppAlert.success(
+            context,
+            message: l10n.membreAjouteEmailEnvoye(ajout.membre.nomComplet),
+          );
+          return;
+        }
+
+        // L'envoi a échoué. La fenêtre reprend alors son rôle de filet : c'est
+        // la seule et dernière occasion de lire ce mot de passe.
+        final motDePasse = ajout.motDePasseTemporaire;
         if (motDePasse != null) {
           _afficherMotDePasseTemporaire(context, ajout.membre, motDePasse);
-        } else {
-          AppAlert.success(context, message: l10n.membreAjouteMessage(ajout.membre.nomComplet));
+          return;
         }
+
+        // Ni courriel parti, ni mot de passe à montrer : le créateur en a
+        // choisi un lui-même, il le connaît déjà.
+        AppAlert.success(context, message: l10n.membreAjouteMessage(ajout.membre.nomComplet));
       },
       builder: (context, state) {
         return Scaffold(
@@ -181,7 +204,7 @@ class _MembresListView extends StatelessWidget {
         }
         return RefreshIndicator(
           color: AppColors.primary,
-          onRefresh: () => context.read<MembresCubit>().charger(),
+          onRefresh: forcerReseau(() => context.read<MembresCubit>().charger()),
           child: ContenuCentre(
             child: ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 110),
@@ -189,7 +212,7 @@ class _MembresListView extends StatelessWidget {
               separatorBuilder: (_, _) => const SizedBox(height: 12),
               itemBuilder: (context, i) {
                 if (i == membres.length) return const _PiedDePage();
-                return _CarteMembre(membre: membres[i]);
+                return ApparitionEnCascade(rang: i, child: _CarteMembre(membre: membres[i]));
               },
             ),
           ),
@@ -219,7 +242,7 @@ class _EnTete extends StatelessWidget {
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back_rounded, color: AppColors.primary),
-            onPressed: () => context.pop(),
+            onPressed: () => context.retourVers(),
             tooltip: l10n.commonBack,
           ),
           Expanded(
@@ -370,9 +393,22 @@ class _Compteur extends StatelessWidget {
           children: [
             const Icon(Icons.groups_rounded, size: 19, color: AppColors.primary),
             const SizedBox(width: 9),
-            Text(
-              context.l10n.equipeCompteur(nombre),
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+            // `Expanded` et non un `Text` nu : la phrase est traduite, et un
+            // `Row` ne rétrécit pas son enfant. En allemand, ou avec une
+            // taille de police agrandie dans les réglages du téléphone, elle
+            // débordait sur la droite — le compteur affichait alors la bande
+            // rayée du framework au lieu de son texte.
+            Expanded(
+              child: Text(
+                context.l10n.equipeCompteur(nombre),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ),
           ],
         ),
@@ -545,10 +581,16 @@ class _PiedDePage extends StatelessWidget {
   }
 }
 
-/// Le mot de passe temporaire n'est renvoyé qu'une fois par le backend — cet
-/// écran est la SEULE occasion de le récupérer, d'où le `barrierDismissible:
-/// false` (l'utilisateur doit consciemment fermer après l'avoir noté/partagé)
-/// et le bouton de copie.
+/// Filet de sécurité : le courriel d'identifiants n'a PAS pu partir.
+///
+/// En marche normale cette fenêtre ne s'ouvre plus — le nouveau membre reçoit
+/// ses identifiants directement. Elle ne reparaît que si l'envoi a échoué
+/// (fournisseur indisponible, ou serveur sans clé d'envoi configurée), et
+/// c'est alors la dernière occasion de lire ce mot de passe : le serveur ne le
+/// conserve qu'en empreinte.
+///
+/// D'où le `barrierDismissible: false` — on ne referme qu'après l'avoir
+/// consciemment noté.
 class _DialogueMotDePasseTemporaire extends StatelessWidget {
   final Membre membre;
   final String motDePasse;
@@ -565,7 +607,7 @@ class _DialogueMotDePasseTemporaire extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            l10n.membreDialogueMessage(membre.nomComplet),
+            l10n.membreDialogueEmailEchoue(membre.nomComplet),
             style: const TextStyle(fontSize: 13.5, color: AppColors.textSecondary, height: 1.4),
           ),
           const SizedBox(height: 16),

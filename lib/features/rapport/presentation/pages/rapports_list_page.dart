@@ -11,6 +11,7 @@ import '../../../../l10n/l10n_extension.dart';
 import '../../domain/entities/rapport.dart';
 import '../../domain/usecases/rapport_usecases.dart';
 import '../cubit/rapports_cubit.dart';
+import '../../../../core/network/forcer_reseau.dart';
 
 /// Rapports PDF d'un chantier.
 ///
@@ -203,7 +204,7 @@ class _Corps extends StatelessWidget {
     }
 
     return RefreshIndicator(
-      onRefresh: cubit.charger,
+      onRefresh: forcerReseau(cubit.charger),
       child: ContenuCentre(
         child: ListView.separated(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 96),

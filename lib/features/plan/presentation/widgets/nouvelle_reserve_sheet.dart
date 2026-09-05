@@ -489,7 +489,21 @@ class _ChampPhoto extends StatelessWidget {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
-                    child: Image.file(photo!, width: 74, height: 58, fit: BoxFit.cover),
+                    child: Image.file(
+                      photo!,
+                      width: 74,
+                      height: 58,
+                      fit: BoxFit.cover,
+                      // La photo est déjà plafonnée à 1920 px par
+                      // `image_picker` (voir `_choisirPhoto`), mais rien
+                      // n'empêche `Image.file` de la décoder à cette pleine
+                      // résolution pour un aperçu de 74×58 : jusqu'à 20 Mo
+                      // de mémoire pour quelques centaines de pixels
+                      // affichés. Même correctif que `FichierImage` —
+                      // décoder à la taille d'affichage réelle.
+                      cacheWidth: (74 * MediaQuery.devicePixelRatioOf(context)).ceil(),
+                      filterQuality: FilterQuality.low,
+                    ),
                   ),
                   Positioned(
                     top: 2,

@@ -8,8 +8,15 @@ import '../../../../core/config/user_role.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/entete_degrade.dart';
-import '../../../../core/widgets/liste_chrome.dart' show PastilleCompteur;
+import '../../../../core/widgets/liste_chrome.dart'
+    show
+        BoutonAction,
+        EtatVideIllustre,
+        MotifVide,
+        PastilleCompteur,
+        colonnesAdaptatives;
 import '../../../../core/widgets/error_view.dart';
+import '../../../../core/widgets/loading_list.dart';
 import '../../../../core/widgets/fichier_image.dart';
 import '../../../../injection_container.dart';
 import '../../../../l10n/l10n_extension.dart';
@@ -29,6 +36,7 @@ import '../../domain/entities/dashboard_stats.dart';
 import '../cubit/dashboard_cubit.dart';
 import '../cubit/dashboard_state.dart';
 import '../widgets/derniers_plans.dart';
+import '../../../../core/network/forcer_reseau.dart';
 
 /// Largeur à partir de laquelle le tableau de bord bascule sur une mise en
 /// page à deux colonnes (tablette / desktop) plutôt qu'empilée (téléphone).
@@ -76,7 +84,17 @@ class _DashboardView extends StatelessWidget {
             switch (state.status) {
               case DashboardStatus.initial:
               case DashboardStatus.chargement:
-                return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+                // Un squelette, pas une roue qui tourne au milieu du vide.
+                //
+                // Une roue ne dit rien de ce qui arrive : l'écran paraît
+                // simplement bloqué. Des blocs à la forme du contenu à venir
+                // donnent tout de suite la structure de la page, et
+                // l'attente — identique en durée — se lit comme un
+                // chargement plutôt que comme une panne. C'est déjà ce que
+                // font les listes Réserves et Plans ; le tableau de bord,
+                // l'écran d'accueil de la plupart des rôles, était le seul
+                // resté en arrière.
+                return const LoadingList(itemCount: 5, itemHeight: 96);
               case DashboardStatus.erreur:
                 return ErrorView(
                   message: state.erreur ?? context.l10n.commonErrorUnknown,
@@ -531,9 +549,27 @@ class _CorpsTableauDeBord extends StatelessWidget {
   Widget build(BuildContext context) {
     final role = context.select((AuthBloc b) => b.state.utilisateur?.role);
 
+    // ── Compte neuf : guider, plutot qu'afficher une grille de zeros ───────
+    //
+    // Sans chantier, il n'y a ni reserve, ni plan, ni document, ni inspection
+    // — tout ce que cet ecran sait montrer vaut zero. La mise en page normale
+    // affiche alors une dizaine de compteurs a « 0 », une phrase d'accroche
+    // qui parle de « l'etat d'avancement de vos reserves », et rien qui
+    // indique quoi faire. C'est l'ecran d'accueil : c'est la premiere chose
+    // que voit un utilisateur qui vient de s'inscrire, ou une entreprise a
+    // qui aucun chantier n'a encore ete rattache.
+    //
+    // Le seuil est `chantiers == 0` et non « tous les compteurs a zero » :
+    // les reserves, plans et documents PENDENT d'un chantier. Un compte qui
+    // en a un, meme vide, a de quoi lire ses zeros — ils lui disent l'etat
+    // reel de son chantier.
+    if (stats.chantiers == 0 && stats.parChantier.isEmpty) {
+      return _AccueilSansChantier(peutDemander: role?.peutDemanderChantier ?? false);
+    }
+
     return RefreshIndicator(
       color: AppColors.primary,
-      onRefresh: () => context.read<DashboardCubit>().charger(),
+      onRefresh: forcerReseau(() => context.read<DashboardCubit>().charger()),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final estTablette = constraints.maxWidth >= seuilTablette;
@@ -611,6 +647,44 @@ class _CorpsTableauDeBord extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// Accueil d'un compte auquel aucun chantier n'est rattaché.
+///
+/// Reste défilable (l'illustration est portée par un `ListView`) pour que le
+/// geste de rafraîchissement continue de fonctionner : c'est souvent le
+/// premier réflexe de quelqu'un qui attend qu'un chantier lui soit affecté.
+class _AccueilSansChantier extends StatelessWidget {
+  /// Propose l'accès à la création. Les rôles en simple lecture reçoivent le
+  /// même message, sans bouton : leur promettre une action qui reviendrait en
+  /// 403 serait pire que le silence.
+  final bool peutDemander;
+
+  const _AccueilSansChantier({required this.peutDemander});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: forcerReseau(() => context.read<DashboardCubit>().charger()),
+      child: EtatVideIllustre(
+        motif: MotifVide.chantier,
+        titre: l10n.dashboardAucunChantier,
+        description: peutDemander
+            ? l10n.dashboardAucunChantierAction
+            : l10n.dashboardAucunChantierLecture,
+        cta: peutDemander
+            ? BoutonAction(
+                icon: Icons.add_business_rounded,
+                label: l10n.dashboardAucunChantierBouton,
+                onTap: () => context.go(AppRoutes.chantiers),
+              )
+            : null,
       ),
     );
   }
@@ -909,16 +983,75 @@ class _GrilleApercu extends StatelessWidget {
       ),
     ];
 
-    return GridView.count(
-      crossAxisCount: colonnes,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: colonnes >= 4 ? 1.15 : 1.5,
-      children: [for (final it in items) _CarteApercu(item: it)],
+    // Le nombre de colonnes vient de la LARGEUR REELLE, plus d'un gabarit
+    // d'appareil.
+    //
+    // Deux colonnes en dessous de 700 dp, quatre au-dessus : une tablette
+    // compacte de 600 dp en portrait recevait donc la meme grille a deux
+    // colonnes qu'un telephone de 320, avec des cartes deux fois trop larges
+    // et la moitie de l'ecran perdue. La bascule etait binaire la ou la
+    // largeur, elle, est continue.
+    //
+    // `colonnesAdaptatives` vise une carte d'environ 170 dp : deux colonnes
+    // sur un telephone, trois sur une tablette compacte, quatre a cinq sur
+    // une grande. Le plancher a deux preserve la mise en page telephone
+    // actuelle, y compris a 320 dp.
+    return LayoutBuilder(
+      builder: (context, contraintes) {
+        final n = colonnesAdaptatives(
+          contraintes.maxWidth,
+          min: 2,
+          max: 5,
+          largeurCible: 170,
+        );
+        // Hauteur FIXE, largeur libre — et non l'inverse.
+        //
+        // Un `childAspectRatio` fait dependre la hauteur de la largeur : sur
+        // un telephone de 320 dp, deux colonnes donnent des cartes de 138 px
+        // de large, donc 92 px de haut au rapport 1,5. Or le contenu — une
+        // pastille d'icone de 36, le nombre, son libelle et 32 px de marges —
+        // en demande environ 120 : la carte debordait par le bas de 40 px.
+        //
+        // Ce contenu ne depend pas de la largeur. `mainAxisExtent` exprime
+        // exactement cela : la hauteur qu'il faut, quelle que soit la
+        // largeur, et le nombre de colonnes reste libre de varier.
+        return GridView(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: n,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            mainAxisExtent: _hauteurCarteApercu(context),
+          ),
+          children: [for (final it in items) _CarteApercu(item: it)],
+        );
+      },
     );
   }
+}
+
+/// Hauteur d'une carte d'apercu, taille de police systeme comprise.
+///
+/// La carte empile une pastille d'icone, un nombre et son libelle. Rien de
+/// tout cela ne depend de la LARGEUR — d'ou une hauteur posee explicitement
+/// plutot qu'un rapport largeur/hauteur, qui ecrasait la carte des que les
+/// colonnes se resserraient.
+///
+/// Elle depend en revanche de la taille de police choisie par l'utilisateur
+/// dans les reglages de son telephone. Figer 132 px reviendrait a rouvrir le
+/// meme debordement pour quiconque grossit son texte — c'est-a-dire, sur un
+/// chantier, une bonne partie des utilisateurs.
+double _hauteurCarteApercu(BuildContext context) {
+  // 78 px de decor : marges hautes et basses, pastille d'icone de 36.
+  //
+  // 62 px de texte a l'echelle 1 : le nombre (21 pt, interligne compris) et
+  // deux lignes de libelle (12 pt). La valeur est prise avec un peu de marge
+  // — a 56, mesure au plus juste, un texte agrandi de 30 % debordait encore
+  // de 0,2 px, et 0,2 px suffisent a barrer la carte de jaune et noir.
+  const decor = 78.0;
+  const texte = 62.0;
+  return decor + MediaQuery.textScalerOf(context).scale(texte);
 }
 
 class _CarteApercu extends StatelessWidget {
@@ -951,7 +1084,15 @@ class _CarteApercu extends StatelessWidget {
               ),
               const Spacer(),
               Text('${item.valeur}', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-              Text(item.label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              // Deux lignes au plus : sur une colonne etroite, « Membres de
+              // l'equipe » passe a la ligne, et une troisieme ligne
+              // repousserait le contenu hors de la carte.
+              Text(
+                item.label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
             ],
           ),
         ),
@@ -980,14 +1121,26 @@ class _ListeChantiers extends StatelessWidget {
         ],
       );
     }
-    return GridView.count(
-      crossAxisCount: colonnes,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 2.8,
-      children: [for (final c in visibles) _CarteChantier(chantier: c)],
+    // Meme raisonnement que la grille d'apercu, avec une cible plus large :
+    // une carte de chantier porte un nom, un code, un statut et deux
+    // compteurs — en dessous de 320 dp elle devient illisible. Sur une grande
+    // tablette, la largeur permet une troisieme colonne que le gabarit fige a
+    // deux interdisait.
+    return LayoutBuilder(
+      builder: (context, contraintes) => GridView.count(
+        crossAxisCount: colonnesAdaptatives(
+          contraintes.maxWidth,
+          min: 1,
+          max: 3,
+          largeurCible: 340,
+        ),
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 2.8,
+        children: [for (final c in visibles) _CarteChantier(chantier: c)],
+      ),
     );
   }
 }

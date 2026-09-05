@@ -13,6 +13,7 @@ import '../cubit/inspections_list_cubit.dart';
 import '../cubit/inspections_list_state.dart';
 import '../widgets/planifier_inspection_sheet.dart';
 import 'inspection_detail_page.dart';
+import '../../../../core/network/forcer_reseau.dart';
 
 /// Visites d'un chantier.
 ///
@@ -187,7 +188,7 @@ class _Corps extends StatelessWidget {
     ];
 
     return RefreshIndicator(
-      onRefresh: cubit.charger,
+      onRefresh: forcerReseau(cubit.charger),
       child: ContenuCentre(
         child: ListView.separated(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 96),

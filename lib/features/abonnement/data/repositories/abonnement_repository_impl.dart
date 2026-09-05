@@ -40,4 +40,16 @@ class AbonnementRepositoryImpl implements AbonnementRepository {
       return Left(exceptionToFailure(e));
     }
   }
+
+  @override
+  Future<Either<Failure, List<SouscriptionHistorique>>> getHistorique() async {
+    try {
+      return Right(await remoteDataSource.getHistorique());
+    } catch (e) {
+      // Pas de repli en cache ici, contrairement aux droits : un historique
+      // de facturation périmé induirait en erreur sur ce qui a réellement été
+      // payé. Mieux vaut ne rien montrer que montrer un montant faux.
+      return Left(exceptionToFailure(e));
+    }
+  }
 }

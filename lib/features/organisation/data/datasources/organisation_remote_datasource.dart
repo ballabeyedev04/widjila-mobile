@@ -125,6 +125,10 @@ class OrganisationRemoteDataSourceImpl implements OrganisationRemoteDataSource {
       return AjouterMembreResult(
         membre: Membre.fromJson(data['utilisateur'] as Map<String, dynamic>),
         motDePasseTemporaire: data['motDePasseTemporaire'] as String?,
+        // Absent des réponses d'un serveur plus ancien : on suppose alors que
+        // rien n'est parti, ce qui fait retomber l'écran sur l'affichage du
+        // mot de passe. Supposer l'inverse le perdrait.
+        emailEnvoye: data['emailEnvoye'] as bool? ?? false,
       );
     } on DioException catch (e) {
       throw mapDioException(e);
