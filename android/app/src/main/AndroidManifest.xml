@@ -12,6 +12,27 @@
          utilisable sans elle, les deux champs se saisissant a la main. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+
+    <!-- Le materiel de localisation n'est PAS requis pour utiliser l'appli.
+
+         Google Play applique une regle implicite : declarer
+         ACCESS_FINE_LOCATION revient a exiger la puce GPS, et le magasin
+         retire alors l'application des appareils qui n'en ont pas — les
+         tablettes Wi-Fi, typiquement. C'est ce qui s'est produit au depot
+         du build 7 : six appareils compatibles avec la version precedente
+         ont disparu, sans qu'aucune ligne du manifeste ne le demande.
+
+         La declarer facultative n'est pas un contournement, c'est exact :
+         `service_position.dart` traite l'absence de service, le refus de
+         permission et le delai depasse comme un meme cas, et le formulaire
+         reste utilisable — la latitude et la longitude se saisissent a la
+         main. Un chantier a souvent le ciel bouche de toute facon.
+
+         Meme raisonnement pour l'empreinte digitale : le verrou biometrique
+         est une OPTION des reglages, jamais une condition d'usage. -->
+    <uses-feature android:name="android.hardware.location" android:required="false"/>
+    <uses-feature android:name="android.hardware.location.gps" android:required="false"/>
+    <uses-feature android:name="android.hardware.fingerprint" android:required="false"/>
     <application
         android:label="Widjila"
         android:name="${applicationName}"
