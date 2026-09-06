@@ -11,6 +11,7 @@ ActionRapide _entree(String label) => (
       couleur: const Color(0xFFF2600C),
       besoinChantier: false,
       avecCreation: false,
+      avecDemandesEnAttente: false,
       dansCoquille: true,
       route: (String? _) => '/x',
     );

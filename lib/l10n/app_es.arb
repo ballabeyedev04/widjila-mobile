@@ -31,6 +31,9 @@
   "chantierAucun": "Ninguna obra",
   "chantierAucunSousTitre": "Cree primero una obra desde el panel de administración.",
   "chantierAucunRecherche": "Ninguna obra coincide con su búsqueda.",
+  "chantierDemanderBouton": "Solicitar una obra",
+  "chantierAucunDemandeur": "Solicite su primera obra: podrá adjuntar sus planos de inmediato y será utilizable en cuanto se valide.",
+  "chantierDemandeCreeeVersPlans": "Solicitud enviada. Añada sus planos ahora: la obra aceptará reservas una vez validada.",
   "chantierReservesOuvertesSur": "{count, plural, one{{count} incidencia abierta de {total}} other{{count} incidencias abiertas de {total}}}",
   "@chantierReservesOuvertesSur": {
     "placeholders": {
@@ -481,6 +484,8 @@
   "depotNiveauEnregistrer": "Guardar el nivel",
   "depotEnvoiEnCours": "Enviando…",
   "depotPlansEnvoyes": "Planos enviados",
+  "depotEnvoyer": "Enviar",
+  "depotRienAEnvoyer": "Añada al menos un plano antes de enviar.",
   "depotTerminer": "Finalizar",
   "depotPlanRemplace": "Plano subido",
   "depotNiveauCree": "Nivel creado y plano subido",

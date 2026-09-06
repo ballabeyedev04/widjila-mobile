@@ -31,6 +31,9 @@
   "chantierAucun": "No sites",
   "chantierAucunSousTitre": "Create a site first from the admin panel.",
   "chantierAucunRecherche": "No site matches your search.",
+  "chantierDemanderBouton": "Request a site",
+  "chantierAucunDemandeur": "Request your first site: you can attach your drawings right away, and it becomes usable once approved.",
+  "chantierDemandeCreeeVersPlans": "Request sent. Add your drawings now: the site will accept snags once approved.",
   "chantierReservesOuvertesSur": "{count, plural, one{{count} open snag out of {total}} other{{count} open snags out of {total}}}",
   "@chantierReservesOuvertesSur": {
     "placeholders": {
@@ -481,6 +484,8 @@
   "depotNiveauEnregistrer": "Save level",
   "depotEnvoiEnCours": "Sending…",
   "depotPlansEnvoyes": "Drawings sent",
+  "depotEnvoyer": "Send",
+  "depotRienAEnvoyer": "Add at least one drawing before sending.",
   "depotTerminer": "Finish",
   "depotPlanRemplace": "Drawing uploaded",
   "depotNiveauCree": "Level created and drawing uploaded",

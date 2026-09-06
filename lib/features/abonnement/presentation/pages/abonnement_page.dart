@@ -35,12 +35,17 @@ class AbonnementPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // La facturation est gardée par le groupe GESTION côté serveur
-    // (`subscription.route.js`). `peutGererOrganisation` en est le miroir
-    // exact : la demander pour un autre rôle ne produirait qu'un 403 et un
-    // message d'erreur sur un écran par ailleurs utilisable.
+    // La facturation est gardée par le groupe FACTURATION côté serveur
+    // (`subscription.route.js`). `peutGererAbonnement` en est le miroir exact :
+    // la demander pour un autre rôle ne produirait qu'un 403 et un message
+    // d'erreur sur un écran par ailleurs utilisable.
+    //
+    // Le miroir suivait GESTION, qui exclut le rôle `entreprise` — c'est-à-dire
+    // le compte créé à l'inscription, titulaire de l'abonnement. Il voyait donc
+    // les formules et le bouton « Choisir », mais pas un seul de ses propres
+    // paiements.
     final voitLaFacturation = context.read<AuthBloc>().state.utilisateur?.role
-            .peutGererOrganisation ??
+            .peutGererAbonnement ??
         false;
 
     return BlocProvider(

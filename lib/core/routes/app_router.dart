@@ -80,6 +80,12 @@ class AppRoutes {
 
   /// Dépôt des plans d'un chantier — plan global, bâtiments, niveaux.
   static const depotPlans = '/depot-plans/:chantierId';
+
+  /// Dépôt SANS chantier : l'entreprise dépose d'abord ses plans, le
+  /// formulaire de demande vient ensuite (voir DepotPlansCubit, mode
+  /// brouillon). Chemin distinct plutôt qu'un paramètre facultatif, que
+  /// go_router ne sait pas exprimer.
+  static const depotPlansNouveau = '/depot-plans';
   static const equipe = '/equipe';
   static const intervenants = '/intervenants';
   static const profil = '/profil';
@@ -417,6 +423,13 @@ class AppRouter {
       GoRoute(
         path: AppRoutes.demandesChantier,
         pageBuilder: (_, state) => _pagePleine(state, const DemandesChantierPage()),
+      ),
+      // Déclarée AVANT `depotPlans` : les deux motifs ne se recouvrent pas,
+      // mais la lecture suit ainsi l'ordre du parcours — on dépose d'abord,
+      // on revient compléter ensuite.
+      GoRoute(
+        path: AppRoutes.depotPlansNouveau,
+        pageBuilder: (_, state) => _pagePleine(state, const DepotPlansPage()),
       ),
       GoRoute(
         path: AppRoutes.depotPlans,

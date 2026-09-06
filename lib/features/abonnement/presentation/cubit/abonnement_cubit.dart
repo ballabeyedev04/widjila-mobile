@@ -98,7 +98,7 @@ class AbonnementCubit extends Cubit<AbonnementState> {
   }) : super(const AbonnementState());
 
   /// [avecHistorique] : à `true` seulement pour les rôles autorisés à voir la
-  /// facturation (`peutGererOrganisation`, miroir du groupe GESTION qui garde
+  /// facturation (`peutGererAbonnement`, miroir du groupe FACTURATION qui garde
   /// la route). Le demander pour les autres ne produirait qu'un 403, une
   /// requête perdue et un message d'erreur trompeur sur un écran par ailleurs
   /// parfaitement utilisable.

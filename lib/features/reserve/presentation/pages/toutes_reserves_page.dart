@@ -67,7 +67,16 @@ class _ToutesReservesViewState extends State<_ToutesReservesView> {
   /// Une réserve appartient toujours à un chantier : on le demande avant
   /// d'ouvrir le formulaire de création (voir chantier_picker_sheet).
   Future<void> _creerReserve() async {
-    final chantier = await choisirChantier(context, titre: context.l10n.syncNomNouvelleReserve);
+    // Même parcours que le « + » de la barre (app_shell) : on propose de
+    // demander un chantier, et une demande toute neuve oriente vers le dépôt
+    // des plans plutôt que vers un formulaire de réserve qu'elle ne peut pas
+    // encore accueillir.
+    final peutDemander = context.read<AuthBloc>().state.utilisateur?.role.peutDemanderChantier ?? false;
+    final chantier = await choisirChantierEnActivite(
+      context,
+      titre: context.l10n.syncNomNouvelleReserve,
+      peutDemanderChantier: peutDemander,
+    );
     if (chantier == null || !mounted) return;
     if (context.mounted) context.push('/chantiers/${chantier.id}/reserves/nouvelle');
   }

@@ -24,6 +24,16 @@ typedef ActionRapide = ({
   /// sujet.
   bool avecCreation,
 
+  /// Le sélecteur joint-il les DEMANDES de chantier en attente ?
+  ///
+  /// Distinct de [avecCreation], et volontairement : créer une demande depuis
+  /// le sélecteur est une chose, accepter d'en désigner une comme cible en est
+  /// une autre. Le dépôt de plans veut les deux — c'est même le seul moment où
+  /// une entreprise peut déposer. Une réserve, elle, ne se pose pas sur un
+  /// chantier qui n'existe pas encore, tout en pouvant proposer d'en demander
+  /// un : les deux drapeaux y prennent des valeurs opposées.
+  bool avecDemandesEnAttente,
+
   /// `true` : route de la coquille applicative — la barre du bas reste
   /// affichée, on y va avec `context.go`.
   /// `false` : écran plein hors coquille, empilé avec `context.push`.

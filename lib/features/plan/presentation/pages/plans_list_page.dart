@@ -76,6 +76,11 @@ class _PlansListViewState extends State<_PlansListView> {
       context,
       titre: context.l10n.planAjouterBouton,
       avecCreation: true,
+      // Les demandes en attente sont ICI des cibles légitimes, et même les
+      // seules pour une entreprise : `plan.service.js#_refusDepot` lui refuse
+      // le dépôt dès que le chantier est validé. Sans elles, une entreprise
+      // revenue le lendemain ne retrouvait plus sa demande.
+      inclureMesDemandes: true,
     );
     if (chantier == null || !mounted || !context.mounted) return;
 

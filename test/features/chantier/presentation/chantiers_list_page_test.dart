@@ -14,7 +14,12 @@ import 'package:suivie_chantier_mobile/features/dashboard/domain/usecases/get_da
 import 'package:suivie_chantier_mobile/features/notification/presentation/cubit/notifications_cubit.dart';
 import 'package:suivie_chantier_mobile/injection_container.dart';
 
+import 'package:suivie_chantier_mobile/core/config/user_role.dart';
+import 'package:suivie_chantier_mobile/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:suivie_chantier_mobile/features/auth/presentation/bloc/auth_state.dart';
+
 import '../../../helpers/l10n_test_helpers.dart';
+import '../../../helpers/pompe_page.dart';
 
 class _MockGetChantiers extends Mock implements GetChantiers {}
 
@@ -64,7 +69,26 @@ void main() {
     if (sl.isRegistered<ChantiersListCubit>()) sl.unregister<ChantiersListCubit>();
   });
 
-  Future<List<FlutterErrorDetails>> pomper(WidgetTester tester, {double largeur = 390}) async {
+  /// L'écran lit l'[AuthBloc] : c'est le rôle qui décide de l'affichage du
+  /// bouton « Demander un chantier ».
+  AuthBloc _auth(UserRole role) {
+    final bloc = MockAuthBloc();
+    whenListen(
+      bloc,
+      const Stream<AuthState>.empty(),
+      initialState: AuthState(
+        status: AuthStatus.authentifie,
+        utilisateur: utilisateurTest(role),
+      ),
+    );
+    return bloc;
+  }
+
+  Future<List<FlutterErrorDetails>> pomper(
+    WidgetTester tester, {
+    double largeur = 390,
+    UserRole role = UserRole.conducteurTravaux,
+  }) async {
     tester.view.physicalSize = Size(largeur, 844);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -77,8 +101,11 @@ void main() {
       locale: testLocale,
       localizationsDelegates: testLocalizationsDelegates,
       supportedLocales: testSupportedLocales,
-      home: BlocProvider<NotificationsCubit>.value(
-        value: notifications,
+      home: MultiBlocProvider(
+        providers: [
+          BlocProvider<NotificationsCubit>.value(value: notifications),
+          BlocProvider<AuthBloc>.value(value: _auth(role)),
+        ],
         child: const ChantiersListPage(),
       ),
     ));
@@ -184,5 +211,63 @@ void main() {
     await pomper(tester);
 
     expect(find.text('Résidence Les Acacias'), findsOneWidget);
+  });
+
+  // ── Demander un chantier ──────────────────────────────────────────────────
+  //
+  // Signalement terrain : « je suis connecté en tant qu'entreprise et je ne
+  // vois même pas le bouton Ajouter un chantier ». L'écran n'en avait aucun —
+  // ni dans la barre, ni dans l'état vide, dont le texte renvoyait vers
+  // « l'espace d'administration » où une entreprise n'a pas de compte.
+  //
+  // Le serveur, lui, acceptait la demande depuis le début : `POST /chantiers`
+  // est gardé par le groupe `DEPOSANT`, qui inclut l'entreprise.
+
+  testWidgets('une entreprise peut demander un chantier', (tester) async {
+    stubListeAvecUnChantier();
+
+    await pomper(tester, role: UserRole.entreprise);
+
+    expect(find.text('Demander un chantier'), findsOneWidget);
+  });
+
+  testWidgets('le bouton survit à une liste REMPLIE', (tester) async {
+    // Il ne doit pas vivre seulement dans l'état vide : une entreprise dépose
+    // plusieurs demandes, et le bouton disparaîtrait au premier chantier
+    // validé.
+    stubListeAvecUnChantier();
+
+    await pomper(tester, role: UserRole.entreprise);
+
+    expect(find.text('Résidence Les Acacias'), findsOneWidget);
+    expect(find.text('Demander un chantier'), findsOneWidget);
+  });
+
+  testWidgets("l'état vide d'un demandeur propose l'action, pas un renvoi", (tester) async {
+    when(() => getChantiers(
+          page: any(named: 'page'),
+          limit: any(named: 'limit'),
+          search: any(named: 'search'),
+          statut: any(named: 'statut'),
+        )).thenAnswer((_) async => const Right(ChantierPage(items: [], total: 0)));
+    when(() => getStats()).thenAnswer((_) async => const Left(NetworkFailure()));
+
+    await pomper(tester, role: UserRole.entreprise);
+
+    // Le bouton flottant ET celui de l'état vide : c'est là que l'utilisateur
+    // regarde quand l'écran est vide.
+    expect(find.text('Demander un chantier'), findsNWidgets(2));
+    // L'ancien texte renvoyait ailleurs ; il ne doit plus s'adresser à elle.
+    expect(find.textContaining("espace d'administration"), findsNothing);
+  });
+
+  testWidgets("un rôle sans droit de dépôt ne voit pas le bouton", (tester) async {
+    // Miroir du groupe `DEPOSANT` : le sous-traitant n'en fait pas partie, le
+    // bouton le mènerait à un 403.
+    stubListeAvecUnChantier();
+
+    await pomper(tester, role: UserRole.sousTraitant);
+
+    expect(find.text('Demander un chantier'), findsNothing);
   });
 }

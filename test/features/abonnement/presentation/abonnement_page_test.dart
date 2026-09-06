@@ -140,4 +140,28 @@ void main() {
     expect(find.text('Aucun paiement pour le moment.'), findsOneWidget);
     expect(find.text('Essentiel'), findsWidgets);
   });
+
+  // ── Le titulaire de l'abonnement ─────────────────────────────────────────
+  //
+  // L'inscription publique crée l'organisation et son premier compte avec le
+  // rôle `entreprise`. C'est lui qui règle l'abonnement — et il ne voyait
+  // AUCUN de ses paiements : le miroir local suivait GESTION, qui l'exclut.
+  // Côté serveur, la même exclusion lui refusait le paiement d'un 403, au
+  // moment précis où son essai s'achevait.
+
+  testWidgets('une entreprise voit SES paiements — elle les a réglés', (tester) async {
+    await pomper(tester, UserRole.entreprise);
+
+    expect(find.text('Historique des paiements'), findsOneWidget);
+    expect(find.text('Payé'), findsOneWidget);
+    verify(() => historique()).called(1);
+  });
+
+  testWidgets('une entreprise voit le compte à rebours de son essai', (tester) async {
+    // C'est ce chiffre qui lui dit quand payer : le masquer transformait la
+    // fin d'essai en coupure sans préavis.
+    await pomper(tester, UserRole.entreprise);
+
+    expect(find.text('Il vous reste 12 jours'), findsOneWidget);
+  });
 }

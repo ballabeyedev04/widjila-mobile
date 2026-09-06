@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+
+import '../routes/app_router.dart';
 
 import '../../features/chantier/domain/entities/chantier.dart';
 import '../../features/chantier/presentation/cubit/chantiers_list_cubit.dart';
@@ -7,7 +10,6 @@ import '../../features/chantier/presentation/cubit/chantiers_list_state.dart';
 import '../../features/chantier/presentation/widgets/chantier_statut_badge.dart';
 import '../../injection_container.dart';
 import '../../l10n/l10n_extension.dart';
-import '../../features/chantier/presentation/widgets/demande_chantier_sheet.dart';
 import '../theme/app_colors.dart';
 import 'empty_state.dart';
 import 'liste_chrome.dart';
@@ -32,32 +34,95 @@ import 'status_badge.dart';
 /// « Envoi de plans » en a besoin — une entreprise qui n'a encore aucun
 /// chantier y tombait sur un écran vide sans issue.
 ///
+/// [inclureMesDemandes] joint a la liste les demandes de chantier en attente
+/// deposees par le compte connecte.
+///
+/// Reserve au parcours « depot de plans », et faux partout ailleurs. Une
+/// demande en attente n'est pas un chantier : on n'y pose pas de reserve, on
+/// n'y ouvre pas de tableau de bord. Mais on y depose des plans — c'est meme
+/// le SEUL moment ou une entreprise le peut, `plan.service.js#_refusDepot`
+/// lui refusant le depot des que le chantier est valide. Sans cette option,
+/// une entreprise revenue le lendemain ne retrouvait plus sa demande dans le
+/// selecteur et n'avait plus aucun moyen d'y ajouter un plan.
+///
 /// Retourne le [Chantier] choisi, ou `null` si l'utilisateur referme.
+///
+/// Attention a l'appelant : avec [avecCreation], le chantier renvoye peut
+/// etre une demande TOUTE NEUVE, donc « en attente de validation ». A lui de
+/// verifier `statut.estUneDemande` avant d'ouvrir un ecran qui exige un
+/// chantier en activite.
 Future<Chantier?> choisirChantier(
   BuildContext context, {
   required String titre,
   bool avecCreation = false,
+  bool inclureMesDemandes = false,
 }) {
   return showModalBottomSheet<Chantier>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (_) => BlocProvider(
-      create: (_) => sl<ChantiersListCubit>()..charger(),
+      create: (_) {
+        final cubit = sl<ChantiersListCubit>();
+        if (inclureMesDemandes) cubit.joindreMesDemandes();
+        return cubit..charger();
+      },
       child: _ChantierPickerSheet(titre: titre, avecCreation: avecCreation),
     ),
   );
 }
 
-/// Ouvre le formulaire de demande, et referme le sélecteur sur le résultat.
+/// Sélecteur des parcours qui exigent un chantier EN ACTIVITÉ — poser une
+/// réserve, avant tout.
 ///
-/// Le chantier créé est renvoyé tel quel — en statut « en attente de
-/// validation ». C'est voulu : l'entreprise doit pouvoir y déposer ses plans
-/// immédiatement, c'est même toute la raison du parcours.
-Future<void> _creerPuisFermer(BuildContext context) async {
-  final cree = await demanderChantier(context);
-  if (cree == null || !context.mounted) return;
-  Navigator.of(context).pop(cree);
+/// Il propose quand même de DEMANDER un chantier, parce que c'est là que
+/// l'utilisateur en découvre le besoin : il vient poser une réserve, sa liste
+/// est vide, et lui répondre « aucun chantier » sans issue le laisse bloqué.
+///
+/// Mais une demande toute neuve ne peut pas accueillir la réserve qu'il venait
+/// poser : elle attend d'être validée. Plutôt que de le laisser buter sur un
+/// refus du serveur, on l'emmène à l'étape suivante de SON parcours — déposer
+/// les plans — et on lui dit pourquoi.
+///
+/// Retourne `null` dans ce cas : l'appelant ne doit pas enchaîner.
+Future<Chantier?> choisirChantierEnActivite(
+  BuildContext context, {
+  required String titre,
+  required bool peutDemanderChantier,
+}) async {
+  final chantier = await choisirChantier(
+    context,
+    titre: titre,
+    avecCreation: peutDemanderChantier,
+    // Les demandes en attente ne sont PAS proposées : on ne pose pas de
+    // réserve sur un chantier qui n'existe pas encore.
+    inclureMesDemandes: false,
+  );
+  if (chantier == null || !context.mounted) return null;
+
+  // Filet de sécurité : le « + » emmène désormais vers le dépôt et ne renvoie
+  // plus de chantier, mais la liste pourrait un jour en proposer un en
+  // attente. On ne pose pas de réserve sur une demande.
+  if (!chantier.statut.estUneDemande) return chantier;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(context.l10n.chantierDemandeCreeeVersPlans)),
+  );
+  return null;
+}
+
+/// Referme le sélecteur et ouvre le DÉPÔT DE PLANS d'un chantier à venir.
+///
+/// Le « + » n'ouvre plus le formulaire de demande. Le parcours voulu par le
+/// client va dans l'autre sens : l'entreprise dépose son plan global, entre
+/// dans ses bâtiments, remplit ses sections, et le formulaire de demande ne
+/// vient qu'au bout, à l'appui sur « Envoyer ».
+///
+/// Rien n'est donc renvoyé à l'appelant : il n'y a pas encore de chantier à
+/// choisir, et le parcours continue sur l'écran de dépôt.
+void _creerPuisFermer(BuildContext context) {
+  Navigator.of(context).pop();
+  context.push(AppRoutes.depotPlansNouveau);
 }
 
 class _ChantierPickerSheet extends StatefulWidget {

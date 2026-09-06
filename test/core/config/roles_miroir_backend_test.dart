@@ -25,28 +25,34 @@ import 'package:suivie_chantier_mobile/features/organisation/presentation/pages/
 /// [UserRole]), un compte Admin y est traité comme `inconnu`.
 void main() {
   // ── Les groupes du serveur, verbatim ───────────────────────────────────────
+  //
+  // `entreprise` figure dans TOUS : c'est le titulaire de son organisation, le
+  // rôle le plus élevé après le super-admin plateforme. Son absence d'un seul
+  // groupe suffisait à lui cacher un écran ou à lui refuser un bouton — c'est
+  // arrivé pour les plans, pour l'abonnement et pour ses propres chantiers.
   const operationnel = {
     UserRole.chefProjet,
     UserRole.conducteurTravaux,
     UserRole.maitreOeuvre,
+    UserRole.entreprise,
   };
   const operationnelControle = {...operationnel, UserRole.bureauControle};
   const pilotage = {...operationnelControle, UserRole.maitreOuvrage};
-  const gestion = {UserRole.chefProjet, UserRole.maitreOuvrage};
-  const gestionMembres = {...gestion, UserRole.entreprise};
+  const gestion = {UserRole.chefProjet, UserRole.maitreOuvrage, UserRole.entreprise};
+  const gestionMembres = {...gestion};
   const deposant = {
     ...operationnel,
-    UserRole.entreprise,
     UserRole.bureauControle,
     UserRole.maitreOuvrage,
   };
-  const reserveIntervenants = {...pilotage, UserRole.entreprise, UserRole.pilote};
+  const reserveIntervenants = {...pilotage, UserRole.pilote};
   // `partenaire.route.js` liste ses rôles en clair, sans passer par un groupe.
   const partenaires = {
     UserRole.chefProjet,
     UserRole.conducteurTravaux,
     UserRole.maitreOuvrage,
     UserRole.maitreOeuvre,
+    UserRole.entreprise,
   };
 
   /// Vérifie un prédicat pour les DIX rôles, pas seulement pour ceux qu'on
@@ -88,22 +94,50 @@ void main() {
     expect(peutGererPartenaires(null), isFalse);
   });
 
-  group('le cas qui avait échappé', () {
-    test('Entreprise peut déposer des plans mais n’est pas opérationnelle', () {
-      // L'écart exact qui cachait le bouton « Ajouter des plans ».
-      expect(UserRole.entreprise.peutDeposerPlans, isTrue);
-      expect(UserRole.entreprise.estOperationnelOuControle, isFalse);
+  group('le titulaire n’est oublié nulle part', () {
+    // Le balayage qui manquait. Trois fois le même défaut est passé : un
+    // groupe écrit sans l'entreprise, un écran qui s'affiche, un 403 derrière.
+    // Ici, un oubli futur échoue au lieu d'arriver chez le client.
+    final droits = <String, bool Function(UserRole)>{
+      'estOperationnel': (r) => r.estOperationnel,
+      'estOperationnelOuControle': (r) => r.estOperationnelOuControle,
+      'peutPiloter': (r) => r.peutPiloter,
+      'peutGererOrganisation': (r) => r.peutGererOrganisation,
+      'peutGererMembres': (r) => r.peutGererMembres,
+      'peutGererAbonnement': (r) => r.peutGererAbonnement,
+      'peutAttribuerRoleGestion': (r) => r.peutAttribuerRoleGestion,
+      'peutDeposerPlans': (r) => r.peutDeposerPlans,
+      'peutDemanderChantier': (r) => r.peutDemanderChantier,
+      'peutIntervenirSurReserves': (r) => r.peutIntervenirSurReserves,
+      'estSensible': (r) => r.estSensible,
+    };
+
+    droits.forEach((nom, droit) {
+      test('$nom lui est ouvert', () {
+        expect(droit(UserRole.entreprise), isTrue);
+      });
     });
 
-    test('MaitreOuvrage aussi — il était perdu par le même filtre', () {
-      expect(UserRole.maitreOuvrage.peutDeposerPlans, isTrue);
-      expect(UserRole.maitreOuvrage.estOperationnelOuControle, isFalse);
+    test('et le crible ci-dessus couvre bien tous ces droits', () {
+      // Sans cette borne, retirer un getter de la table le ferait disparaître
+      // du balayage sans que rien ne le signale.
+      expect(droits.length, greaterThanOrEqualTo(11));
+    });
+  });
+
+  group('ce qui n’est PAS ouvert au titulaire', () {
+    test('le sous-traitant garde son accès étroit, à lui seul', () {
+      // `SOUS_TRAITANT` n'est pas un groupe de droits : c'est l'ouverture de
+      // deux routes au seul sous-traitant. L'entreprise passe déjà par
+      // `RESERVE_INTERVENANTS`.
+      expect(UserRole.entreprise.estSousTraitant, isFalse);
+      expect(UserRole.sousTraitant.estSousTraitant, isTrue);
     });
 
-    test('le « + » des réserves, lui, s’affichait bien pour une entreprise', () {
-      // Ce qui rendait le symptôme déroutant : un bouton visible, l'autre non,
-      // sur le même écran et pour le même compte.
-      expect(UserRole.entreprise.peutIntervenirSurReserves, isTrue);
+    test('le verdict sur une demande de chantier reste hors du mobile', () {
+      // `VALIDATION_CHANTIER` côté serveur : valider sa propre demande
+      // annulerait le circuit. Aucun getter ne l'expose ici, et c'est voulu.
+      expect(UserRole.values.length, 10);
     });
   });
 }

@@ -31,6 +31,9 @@
   "chantierAucun": "Aucun chantier",
   "chantierAucunSousTitre": "Créez d'abord un chantier depuis l'espace d'administration.",
   "chantierAucunRecherche": "Aucun chantier ne correspond à votre recherche.",
+  "chantierDemanderBouton": "Demander un chantier",
+  "chantierAucunDemandeur": "Demandez la création de votre premier chantier : vous pourrez y joindre vos plans tout de suite, et il deviendra utilisable dès sa validation.",
+  "chantierDemandeCreeeVersPlans": "Demande envoyée. Ajoutez vos plans dès maintenant : le chantier accueillera des réserves une fois validé.",
   "chantierReservesOuvertesSur": "{count, plural, one{{count} réserve ouverte sur {total}} other{{count} réserves ouvertes sur {total}}}",
   "@chantierReservesOuvertesSur": {
     "placeholders": {
@@ -488,6 +491,8 @@
   "depotNiveauEnregistrer": "Enregistrer le niveau",
   "depotEnvoiEnCours": "Envoi en cours…",
   "depotPlansEnvoyes": "Plans envoyés",
+  "depotEnvoyer": "Envoyer",
+  "depotRienAEnvoyer": "Ajoutez au moins un plan avant d’envoyer.",
   "depotTerminer": "Terminer",
   "depotPlanRemplace": "Plan déposé",
   "depotNiveauCree": "Niveau créé et plan déposé",

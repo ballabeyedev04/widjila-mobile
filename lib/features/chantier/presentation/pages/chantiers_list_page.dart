@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/config/user_role.dart';
+import '../../../../core/routes/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/liste_chrome.dart';
 import '../../../../core/widgets/loading_list.dart';
@@ -67,15 +70,69 @@ class _ChantiersListViewState extends State<_ChantiersListView> {
     }
   }
 
+  /// Dépose une demande de chantier, puis enchaîne sur le dépôt des plans.
+  ///
+  /// ## Pourquoi un bouton ici
+  ///
+  /// Il n'y en avait aucun. Une entreprise arrivait sur cet écran par le
+  /// tableau de bord — qui lui dit « Créez votre premier chantier » — et n'y
+  /// trouvait rien pour le faire : l'état vide la renvoyait vers « l'espace
+  /// d'administration », où elle n'a pas de compte. Le serveur, lui,
+  /// acceptait la demande depuis le début (`POST /chantiers`, groupe
+  /// `DEPOSANT`).
+  ///
+  /// ## Pourquoi il ouvre le DÉPÔT et non le formulaire
+  ///
+  /// Le parcours voulu par le client commence par les plans : plan global,
+  /// bâtiments, sections, puis « Envoyer », et le formulaire de demande au
+  /// bout. C'est aussi le seul ordre où le courriel des valideurs annonce une
+  /// demande complète — le formulaire en premier leur envoyait un chantier
+  /// vide, les plans arrivant après.
+  ///
+  /// La demande est créée à l'appui sur « Envoyer », par l'écran de dépôt
+  /// (voir DepotPlansCubit, mode brouillon).
+  Future<void> _demanderChantier() async {
+    await context.push(AppRoutes.depotPlansNouveau);
+    if (!mounted || !context.mounted) return;
+
+    // Au retour, la liste se recharge : la demande n'y figure pas — le serveur
+    // écarte les demandes de `GET /chantiers`, elles ont leur écran « Suivi
+    // des demandes » — mais un chantier validé entre-temps, si.
+    context.read<ChantiersListCubit>().charger();
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    // Miroir du groupe `DEPOSANT` du serveur : l'entreprise et le maître
+    // d'ouvrage déposent des demandes, un client ou un sous-traitant non — le
+    // bouton les mènerait à un 403.
+    final peutDemander = context.select(
+      (AuthBloc b) => b.state.utilisateur?.role.peutDemanderChantier ?? false,
+    );
 
     return Scaffold(
       // Blanc, comme la maquette. La LISTE, elle, repose sur le gris de fond
       // (voir _Liste) : des cartes blanches sur une page blanche perdraient
       // tout relief.
       backgroundColor: AppColors.surface,
+      // Il doit rester atteignable une fois la liste REMPLIE : le placer
+      // seulement dans l'état vide le ferait disparaître au premier chantier
+      // validé, alors qu'une entreprise en demande plusieurs. Même choix que
+      // l'onglet Plans.
+      floatingActionButton: !peutDemander
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _demanderChantier,
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              elevation: 6,
+              icon: const Icon(Icons.add_rounded),
+              label: Text(
+                l10n.chantierDemanderBouton,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -107,7 +164,27 @@ class _ChantiersListViewState extends State<_ChantiersListView> {
                           titre: state.filtreEnPlace ? l10n.commonNoResults : l10n.chantierAucun,
                           description: state.filtreEnPlace
                               ? l10n.chantierAucunRecherche
-                              : l10n.chantierAucunSousTitre,
+                              // « Créez d'abord un chantier depuis l'espace
+                              // d'administration » : vrai pour un conducteur
+                              // de travaux, faux pour l'entreprise, qui n'a
+                              // pas de compte sur cet espace et dépose au
+                              // contraire ses demandes ici.
+                              : peutDemander
+                                  ? l10n.chantierAucunDemandeur
+                                  : l10n.chantierAucunSousTitre,
+                          // Rien pendant une RECHERCHE : « aucun résultat »
+                          // n'appelle pas à créer un chantier, mais à corriger
+                          // la saisie.
+                          cta: (peutDemander && !state.filtreEnPlace)
+                              ? FilledButton.icon(
+                                  onPressed: _demanderChantier,
+                                  icon: const Icon(Icons.add_rounded, size: 18),
+                                  label: Text(l10n.chantierDemanderBouton),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                  ),
+                                )
+                              : null,
                         );
                       }
                       return _Liste(state: state, controller: _scrollCtrl);

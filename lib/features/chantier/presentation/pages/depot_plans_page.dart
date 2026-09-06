@@ -12,6 +12,7 @@ import '../../../plan/domain/entities/plan.dart';
 import '../../../referentiel/domain/entities/code_niveau.dart';
 import '../../../reserve/domain/entities/chantier_structure.dart';
 import '../cubit/depot_plans_cubit.dart';
+import '../widgets/demande_chantier_sheet.dart';
 import '../widgets/niveau_sheet.dart';
 import '../../../../core/network/forcer_reseau.dart';
 
@@ -30,10 +31,12 @@ const _extensions = ['pdf', 'png', 'jpg', 'jpeg', 'dwg', 'dxf'];
 /// perdu à la dernière seconde serait bien pire qu'un dépôt partiel, qui se
 /// complète en rouvrant l'écran.
 class DepotPlansPage extends StatelessWidget {
-  final String chantierId;
+  /// Chantier visé, ou `null` pour un dépôt qui PRÉCÈDE la demande — le
+  /// parcours décrit par le client : les plans d'abord, le formulaire ensuite.
+  final String? chantierId;
   final String? chantierNom;
 
-  const DepotPlansPage({super.key, required this.chantierId, this.chantierNom});
+  const DepotPlansPage({super.key, this.chantierId, this.chantierNom});
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +60,45 @@ class _Vue extends StatelessWidget {
   final String? chantierNom;
 
   const _Vue({required this.chantierNom});
+
+  /// « Envoyer » — le geste qui clôt le dépôt et ouvre la demande.
+  ///
+  /// L'ordre décrit par le client : les plans d'abord, le formulaire de
+  /// demande ensuite, et le rattachement à sa validation. C'est aussi le seul
+  /// ordre où le courriel des valideurs annonce une demande COMPLÈTE : le
+  /// formulaire en premier leur envoyait un chantier vide, les plans arrivant
+  /// après.
+  ///
+  /// Rien n'est encore parti au serveur à cet instant : le message « Plans
+  /// envoyés » n'apparaît qu'une fois le téléversement réellement terminé.
+  /// L'annoncer avant l'envoi serait plus fidèle au brief mais faux — et un
+  /// dépôt raté passerait pour un succès.
+  Future<void> _envoyer(BuildContext context) async {
+    final cubit = context.read<DepotPlansCubit>();
+    final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
+
+    if (!cubit.aQuelqueChoseAEnvoyer) {
+      messenger.showSnackBar(SnackBar(content: Text(l10n.depotRienAEnvoyer)));
+      return;
+    }
+
+    final chantier = await demanderChantier(context);
+    if (chantier == null || !context.mounted) return;
+
+    final echec = await cubit.envoyerVers(chantier.id);
+    if (!context.mounted) return;
+
+    if (echec == null) {
+      messenger.showSnackBar(SnackBar(
+        content: Text(l10n.depotPlansEnvoyes),
+        backgroundColor: AppColors.success,
+      ));
+    }
+    // Un échec partiel n'est pas annoncé ici : le cubit l'a déjà posé dans
+    // l'état, le bandeau l'affiche, et l'écran montre désormais l'état RÉEL
+    // du serveur — donc ce qui reste à reprendre.
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +125,29 @@ class _Vue extends StatelessWidget {
           ],
         ),
       ),
+      // Le bouton vit en BAS et hors de la liste : il conclut le parcours, et
+      // le chercher au bout d'un défilement de dix niveaux serait pénible.
+      bottomNavigationBar: !context.read<DepotPlansCubit>().brouillon
+          ? null
+          : BlocBuilder<DepotPlansCubit, DepotPlansState>(
+              builder: (context, etat) => SafeArea(
+                minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: FilledButton.icon(
+                  onPressed: etat.envoiEnCours ? null : () => _envoyer(context),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(50),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  icon: const Icon(Icons.send_rounded, size: 18),
+                  label: Text(
+                    l10n.depotEnvoyer,
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                  ),
+                ),
+              ),
+            ),
       body: BlocConsumer<DepotPlansCubit, DepotPlansState>(
         listenWhen: (a, b) => a.erreur != b.erreur || a.messageSucces != b.messageSucces,
         listener: (context, etat) {

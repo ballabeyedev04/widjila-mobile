@@ -133,19 +133,41 @@ extension UserRoleX on UserRole {
 
   // ── Groupes de permissions — miroir exact de backend/src/config/roles.js ───
 
+  /// Le TITULAIRE de son organisation.
+  ///
+  /// Le compte créé par l'inscription publique porte ce rôle : il ouvre
+  /// l'organisation, la paie, y invite ses équipes. C'est le rôle le plus
+  /// élevé après le super-admin plateforme, et il figure donc dans tous les
+  /// groupes ci-dessous.
+  ///
+  /// Chaque absence produisait le même symptôme : un écran ou un bouton
+  /// visible, un 403 derrière. Miroir de `TITULAIRE` dans
+  /// `backend/src/config/roles.js`.
+  bool get estTitulaire => this == UserRole.entreprise;
+
   /// GESTION : gère l'organisation, les filiales et les équipes.
   bool get peutGererOrganisation =>
-      this == UserRole.chefProjet || this == UserRole.maitreOuvrage;
+      this == UserRole.chefProjet || this == UserRole.maitreOuvrage || estTitulaire;
 
-  /// GESTION_MEMBRES : gère les MEMBRES seulement — volontairement plus large
-  /// que [peutGererOrganisation].
+  /// GESTION_MEMBRES : gère les MEMBRES de l'organisation.
   ///
-  /// Une entreprise doit pouvoir constituer son propre effectif (chefs de
-  /// chantier, conducteurs de travaux…). Elle n'accède pour autant ni aux
-  /// réglages de l'organisation ni aux filiales, qui restent sur
-  /// [peutGererOrganisation]. Miroir exact de `GESTION_MEMBRES` dans
-  /// `backend/src/config/roles.js`.
-  bool get peutGererMembres => peutGererOrganisation || this == UserRole.entreprise;
+  /// Identique à [peutGererOrganisation] depuis que le titulaire y figure —
+  /// le getter reste, parce que le serveur distingue toujours les deux groupes
+  /// et qu'ils pourraient diverger de nouveau.
+  bool get peutGererMembres => peutGererOrganisation;
+
+  /// FACTURATION : gère l'abonnement de SON organisation — le voir, le payer,
+  /// en changer, le résilier.
+  ///
+  /// Plus large que [peutGererOrganisation], et il le faut. L'inscription
+  /// publique crée l'organisation et son premier compte avec le rôle
+  /// `entreprise` : c'est LUI le titulaire de l'abonnement. Tant que ce getter
+  /// suivait le groupe GESTION, l'écran masquait l'historique des paiements à
+  /// celui-là même qui les avait réglés — et le serveur lui refusait le
+  /// paiement d'un 403, au moment précis où son essai venait de s'achever.
+  ///
+  /// Miroir exact de `FACTURATION` dans `backend/src/config/roles.js`.
+  bool get peutGererAbonnement => peutGererOrganisation;
 
   /// Peut attribuer un rôle DE GESTION (chef de projet, maître d'ouvrage).
   ///
@@ -160,7 +182,8 @@ extension UserRoleX on UserRole {
   bool get estOperationnel =>
       this == UserRole.chefProjet ||
       this == UserRole.conducteurTravaux ||
-      this == UserRole.maitreOeuvre;
+      this == UserRole.maitreOeuvre ||
+      estTitulaire;
 
   /// OPERATIONNEL_CONTROLE : opérationnel + bureau de contrôle.
   bool get estOperationnelOuControle => estOperationnel || this == UserRole.bureauControle;
@@ -216,7 +239,7 @@ extension UserRoleX on UserRole {
   /// droit qu'aux deux routes ouvertes pour lui (statut, médias), voir
   /// [estSousTraitant] et `backend/src/config/roles.js#SOUS_TRAITANT`.
   bool get peutIntervenirSurReserves =>
-      peutPiloter || this == UserRole.entreprise || this == UserRole.pilote;
+      peutPiloter || estTitulaire || this == UserRole.pilote;
 
   /// SOUS_TRAITANT (backend) : accès restreint aux réserves qui lui sont
   /// assignées — ne crée pas, ne gère pas les affectations. À utiliser pour
@@ -225,7 +248,9 @@ extension UserRoleX on UserRole {
   bool get estSousTraitant => this == UserRole.sousTraitant;
 
   /// SENSIBLE : actions très sensibles (ex : supprimer un chantier).
-  bool get estSensible => this == UserRole.chefProjet;
+  ///
+  /// Le titulaire en fait partie : ce qu'il a créé, il doit pouvoir le défaire.
+  bool get estSensible => this == UserRole.chefProjet || estTitulaire;
 
   /// Portail d'accueil — Entreprise/Client arrivent directement sur la liste
   /// des chantiers plutôt que le tableau de bord (même logique que le web,

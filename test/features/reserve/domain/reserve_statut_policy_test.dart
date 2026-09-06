@@ -22,11 +22,14 @@ void main() {
     });
   });
 
-  group('statutsProposables — rôles non-pilotage (ex: Entreprise)', () {
+  group('statutsProposables — rôles non-pilotage (ex: Client)', () {
     test('les verdicts sont masqués — le back les refuserait de toute façon', () {
+      // Le sujet n'est plus 'Entreprise' : le titulaire de l'organisation
+      // pilote désormais son propre chantier, verdicts compris. Un client
+      // extérieur, lui, ne prononce toujours rien.
       final statuts = statutsProposables(
         statutActuel: ReserveStatut.corrigee,
-        role: UserRole.entreprise,
+        role: UserRole.client,
         estAssigneAMoi: false,
       );
 
@@ -35,6 +38,17 @@ void main() {
       expect(statuts, isNot(contains(ReserveStatut.cloturee)));
       expect(statuts, isNot(contains(ReserveStatut.rouverte)));
       expect(statuts, contains(ReserveStatut.aVerifier), reason: 'les statuts non-verdict restent proposés');
+    });
+
+    test('le titulaire, lui, prononce les verdicts sur SON chantier', () {
+      final statuts = statutsProposables(
+        statutActuel: ReserveStatut.corrigee,
+        role: UserRole.entreprise,
+        estAssigneAMoi: false,
+      );
+
+      expect(statuts, contains(ReserveStatut.validee));
+      expect(statuts, contains(ReserveStatut.refusee));
     });
   });
 

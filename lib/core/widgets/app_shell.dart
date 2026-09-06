@@ -240,6 +240,7 @@ class _AppShellState extends State<AppShell> {
       couleur: AppColors.primary,
       besoinChantier: true,
       avecCreation: false,
+      avecDemandesEnAttente: false,
       dansCoquille: false,
       route: (String? id) => '/chantiers/$id/tableau-de-bord',
     ),
@@ -257,6 +258,7 @@ class _AppShellState extends State<AppShell> {
         couleur: AppColors.info,
         besoinChantier: true,
         avecCreation: true,
+        avecDemandesEnAttente: true,
         dansCoquille: false,
         route: _versDepotPlans,
       ),
@@ -268,6 +270,7 @@ class _AppShellState extends State<AppShell> {
         // Transversale à l'organisation : aucun chantier à choisir.
         besoinChantier: false,
         avecCreation: false,
+        avecDemandesEnAttente: false,
         dansCoquille: true,
         route: (String? _) => AppRoutes.equipe,
       ),
@@ -277,6 +280,7 @@ class _AppShellState extends State<AppShell> {
       couleur: AppColors.primary,
       besoinChantier: false,
       avecCreation: false,
+      avecDemandesEnAttente: false,
       dansCoquille: true,
       route: _versChantiers,
     ),
@@ -287,6 +291,7 @@ class _AppShellState extends State<AppShell> {
         couleur: AppColors.success,
         besoinChantier: true,
         avecCreation: false,
+        avecDemandesEnAttente: false,
         dansCoquille: false,
         route: (String? id) => '/chantiers/$id/documents',
       ),
@@ -296,6 +301,7 @@ class _AppShellState extends State<AppShell> {
       couleur: AppColors.warning,
       besoinChantier: false,
       avecCreation: false,
+      avecDemandesEnAttente: false,
       dansCoquille: false,
       route: _versDemandes,
     ),
@@ -312,6 +318,7 @@ class _AppShellState extends State<AppShell> {
       couleur: AppColors.warning,
       besoinChantier: false,
       avecCreation: false,
+      avecDemandesEnAttente: false,
       dansCoquille: true,
       route: _versAbonnement,
     ),
@@ -321,6 +328,7 @@ class _AppShellState extends State<AppShell> {
       couleur: AppColors.info,
       besoinChantier: false,
       avecCreation: false,
+      avecDemandesEnAttente: false,
       dansCoquille: true,
       route: _versIntervenants,
     ),
@@ -369,6 +377,7 @@ class _AppShellState extends State<AppShell> {
       context,
       titre: action.label,
       avecCreation: action.avecCreation,
+      inclureMesDemandes: action.avecDemandesEnAttente,
     );
     if (chantier == null || !mounted || !context.mounted) return;
 
@@ -403,7 +412,19 @@ class _AppShellState extends State<AppShell> {
   /// les plans ne sont pas encore déposés ne doit pas empêcher de relever une
   /// réserve (voir [choisirPlan]).
   Future<void> _nouvelleReserve() async {
-    final chantier = await choisirChantier(context, titre: context.l10n.syncNomNouvelleReserve);
+    // Le sélecteur propose de DEMANDER un chantier à qui en a le droit : une
+    // entreprise qui vient relever sa première réserve et n'a encore aucun
+    // chantier tombait sur une liste vide sans issue.
+    //
+    // `choisirChantierEnActivite` renvoie `null` si la demande vient d'être
+    // créée : elle attend sa validation et n'accueille pas encore de réserve.
+    // L'utilisateur est alors orienté vers le dépôt de ses plans.
+    final peutDemander = context.read<AuthBloc>().state.utilisateur?.role.peutDemanderChantier ?? false;
+    final chantier = await choisirChantierEnActivite(
+      context,
+      titre: context.l10n.syncNomNouvelleReserve,
+      peutDemanderChantier: peutDemander,
+    );
     if (chantier == null || !mounted || !context.mounted) return;
 
     final choix = await choisirPlan(context, chantierId: chantier.id, chantierNom: chantier.nom);

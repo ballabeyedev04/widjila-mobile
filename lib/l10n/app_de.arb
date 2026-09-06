@@ -31,6 +31,9 @@
   "chantierAucun": "Keine Baustelle",
   "chantierAucunSousTitre": "Erstellen Sie zuerst eine Baustelle über das Verwaltungsportal.",
   "chantierAucunRecherche": "Keine Baustelle entspricht Ihrer Suche.",
+  "chantierDemanderBouton": "Baustelle beantragen",
+  "chantierAucunDemandeur": "Beantragen Sie Ihre erste Baustelle: Sie können Ihre Pläne sofort anhängen, nutzbar wird sie nach der Freigabe.",
+  "chantierDemandeCreeeVersPlans": "Antrag gesendet. Fügen Sie jetzt Ihre Pläne hinzu: Mängel sind nach der Freigabe möglich.",
   "chantierReservesOuvertesSur": "{count, plural, one{{count} offener Mangel von {total}} other{{count} offene Mängel von {total}}}",
   "@chantierReservesOuvertesSur": {
     "placeholders": {
@@ -481,6 +484,8 @@
   "depotNiveauEnregistrer": "Ebene speichern",
   "depotEnvoiEnCours": "Wird gesendet…",
   "depotPlansEnvoyes": "Pläne gesendet",
+  "depotEnvoyer": "Senden",
+  "depotRienAEnvoyer": "Fügen Sie vor dem Senden mindestens einen Plan hinzu.",
   "depotTerminer": "Fertig",
   "depotPlanRemplace": "Plan hochgeladen",
   "depotNiveauCree": "Ebene angelegt und Plan hochgeladen",
