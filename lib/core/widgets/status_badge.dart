@@ -61,6 +61,14 @@ class StatusBadge extends StatelessWidget {
       decoration: BoxDecoration(color: tone.bg, borderRadius: BorderRadius.circular(999)),
       child: Text(
         label,
+        // Une pastille ne se replie pas sur deux lignes et ne pousse pas ses
+        // voisins : quand la place manque, elle se tronque. Sans cela, son
+        // libellé — « Prise en charge », « Wiedereröffnet » — imposait sa
+        // largeur intrinsèque à la rangée qui la contient, au détriment du
+        // texte voisin.
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        softWrap: false,
         style: TextStyle(color: tone.fg, fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );

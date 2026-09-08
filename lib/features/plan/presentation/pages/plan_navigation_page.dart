@@ -1319,7 +1319,17 @@ class _LigneReserve extends StatelessWidget {
                   ],
                 ),
               ),
-              ReserveStatutBadge(statut: reserve.statut),
+              // Pastille BORNÉE : sans plafond, son libellé — « Prise en
+              // charge », « Wiedereröffnet » — prenait sa largeur au titre,
+              // qui partage la rangée. Un enfant non flexible est mesuré
+              // avant l'`Expanded` voisin. Le plafond suit l'échelle de
+              // police : un texte agrandi rouvrirait sinon l'écrasement.
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.textScalerOf(context).scale(124),
+                ),
+                child: ReserveStatutBadge(statut: reserve.statut),
+              ),
             ],
           ),
         ),
