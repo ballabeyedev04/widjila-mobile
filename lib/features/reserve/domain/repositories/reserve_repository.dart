@@ -82,13 +82,21 @@ abstract class ReserveRepository {
 
   /// Intervenants affectés à une réserve (`/reserves/:id/affectations`).
   ///
-  /// Le serveur exige un utilisateur OU une entreprise, jamais les deux ni
-  /// aucun (`affecterReserveSchema`).
+  /// Le serveur exige EXACTEMENT une des trois natures de destinataire
+  /// (`affecterReserveSchema`), jamais aucune :
+  ///
+  ///  - [utilisateurId] — un compte de l'organisation ;
+  ///  - [entrepriseId]  — une organisation de la plateforme, qui a son espace ;
+  ///  - [partenaireId]  — une entreprise de l'ANNUAIRE du chantier, sans
+  ///    compte. C'est le cas le plus fréquent, et il manquait : l'onglet
+  ///    « Intervenant » envoyait l'identifiant d'annuaire dans `entrepriseId`,
+  ///    d'où le « Entreprise introuvable » signalé.
   Future<Either<Failure, List<AffectationReserve>>> getAffectations(String reserveId);
   Future<Either<Failure, AffectationReserve>> affecter({
     required String reserveId,
     String? utilisateurId,
     String? entrepriseId,
+    String? partenaireId,
   });
   Future<Either<Failure, void>> retirerAffectation({
     required String reserveId,
@@ -121,6 +129,7 @@ abstract class ReserveRepository {
     String? planId,
     double? positionX,
     double? positionY,
+    int positionPage = 1,
     /// Entreprise responsable de la correction (« Entreprise concernée » du
     /// guide client) — un PARTENAIRE de l'annuaire du chantier, et non une
     /// organisation : la plupart des entreprises d'un chantier n'ont pas de

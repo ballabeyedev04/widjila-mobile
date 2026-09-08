@@ -68,6 +68,7 @@ abstract class ReserveRemoteDataSource {
     String? planId,
     double? positionX,
     double? positionY,
+    int positionPage = 1,
     /// Entreprise responsable de la correction (« Entreprise concernée » du
     /// guide client) et gravité constatée. `severite` vaut `priorite` quand
     /// elle n'est pas précisée — c'était le comportement implicite jusqu'ici.
@@ -300,6 +301,7 @@ class ReserveRemoteDataSourceImpl implements ReserveRemoteDataSource {
     String? planId,
     double? positionX,
     double? positionY,
+    int positionPage = 1,
     String? partenaireId,
     ReserveSeverite? severite,
     String? corpsEtatId,
@@ -328,7 +330,9 @@ class ReserveRemoteDataSourceImpl implements ReserveRemoteDataSource {
         // Les deux coordonnées vont ensemble : une seule des deux décrirait
         // un point qui n'existe pas, le backend exige d'ailleurs le couple.
         if (positionX != null && positionY != null)
-          'position': {'x': positionX, 'y': positionY, 'zoom': 1},
+          // `page` : cahier technique § 18 — sur un PDF multi-page, le repère
+          // doit revenir sur SA page, pas sur celle qui est affichée.
+          'position': {'x': positionX, 'y': positionY, 'zoom': 1, 'page': positionPage},
         if (dateLimite != null) 'date_limite': dateLimite.toIso8601String().split('T').first,
       });
       final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;

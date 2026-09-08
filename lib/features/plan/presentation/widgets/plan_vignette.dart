@@ -89,6 +89,20 @@ void _memoriser(String cle, Uint8List octets) {
 
 /// Télécharge le plan et rend sa première page en image.
 ///
+/// Ce fichier est-il un PDF ?
+///
+/// Les cinq premiers octets d'un PDF sont `%PDF-`. On ne se fie pas à
+/// l'extension ni au champ `format` : le premier peut mentir, le second vaut
+/// 'pdf' par défaut pour tout ce qui est déposé sans précision.
+bool _estPdf(Uint8List octets) {
+  const entete = [0x25, 0x50, 0x44, 0x46, 0x2D]; // %PDF-
+  if (octets.length < entete.length) return false;
+  for (var i = 0; i < entete.length; i++) {
+    if (octets[i] != entete[i]) return false;
+  }
+  return true;
+}
+
 /// Renvoie `null` — jamais une exception — quand le rendu est impossible :
 /// l'appelant retombe alors sur son icône.
 Future<Uint8List?> _rendrePremierePage(Plan plan) async {
@@ -114,8 +128,23 @@ Future<Uint8List?> _rendrePremierePage(Plan plan) async {
       if (donnees == null || donnees.isEmpty) return null;
       final octets = Uint8List.fromList(donnees);
 
-      // Format image : rien à rasteriser, le fichier EST déjà l'aperçu.
-      if (!plan.format.affichableSurMobile) return null;
+      // Une IMAGE est déjà son propre aperçu : rien à rasteriser, on rend les
+      // octets tels quels.
+      //
+      // La décision se prend sur les OCTETS, pas sur `plan.format`. Ce champ
+      // vaut 'pdf' pour tout plan déposé sans format explicite — c'est le
+      // défaut du serveur — alors que le dépôt accepte png, jpg, jpeg et webp.
+      // Un plan photographié depuis le chantier arrivait donc étiqueté « PDF »,
+      // `PdfDocument.openData` échouait sur ses octets, et l'application
+      // affichait une icône générique à la place du plan. Le client l'a
+      // signalé ainsi : « on ne voit pas réellement l'image du plan ».
+      //
+      // Lire l'en-tête corrige aussi les plans DÉJÀ EN BASE, que rien ne
+      // viendra ré-étiqueter.
+      if (!_estPdf(octets)) {
+        _memoriser(cle, octets);
+        return octets;
+      }
 
       document = await PdfDocument.openData(octets);
       final page = await document.getPage(1);
@@ -156,6 +185,14 @@ Future<Uint8List?> _rendrePremierePage(Plan plan) async {
 class _PlanVignetteState extends State<PlanVignette> {
   Uint8List? _apercu;
 
+  /// Vrai tant que le rendu est EN COURS.
+  ///
+  /// Sans cet état, chargement et échec se ressemblaient trait pour trait :
+  /// la même icône générique, sans rien qui dise s'il faut attendre ou si le
+  /// plan n'aura jamais d'aperçu. Devant une bande de huit cartes, on ne
+  /// pouvait que patienter au cas où.
+  bool _enCours = false;
+
   @override
   void initState() {
     super.initState();
@@ -177,9 +214,18 @@ class _PlanVignetteState extends State<PlanVignette> {
   }
 
   Future<void> _charger() async {
+    // Affectation DIRECTE, sans `setState` : `_charger` est appelée depuis
+    // `initState` et depuis `didUpdateWidget`, deux moments où une
+    // reconstruction suit de toute façon — et où `setState` lèverait.
+    _enCours = true;
     final image = await _rendrePremierePage(widget.plan);
-    if (!mounted || image == null) return;
-    setState(() => _apercu = image);
+    if (!mounted) return;
+    // `_enCours` retombe DANS TOUS LES CAS, y compris à l'échec : c'est ce qui
+    // fait passer la carte de « ça arrive » à « il n'y a pas d'aperçu ».
+    setState(() {
+      _enCours = false;
+      if (image != null) _apercu = image;
+    });
   }
 
   @override
@@ -195,7 +241,23 @@ class _PlanVignetteState extends State<PlanVignette> {
       ),
       clipBehavior: Clip.antiAlias,
       child: apercu == null
-          ? Icon(widget.icone, color: widget.couleur, size: widget.taille * 0.48)
+          ? (_enCours
+              // CHARGEMENT : un fin indicateur, à l'échelle de la vignette —
+              // un anneau de taille normale déborderait d'une pastille de 40.
+              ? Center(
+                  child: SizedBox(
+                    width: widget.taille * 0.3,
+                    height: widget.taille * 0.3,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: widget.couleur.withValues(alpha: 0.6),
+                    ),
+                  ),
+                )
+              // APERÇU INDISPONIBLE : format sans visionneuse, fichier
+              // illisible, réseau coupé. L'icône reste — une carte sans
+              // aperçu vaut mieux qu'une carte manquante.
+              : Icon(widget.icone, color: widget.couleur, size: widget.taille * 0.48))
           : Image.memory(
               apercu,
               fit: BoxFit.cover,

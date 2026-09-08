@@ -16,6 +16,7 @@ import 'package:suivie_chantier_mobile/features/reserve/domain/entities/chantier
 import 'package:suivie_chantier_mobile/features/reserve/domain/usecases/get_chantier_structure.dart';
 import 'package:suivie_chantier_mobile/injection_container.dart';
 
+import '../../../../helpers/balayage_responsive.dart';
 import '../../../../helpers/pompe_page.dart';
 
 class _MockStructure extends Mock implements GetChantierStructure {}
@@ -136,5 +137,20 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
+  });
+
+  group('mise en page — balayage des formats', () {
+    // L'écran de dépôt est le plus chargé du parcours entreprise : trois
+    // sections de niveaux, chacune avec ses tuiles et son bouton d'ajout. En
+    // paysage, la hauteur utile tombe à 320 dp pour tout cela.
+    for (final format in tousLesFormats) {
+      testWidgets('sans débordement sur $format', (tester) async {
+        await pomperPage(tester, page, role: UserRole.entreprise, taille: format.taille);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull,
+            reason: 'débordement de mise en page sur $format');
+      });
+    }
   });
 }

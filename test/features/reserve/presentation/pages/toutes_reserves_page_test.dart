@@ -19,6 +19,7 @@ import 'package:suivie_chantier_mobile/features/reserve/presentation/cubit/toute
 import 'package:suivie_chantier_mobile/features/reserve/presentation/pages/toutes_reserves_page.dart';
 import 'package:suivie_chantier_mobile/injection_container.dart';
 
+import '../../../../helpers/balayage_responsive.dart';
 import '../../../../helpers/l10n_test_helpers.dart';
 
 class _MockGetToutes extends Mock implements GetToutesReserves {}
@@ -72,8 +73,11 @@ void main() {
     if (sl.isRegistered<ToutesReservesCubit>()) sl.unregister<ToutesReservesCubit>();
   });
 
-  Future<List<FlutterErrorDetails>> pomper(WidgetTester tester, {double largeur = 390}) async {
-    tester.view.physicalSize = Size(largeur, 844);
+  Future<List<FlutterErrorDetails>> pomper(WidgetTester tester, {double largeur = 390, double hauteur = 844}) async {
+    // La HAUTEUR est un paramètre, et pas une constante : à 844 dp, ni le
+    // paysage ni la tablette n'étaient jamais vus — et c'est là que la place
+    // manque le plus.
+    tester.view.physicalSize = Size(largeur, hauteur);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
@@ -168,6 +172,47 @@ void main() {
               'les réserves sont bien arrivées',
         );
         expect(find.textContaining('R-a'), findsWidgets);
+      });
+    }
+  });
+
+  group('mise en page — balayage complet des formats', () {
+    // Sa propre fabrique : celle du groupe précédent lui est locale.
+    Reserve reserve(String id) => Reserve(
+          id: id,
+          numero: 'R-$id',
+          chantierId: 'c1',
+          titre: 'Fissure en façade nord du bâtiment principal',
+          statut: ReserveStatut.creee,
+        );
+
+    // Le balayage par largeur ci-dessus gardait une hauteur fixe de 844 dp :
+    // l'onglet transversal des réserves n'était donc jamais vu couché, ni sur une
+    // tablette. Ces deux situations sont pourtant celles où la mise en page
+    // cède — hauteur divisée par trois d'un côté, largeur doublée de l'autre.
+    for (final format in tousLesFormats) {
+      testWidgets('sans débordement sur $format', (tester) async {
+        // Une liste GARNIE : c'est elle qui met la mise en page à l'épreuve.
+        when(() => getToutes(page: 1, limit: 20, search: '', statut: null)).thenAnswer(
+          (_) async => Right(ReservePage(items: [reserve('a'), reserve('b')], total: 2)),
+        );
+        when(() => getCompteurs())
+            .thenAnswer((_) async => const Right(ReserveStatutsCount(parStatut: {}, total: 2)));
+
+        final erreurs = await pomper(
+          tester,
+          largeur: format.taille.width,
+          hauteur: format.taille.height,
+        );
+
+        if (erreurs.isNotEmpty) {
+          debugPrint('DIAG $format :: ${erreurs.first}');
+        }
+        expect(
+          erreurs.map((e) => e.exceptionAsString()).toList(),
+          isEmpty,
+          reason: 'débordement de mise en page sur $format',
+        );
       });
     }
   });

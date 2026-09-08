@@ -3,29 +3,51 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_pdfview/flutter_pdfview.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../../../core/config/breakpoints.dart';
+import '../../../../core/config/user_role.dart';
+import '../../../../core/routes/app_router.dart';
+import '../../../../core/routes/retour.dart';
 import '../../../../core/services/ouverture_fichier.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../injection_container.dart';
 import '../../../../l10n/l10n_extension.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../reserve/domain/entities/reserve.dart';
 import '../../../reserve/presentation/widgets/reserve_statut_badge.dart';
 import '../../domain/entities/plan.dart';
 import '../cubit/plan_detail_cubit.dart';
-import '../../../../core/routes/app_router.dart';
-import '../../../../core/routes/retour.dart';
+import '../widgets/fiche_reserve_sheet.dart';
+import '../widgets/nouvelle_reserve_sheet.dart';
+import '../widgets/plan_interactif.dart';
 
-/// Écran 5 de la maquette — le plan et les réserves qui y sont rattachées.
+/// Le plan, et les réserves qui y sont posées — en VUE INTERACTIVE.
 ///
-/// Le document est rendu par `flutter_pdfview` à partir des OCTETS
-/// (`pdfData`) et non d'un chemin de fichier : `path_provider` est
-/// volontairement absent du projet (voir le commentaire dans `pubspec.yaml`,
-/// il faisait planter la compilation), donc écrire le PDF sur disque n'est pas
-/// une option. Les octets transitent par le Dio de l'app, qui porte le jeton
-/// exigé par `/uploads/*`.
+/// ## Ce que cet écran affichait, et pourquoi c'était faux
+///
+/// Le document était rendu par `flutter_pdfview`, une vue NATIVE. On n'y
+/// connaît ni le facteur de zoom ni le décalage courants : impossible d'y
+/// superposer un repère sans qu'il dérive au premier geste. L'écran renonçait
+/// donc à dessiner les réserves et affichait, à la place, une pastille
+/// « 5 repères » posée dans un coin — le nombre, jamais les points.
+///
+/// C'est exactement ce que le client décrit : on lit « 5 réserves » sans
+/// jamais voir OÙ elles sont, alors que c'est la seule question qu'on se pose
+/// devant un plan.
+///
+/// ## La correction
+///
+/// `PlanInteractif` remplace la vue native. La page du PDF y est RASTERISÉE en
+/// image (`pdfx`), puis placée dans un `InteractiveViewer` dont la matrice nous
+/// appartient. Les repères vivent dans le même conteneur transformé que
+/// l'image : ils subissent la même transformation et ne peuvent pas s'en
+/// désolidariser. Le zoom et le déplacement restent disponibles, et l'appui
+/// devient exploitable — ce qui ouvre du même coup la pose d'une réserve à
+/// l'endroit exact du défaut.
+///
+/// Le même composant sert l'explorateur de plans : les deux écrans se
+/// comportent donc à l'identique, ce qui n'était pas le cas.
 class PlanViewerPage extends StatelessWidget {
   final String planId;
   const PlanViewerPage({super.key, required this.planId});
@@ -73,8 +95,7 @@ class _PlanViewerView extends StatelessWidget {
                 ),
               );
             case PlanDetailStatus.succes:
-              final plan = state.plan!;
-              return _Contenu(plan: plan);
+              return _Contenu(plan: state.plan!);
           }
         },
       ),
@@ -82,38 +103,357 @@ class _PlanViewerView extends StatelessWidget {
   }
 }
 
-class _Contenu extends StatelessWidget {
+/// Le plan à l'écran : bandeau, image interactive, panneau des réserves.
+///
+/// L'état vit ici et non dans le cubit : les octets du document, le repère
+/// provisoire et le repère sélectionné ne concernent QUE l'affichage, et les
+/// faire transiter par le cubit obligerait à les invalider à chaque
+/// rechargement de la fiche.
+class _Contenu extends StatefulWidget {
   final Plan plan;
   const _Contenu({required this.plan});
 
   @override
+  State<_Contenu> createState() => _ContenuState();
+}
+
+class _ContenuState extends State<_Contenu> {
+  Uint8List? _octets;
+
+  /// Le téléchargement a échoué — un DRAPEAU, pas un message.
+  ///
+  /// Le libellé traduit était rangé ici, lu depuis `context.l10n` à
+  /// l'intérieur du `catch`. Or ce `catch` peut s'exécuter AVANT la fin
+  /// d'`initState` — il suffit d'un échec synchrone (URL malformée, dépendance
+  /// absente du conteneur) — et Flutter interdit alors de consulter un widget
+  /// hérité. L'assertion faisait tomber l'écran entier pour un simple fichier
+  /// introuvable.
+  ///
+  /// Résolu dans `build`, le libellé suit au passage un changement de langue
+  /// en cours de route.
+  bool _echecTelechargement = false;
+
+  /// Réserve dont la fiche est ouverte — son repère passe en évidence, pour
+  /// qu'on sache de quel point parle la feuille.
+  String? _reserveActive;
+
+  /// Le point que l'utilisateur vient de désigner, tant que le formulaire est
+  /// ouvert. Sans lui, on remplit le formulaire sans plus voir OÙ la réserve
+  /// va se poser — et la feuille masque justement la moitié du plan.
+  ({double x, double y})? _pointProvisoire;
+
+  /// Page du document actuellement affichée — cahier technique § 6.
+  ///
+  /// L'ÉCRAN la garde, et non `PlanInteractif` : la page fait partie de la
+  /// position d'une réserve (§ 18), et c'est cet écran qui crée la réserve.
+  int _page = 1;
+
+  /// Nombre de pages du document, annoncé par le lecteur une fois le fichier
+  /// ouvert. Lu du document lui-même et non du champ `page_count` de la base,
+  /// qui est facultatif au dépôt et vaut `null` pour l'essentiel des plans
+  /// déjà en ligne.
+  int _nombrePages = 1;
+
+  /// Plein écran — le bandeau et le panneau bas se replient, le plan prend
+  /// tout. Sur un téléphone, c'est la différence entre deviner un plan et le
+  /// lire.
+  bool _pleinEcran = false;
+
+
+  @override
+  void initState() {
+    super.initState();
+    _telecharger();
+  }
+
+  @override
+  void didUpdateWidget(_Contenu ancien) {
+    super.didUpdateWidget(ancien);
+    // Un rechargement de la fiche (après création d'une réserve) ne doit PAS
+    // retélécharger le document : seuls les repères ont changé.
+    if (ancien.plan.fichierUrl != widget.plan.fichierUrl) _telecharger();
+  }
+
+  Future<void> _telecharger() async {
+    // Affectations DIRECTES, sans `setState` : `_telecharger` est appelée
+    // depuis `initState` et depuis `didUpdateWidget`, deux moments où une
+    // reconstruction suit de toute façon — et où `setState` lèverait.
+    _octets = null;
+    _echecTelechargement = false;
+
+    // Un plan sans fichier n'est pas une erreur de réseau : c'est un plan sans
+    // image, et il a son propre message. Partir en requête sur une URL vide
+    // n'aurait produit qu'un échec trompeur.
+    if (widget.plan.fichierUrl.isEmpty) return;
+
+    try {
+      // Les octets transitent par le Dio de l'app, qui porte le jeton exigé
+      // par `/uploads/*` : un lien direct répondrait 401.
+      final reponse = await sl<Dio>().get<List<int>>(
+        widget.plan.fichierUrl,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final donnees = reponse.data;
+      if (donnees == null) throw Exception('Réponse vide');
+      if (mounted) setState(() => _octets = Uint8List.fromList(donnees));
+    } catch (_) {
+      if (mounted) setState(() => _echecTelechargement = true);
+    }
+  }
+
+  /// Un appui sur une zone libre : repère provisoire, puis formulaire.
+  Future<void> _creerIci(double x, double y) async {
+    if (widget.plan.enAttenteValidation) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.l10n.planExplorerEnAttenteValidation),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
+    // Posé AVANT l'ouverture : le repère doit être à l'écran au moment où la
+    // feuille monte, pas après.
+    setState(() => _pointProvisoire = (x: x, y: y));
+
+    final cree = await showModalBottomSheet<Reserve>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => NouvelleReserveSheet(
+        localisation: LocalisationReserve(
+          chantierId: widget.plan.chantierId,
+          planId: widget.plan.id,
+          // Ni bâtiment, ni étage, ni zone : le serveur les déduit du plan
+          // (`reserve.service.js#_heriterLocalisationDuPlan`). Les envoyer
+          // d'ici ne ferait que risquer de le contredire.
+          chemin: [widget.plan.chantierNom, widget.plan.nom]
+              .whereType<String>()
+              .join(' › '),
+        ),
+        positionX: x,
+        positionY: y,
+        // La page AFFICHÉE : c'est sur elle que le doigt s'est posé.
+        positionPage: _page,
+      ),
+    );
+    if (!mounted) return;
+
+    // Retiré dans tous les cas : la réserve créée revient par le rechargement,
+    // avec son identifiant et sa vraie couleur. L'abandon, lui, ne doit rien
+    // laisser derrière.
+    setState(() => _pointProvisoire = null);
+
+    // Le nouveau repère doit apparaître IMMÉDIATEMENT. On recharge la FICHE,
+    // pas la page : le document reste en mémoire (voir `didUpdateWidget`), il
+    // n'y a donc ni écran de chargement ni clignotement.
+    if (cree != null && context.mounted) {
+      await context.read<PlanDetailCubit>().charger(widget.plan.id);
+    }
+  }
+
+  Future<void> _ouvrirFiche(PlanReserve reserve) async {
+    setState(() => _reserveActive = reserve.id);
+    await ouvrirFicheReserve(context, reserve);
+    if (mounted) setState(() => _reserveActive = null);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final plan = widget.plan;
+    // Le serveur réserve la pose d'une réserve aux rôles d'intervention :
+    // rendre le plan actif pour les autres promettrait un 403.
+    final peutCreer = context.select(
+          (AuthBloc b) => b.state.utilisateur?.role.peutIntervenirSurReserves ?? false,
+        ) &&
+        !plan.enAttenteValidation;
+
     return SafeArea(
       bottom: false,
       child: Column(
         children: [
-          _BandeauViewer(
-            titre: plan.nom,
-            sousTitre: [
-              if (plan.chantierNom != null) plan.chantierNom!,
-              '${plan.format.label} · v${plan.version}',
-            ].join(' · '),
-          ),
-          Expanded(child: _Document(plan: plan)),
-          _PanneauReserves(plan: plan),
+          // En PLEIN ÉCRAN, tout ce qui n'est pas le plan se replie : le
+          // bandeau, l'aide et le panneau bas. La sortie reste à un appui, par
+          // le même bouton qui y a fait entrer.
+          if (!_pleinEcran)
+            _BandeauViewer(
+              titre: plan.nom,
+              sousTitre: [
+                if (plan.chantierNom != null) plan.chantierNom!,
+                '${plan.format.label} · v${plan.version}',
+                if (plan.typePlan != null && plan.typePlan!.isNotEmpty) plan.typePlan!,
+              ].join(' · '),
+            ),
+          if (!_pleinEcran && peutCreer && _octets != null)
+            _BandeauAide(texte: context.l10n.planPointerAide),
+          Expanded(child: _zoneDocument(peutCreer)),
+          if (!_pleinEcran)
+            _PanneauReserves(
+              reserves: plan.reserves,
+              onOuvrirReserve: _ouvrirFiche,
+            // Le bouton n'ARME rien : l'appui sur le plan fonctionne de toute
+            // façon. Il est là pour ceux qui le cherchent, et il dit où
+            // appuyer — c'est le bandeau d'aide, juste au-dessus, qui répond.
+              onCreerReserve: peutCreer && _octets != null
+                  ? () => ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(context.l10n.planPointerAide),
+                          backgroundColor: AppColors.primary,
+                          duration: const Duration(seconds: 3),
+                        ),
+                      )
+                  : null,
+            ),
         ],
+      ),
+    );
+  }
+
+  /// La zone du document, dans chacun de ses états.
+  Widget _zoneDocument(bool peutCreer) {
+    final l10n = context.l10n;
+    final plan = widget.plan;
+
+    // ── Le plan n'a AUCUN fichier ──────────────────────────────────────────
+    if (plan.fichierUrl.isEmpty) {
+      return _Message(
+        icon: Icons.image_not_supported_outlined,
+        titre: l10n.planViewerSansImageTitre,
+        texte: l10n.planViewerSansImage,
+      );
+    }
+
+    // ── Le téléchargement a échoué ─────────────────────────────────────────
+    if (_echecTelechargement) {
+      return _Message(
+        icon: Icons.error_outline_rounded,
+        titre: l10n.planViewerIndisponible,
+        texte: l10n.planViewerErreurChargement,
+        action: OutlinedButton.icon(
+          onPressed: _telecharger,
+          icon: const Icon(Icons.refresh_rounded, size: 18),
+          label: Text(l10n.commonRetry),
+        ),
+      );
+    }
+
+    // ── Chargement ─────────────────────────────────────────────────────────
+    if (_octets == null) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    }
+
+    // ── Ni PDF ni image reconnue — DWG, IFC ────────────────────────────────
+    //
+    // Le fichier existe, et une application tierce installée sur l'appareil
+    // sait peut-être le lire : constater l'impasse sans proposer la sortie
+    // serait gratuit.
+    if (!_entetePdf(_octets!) && !_estImage(_octets!)) {
+      return _Message(
+        icon: Icons.view_in_ar_outlined,
+        titre: l10n.planViewerFormatTitre(plan.format.label),
+        texte: l10n.planViewerFormatNonSupporte,
+        action: _BoutonOuvrirExterne(plan: plan),
+      );
+    }
+
+    // ── Le plan, avec ses repères ──────────────────────────────────────────
+    final marqueurs = [
+      // Seuls les repères de la PAGE AFFICHÉE (cahier § 18). Sans ce filtre,
+      // les réserves des douze pages d'un PDF se dessinaient toutes sur celle
+      // qu'on regarde : chacune à ses bonnes coordonnées, sur la mauvaise
+      // page. Un repère faux envoie constater un défaut là où il n'y en a pas.
+      for (final r in plan.reserves)
+        if (r.position != null && r.position!.page == _page)
+          MarqueurPlan(
+            id: r.id,
+            x: r.position!.x,
+            y: r.position!.y,
+            // Cahier technique § 14 : la pastille dit OÙ EN EST la
+            // réserve, pas à quel point elle est grave.
+            couleur: couleurStatutReserve(r.statut),
+            actif: _reserveActive == r.id,
+          ),
+      // En DERNIER, donc au-dessus des autres : c'est le point qu'on regarde.
+      if (_pointProvisoire != null)
+        MarqueurPlan(
+          id: _idPointProvisoire,
+          x: _pointProvisoire!.x,
+          y: _pointProvisoire!.y,
+          couleur: AppColors.primary,
+          actif: true,
+        ),
+    ];
+
+    return Container(
+      color: AppColors.surface,
+      child: PlanInteractif(
+        octets: _octets!,
+        page: _page,
+        marqueurs: marqueurs,
+        controlesZoom: true,
+        onPagesDetectees: (n) {
+          // `setState` seulement si le nombre CHANGE : le lecteur l'annonce à
+          // chaque rendu de page, et réagir à chaque fois relancerait une
+          // reconstruction pour rien.
+          if (n != _nombrePages && mounted) setState(() => _nombrePages = n);
+        },
+        onPageChangee: (n) => setState(() => _page = n),
+        onPleinEcran: () => setState(() => _pleinEcran = !_pleinEcran),
+        pleinEcran: _pleinEcran,
+        onPointAppuye: peutCreer ? _creerIci : null,
+        // Un appui sur un repère CONSULTE, il ne crée pas. Les deux gestes ne
+        // doivent jamais se confondre.
+        onMarqueurAppuye: (m) {
+          // Le repère provisoire n'est pas une réserve : il n'a pas de fiche.
+          if (m.id == _idPointProvisoire) return;
+          final r = plan.reserves.where((x) => x.id == m.id).firstOrNull;
+          if (r != null) _ouvrirFiche(r);
+        },
       ),
     );
   }
 }
 
+/// Identifiant du repère provisoire — préfixé pour qu'aucune réserve réelle ne
+/// puisse porter le même.
+const _idPointProvisoire = '__point_provisoire__';
+
+/// Bandeau d'aide au-dessus du plan — dit en une ligne ce que l'appui fait.
+class _BandeauAide extends StatelessWidget {
+  final String texte;
+  const _BandeauAide({required this.texte});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        color: AppColors.primary100,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+        child: Row(
+          children: [
+            const Icon(Icons.touch_app_outlined, size: 16, color: AppColors.primaryDarker),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                texte,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryDarker,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
 /// Bandeau de la visionneuse.
 ///
 /// Volontairement PAS un `EnTeteListe` : celui-ci porte un titre de 27 px
-/// conçu pour ouvrir une liste, alors qu'ici le document doit occuper
-/// l'écran. Le bandeau reprend donc le reste du vocabulaire — flèche
-/// arrondie orange, tuile d'icône, titre en w800, ligne méta grise — dans une
-/// hauteur réduite.
+/// conçu pour ouvrir une liste, alors qu'ici le document doit occuper l'écran.
+/// Le bandeau reprend donc le reste du vocabulaire — flèche arrondie orange,
+/// tuile d'icône, titre en w800, ligne méta grise — dans une hauteur réduite.
 class _BandeauViewer extends StatelessWidget {
   final String titre;
   final String? sousTitre;
@@ -131,8 +471,8 @@ class _BandeauViewer extends StatelessWidget {
             icon: const Icon(Icons.arrow_back_rounded),
             color: AppColors.primary,
             tooltip: context.l10n.commonBack,
-            // Cet écran est une destination de notification : ouvert par `go`, il
-            // n'a alors aucune pile. Repli sur l'onglet Plans.
+            // Cet écran est une destination de notification : ouvert par `go`,
+            // il n'a alors aucune pile. Repli sur l'onglet Plans.
             onPressed: () => context.retourVers(AppRoutes.plans),
           ),
           Container(
@@ -152,7 +492,11 @@ class _BandeauViewer extends StatelessWidget {
               children: [
                 Text(
                   titre,
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.textPrimary),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    color: AppColors.textPrimary,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -172,130 +516,36 @@ class _BandeauViewer extends StatelessWidget {
   }
 }
 
-/// Zone d'affichage du document. Les formats DWG et IFC existent en base
-/// (import depuis le web) mais aucune visionneuse mobile ne les rend :
-/// on le dit franchement plutôt que d'afficher un écran vide.
-class _Document extends StatefulWidget {
-  final Plan plan;
-  const _Document({required this.plan});
-
-  @override
-  State<_Document> createState() => _DocumentState();
+/// Ce fichier commence-t-il par l'en-tête d'un PDF (`%PDF-`) ?
+///
+/// On lit les OCTETS plutôt que l'extension ou le champ `format` : le premier
+/// peut mentir, le second vaut 'pdf' par défaut côté serveur pour tout dépôt
+/// sans format explicite.
+bool _entetePdf(Uint8List o) {
+  const entete = [0x25, 0x50, 0x44, 0x46, 0x2D]; // %PDF-
+  if (o.length < entete.length) return false;
+  for (var i = 0; i < entete.length; i++) {
+    if (o[i] != entete[i]) return false;
+  }
+  return true;
 }
 
-class _DocumentState extends State<_Document> {
-  Uint8List? _octets;
-
-  /// Le telechargement a echoue — un DRAPEAU, pas un message.
-  ///
-  /// La version precedente rangeait ici le libelle traduit, lu depuis
-  /// `context.l10n` a l'interieur du `catch`. Or ce `catch` peut s'executer
-  /// AVANT que `initState` soit termine : il suffit que l'appel echoue de
-  /// maniere synchrone (URL malformee, dependance absente du conteneur), et
-  /// Flutter interdit de consulter un widget herite — ce que fait
-  /// `AppLocalizations.of` — a ce moment-la. L'assertion qui suit fait
-  /// tomber l'ecran entier, alors que le seul incident etait un fichier
-  /// introuvable.
-  ///
-  /// Le libelle est donc resolu dans `build`, ou le contexte est toujours
-  /// pret. Au passage, l'ecran suit un changement de langue en cours de
-  /// route au lieu de conserver la phrase figee au moment de l'echec.
-  bool _echecTelechargement = false;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.plan.format.affichableSurMobile) _telecharger();
+/// Ce fichier est-il une image que Flutter sait décoder ?
+///
+/// PNG, JPEG et WebP — les trois formats acceptés au dépôt à côté du PDF.
+/// Reconnus à leur signature, pour la même raison que ci-dessus.
+bool _estImage(Uint8List o) {
+  if (o.length < 12) return false;
+  // PNG : 89 50 4E 47
+  if (o[0] == 0x89 && o[1] == 0x50 && o[2] == 0x4E && o[3] == 0x47) return true;
+  // JPEG : FF D8 FF
+  if (o[0] == 0xFF && o[1] == 0xD8 && o[2] == 0xFF) return true;
+  // WebP : « RIFF » .... « WEBP »
+  if (o[0] == 0x52 && o[1] == 0x49 && o[2] == 0x46 && o[3] == 0x46 &&
+      o[8] == 0x57 && o[9] == 0x45 && o[10] == 0x42 && o[11] == 0x50) {
+    return true;
   }
-
-  Future<void> _telecharger() async {
-    try {
-      final response = await sl<Dio>().get<List<int>>(
-        widget.plan.fichierUrl,
-        options: Options(responseType: ResponseType.bytes),
-      );
-      final data = response.data;
-      if (data == null) throw Exception('Réponse vide');
-      if (mounted) setState(() => _octets = Uint8List.fromList(data));
-    } catch (_) {
-      if (mounted) setState(() => _echecTelechargement = true);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    if (!widget.plan.format.affichableSurMobile) {
-      // DWG et IFC n'ont pas de visionneuse mobile — mais le fichier existe,
-      // et une application tierce installée sur l'appareil sait peut-être le
-      // lire. Constater l'impasse sans proposer la sortie serait gratuit.
-      return _Message(
-        icon: Icons.view_in_ar_outlined,
-        titre: l10n.planViewerFormatTitre(widget.plan.format.label),
-        texte: l10n.planViewerFormatNonSupporte,
-        action: _BoutonOuvrirExterne(plan: widget.plan),
-      );
-    }
-    if (_echecTelechargement) {
-      return _Message(
-        icon: Icons.error_outline_rounded,
-        titre: l10n.planViewerIndisponible,
-        texte: l10n.planViewerErreurChargement,
-      );
-    }
-    if (_octets == null) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
-    }
-
-    return Stack(
-      children: [
-        // `flutter_pdfview` gère lui-même le zoom et le déplacement (vue
-        // native) : pas d'InteractiveViewer par-dessus, qui entrerait en
-        // conflit avec ses propres gestes.
-        PDFView(pdfData: _octets, enableSwipe: true, swipeHorizontal: false, fitPolicy: FitPolicy.BOTH),
-        if (widget.plan.nombreReperes > 0)
-          Positioned(
-            top: 12,
-            right: 12,
-            child: _Pastille(nombre: widget.plan.nombreReperes),
-          ),
-      ],
-    );
-  }
-}
-
-/// Compteur de repères. Les coordonnées (`ReservePosition.x/y`) ne sont pas
-/// projetées SUR le PDF : `PDFView` est une vue native dont on ne connaît ni
-/// le facteur de zoom ni le décalage courants, donc tout marqueur superposé
-/// se décalerait dès le premier geste de l'utilisateur. Un repère faux étant
-/// pire que pas de repère, la position est exposée dans la liste du bas,
-/// où elle est exacte.
-class _Pastille extends StatelessWidget {
-  final int nombre;
-  const _Pastille({required this.nombre});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: 0.35), blurRadius: 10, offset: const Offset(0, 3))],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.place_rounded, color: Colors.white, size: 15),
-          const SizedBox(width: 5),
-          Text(
-            context.l10n.planViewerReperes(nombre),
-            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
-          ),
-        ],
-      ),
-    );
-  }
+  return false;
 }
 
 class _Message extends StatelessWidget {
@@ -318,7 +568,15 @@ class _Message extends StatelessWidget {
           children: [
             Icon(icon, size: 46, color: AppColors.textMuted),
             const SizedBox(height: 14),
-            Text(titre, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.textPrimary)),
+            Text(
+              titre,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                color: AppColors.textPrimary,
+              ),
+            ),
             const SizedBox(height: 6),
             Text(
               texte,
@@ -396,21 +654,50 @@ class _BoutonOuvrirExterneState extends State<_BoutonOuvrirExterne> {
   }
 }
 
-/// Bandeau bas — « N réserves sur ce plan » et leur liste, comme la maquette.
+/// Bandeau bas — « Créer une réserve », puis les réserves déjà posées.
 class _PanneauReserves extends StatelessWidget {
-  final Plan plan;
-  const _PanneauReserves({required this.plan});
+  final List<PlanReserve> reserves;
+  final void Function(PlanReserve) onOuvrirReserve;
+
+  /// Nul quand le rôle ne peut pas poser de réserve, quand le plan attend
+  /// encore sa validation, ou quand le document n'est pas affichable : le
+  /// bouton disparaît plutôt que de mener nulle part.
+  final VoidCallback? onCreerReserve;
+
+  const _PanneauReserves({
+    required this.reserves,
+    required this.onOuvrirReserve,
+    required this.onCreerReserve,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final reserves = plan.reserves;
+    final l10n = context.l10n;
 
     return Container(
-      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.34),
+      // Plafond calculé, et non un pourcentage sec — voir `hauteurPanneauBas`.
+      //
+      // 34 % d'un téléphone COUCHÉ font 108 points, et le panneau doit encore
+      // y loger sa poignée et son bouton. Le balayage des formats le mesurait :
+      // « RenderFlex overflowed by 3.2 pixels ». La règle borne désormais par
+      // le bas ce que le contenu exige réellement, échelle de police comprise.
+      constraints: BoxConstraints(
+        maxHeight: hauteurPanneauBas(
+          context,
+          // Poignée (24) + bouton (51) : tout le reste défile.
+          contenuIncompressible: onCreerReserve == null ? 24 : 75,
+        ),
+      ),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 18, offset: const Offset(0, -4))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, -4),
+          ),
+        ],
       ),
       child: SafeArea(
         top: false,
@@ -421,21 +708,52 @@ class _PanneauReserves extends StatelessWidget {
               width: 40,
               height: 4,
               margin: const EdgeInsets.only(top: 10, bottom: 10),
-              decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-              // Un `Row` a enfant unique et sans contrainte : le libelle
-              // « N reserves sur ce plan » debordait de 21 px sur un
-              // telephone etroit, en francais comme en allemand. `Expanded`
-              // lui rend la largeur disponible, l'ellipse absorbe le reste.
-              child: Row(
+            if (onCreerReserve != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      // Plus haut quand le plan est vierge : c'est alors la
+                      // seule action de l'écran.
+                      padding: EdgeInsets.symmetric(vertical: reserves.isEmpty ? 14 : 11),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+                    ),
+                    onPressed: onCreerReserve,
+                    icon: const Icon(Icons.add_location_alt_outlined, size: 18),
+                    label: Text(
+                      l10n.reserveCreerBouton,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                    ),
+                  ),
+                ),
+              ),
+            // TOUT ce qui suit défile.
+            //
+            // Le titre était posé hors de la zone défilante : sur un écran
+            // court, ses 30 points s'ajoutaient au contenu incompressible et
+            // faisaient déborder le panneau. Seuls la poignée et le bouton
+            // restent fixes — le bouton parce qu'il est l'action principale et
+            // doit rester sous le pouce.
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 children: [
-                  Expanded(
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
                     child: Text(
                       reserves.isEmpty
-                          ? context.l10n.planViewerAucuneReserve
-                          : context.l10n.planViewerReservesSurPlan(reserves.length),
+                          ? l10n.planViewerAucuneReserve
+                          : l10n.planViewerReservesSurPlan(reserves.length),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -445,19 +763,13 @@ class _PanneauReserves extends StatelessWidget {
                       ),
                     ),
                   ),
+                  for (final r in reserves) ...[
+                    _LigneReserve(reserve: r, onTap: () => onOuvrirReserve(r)),
+                    const SizedBox(height: 8),
+                  ],
                 ],
               ),
             ),
-            if (reserves.isNotEmpty)
-              Flexible(
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  itemCount: reserves.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, i) => _LigneReserve(reserve: reserves[i]),
-                ),
-              ),
           ],
         ),
       ),
@@ -465,27 +777,31 @@ class _PanneauReserves extends StatelessWidget {
   }
 }
 
+/// Une ligne de réserve — ouvre la MÊME fiche qu'un appui sur son repère.
+///
+/// Deux chemins vers la même chose : on trouve une réserve soit en la voyant
+/// sur le plan, soit en la lisant dans la liste. Les faire diverger — l'un vers
+/// une feuille, l'autre vers un écran plein — obligerait à apprendre deux
+/// comportements pour un seul objet.
 class _LigneReserve extends StatelessWidget {
   final PlanReserve reserve;
-  const _LigneReserve({required this.reserve});
+  final VoidCallback onTap;
 
-  Color get _couleurSeverite => switch (reserve.severite) {
-        ReserveSeverite.faible => AppColors.info,
-        ReserveSeverite.moyenne => AppColors.warning,
-        ReserveSeverite.haute => AppColors.danger,
-        ReserveSeverite.critique => AppColors.danger,
-      };
+  const _LigneReserve({required this.reserve, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final position = reserve.position;
+    // La MÊME couleur que le repère sur le plan : la ligne et le point
+    // désignent la même réserve, ils ne peuvent pas se contredire.
+    final couleur = couleurStatutReserve(reserve.statut);
 
     return Material(
       color: AppColors.background,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: () => context.push('/reserves/${reserve.id}'),
+        onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(11),
           child: Row(
@@ -493,8 +809,11 @@ class _LigneReserve extends StatelessWidget {
               Container(
                 width: 30,
                 height: 30,
-                decoration: BoxDecoration(color: _couleurSeverite.withValues(alpha: 0.14), shape: BoxShape.circle),
-                child: Icon(Icons.place_rounded, size: 17, color: _couleurSeverite),
+                decoration: BoxDecoration(
+                  color: couleur.withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.place_rounded, size: 17, color: couleur),
               ),
               const SizedBox(width: 11),
               Expanded(
@@ -504,14 +823,19 @@ class _LigneReserve extends StatelessWidget {
                   children: [
                     Text(
                       reserve.titre,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textPrimary),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: AppColors.textPrimary,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       position == null
                           ? '#${reserve.numero}'
-                          : '#${reserve.numero} · x ${position.x.toStringAsFixed(0)} · y ${position.y.toStringAsFixed(0)}',
+                          : '#${reserve.numero} · x ${position.x.toStringAsFixed(0)} · '
+                              'y ${position.y.toStringAsFixed(0)}',
                       style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
                     ),
                   ],

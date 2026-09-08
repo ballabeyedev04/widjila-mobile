@@ -437,10 +437,6 @@ class _Etape2Localisation extends StatelessWidget {
           );
         }
 
-        final batiments = state.structure.batiments;
-        final etages = state.batiment?.etages ?? const <EtageStructure>[];
-        final zones = state.etage?.zones ?? const <ZoneStructure>[];
-
         return ContenuFormulaire(
           child: ListView(
           padding: const EdgeInsets.all(20),
@@ -454,32 +450,23 @@ class _Etape2Localisation extends StatelessWidget {
               _BandeauPlan(nom: state.planNom!),
               const SizedBox(height: 18),
             ],
-            _Label(l10n.wizardChampBatiment),
-            DropdownButtonFormField<BatimentStructure>(
-              initialValue: state.batiment,
-              hint: Text(l10n.wizardSelectionnerBatiment),
-              items: [for (final b in batiments) DropdownMenuItem(value: b, child: Text(b.nom))],
-              onChanged: batiments.isEmpty ? null : cubit.changerBatiment,
-              disabledHint: Text(l10n.wizardAucunBatiment),
-            ),
-            const SizedBox(height: 16),
-            _Label(l10n.wizardChampEtage),
-            DropdownButtonFormField<EtageStructure>(
-              initialValue: state.etage,
-              hint: Text(l10n.wizardSelectionnerEtage),
-              items: [for (final e in etages) DropdownMenuItem(value: e, child: Text(e.nom))],
-              onChanged: etages.isEmpty ? null : cubit.changerEtage,
-              disabledHint: Text(l10n.wizardChoisirBatimentDabord),
-            ),
-            const SizedBox(height: 16),
-            _Label(l10n.wizardChampZone),
-            DropdownButtonFormField<ZoneStructure>(
-              initialValue: state.zone,
-              hint: Text(l10n.wizardSelectionnerZone),
-              items: [for (final z in zones) DropdownMenuItem(value: z, child: Text(z.nom))],
-              onChanged: zones.isEmpty ? null : cubit.changerZone,
-              disabledHint: Text(l10n.wizardChoisirEtageDabord),
-            ),
+            // Bâtiment, étage et zone ont QUITTÉ ce formulaire.
+            //
+            // La localisation d'une réserve vient du PLAN sur lequel elle est
+            // posée : on ouvre le plan concerné, on appuie à l'endroit du
+            // défaut, et le serveur en déduit bâtiment, étage et zone
+            // (`_heriterLocalisationDuPlan`). Les redemander ici revenait à
+            // faire ressaisir de mémoire une information déjà connue — et à
+            // permettre de la contredire.
+            //
+            // Cet assistant reste le chemin SANS plan : un chantier dont les
+            // plans ne sont pas encore déposés doit rester utilisable, c'est
+            // même le premier jour de chaque chantier. Le bandeau ci-dessous
+            // le dit, plutôt que de laisser croire à un oubli.
+            if (state.planId == null) ...[
+              _SansPlan(chantierId: cubit.chantierId),
+              const SizedBox(height: 18),
+            ],
             if (state.structure.lots.isNotEmpty) ...[
               const SizedBox(height: 16),
               _Label(l10n.wizardChampLot),
@@ -527,7 +514,9 @@ class _Etape3Recapitulatif extends StatelessWidget {
     return BlocBuilder<ReserveWizardCubit, ReserveWizardState>(
       builder: (context, state) {
         final l10n = context.l10n;
-        final localisation = [state.batiment?.nom, state.etage?.nom, state.zone?.nom].whereType<String>().join(' · ');
+        // La localisation, c'est le PLAN — plus une cascade de trois niveaux
+        // ressaisie à la main.
+        final localisation = state.planNom ?? '';
         return ContenuFormulaire(
           child: ListView(
           padding: const EdgeInsets.all(20),
@@ -560,7 +549,10 @@ class _Etape3Recapitulatif extends StatelessWidget {
                           l10n.corpsEtatAucun,
                     ),
                     _Recap(l10n.wizardChampPriorite, state.priorite.label(l10n)),
-                    _Recap(l10n.wizardChampLocalisation, localisation.isEmpty ? l10n.wizardNonRenseignee : localisation),
+                    _Recap(
+                      l10n.wizardChampLocalisation,
+                      localisation.isEmpty ? l10n.wizardNonRenseignee : localisation,
+                    ),
                     if (state.lot != null) _Recap(l10n.wizardChampLot, state.lot!.nom),
                     if (state.dateLimite != null) _Recap(l10n.reserveDetailEcheance, DateFormat('dd/MM/yyyy').format(state.dateLimite!)),
                     if (state.description.trim().isNotEmpty) ...[
@@ -583,6 +575,59 @@ class _Etape3Recapitulatif extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Dit pourquoi aucune localisation n'est demandée, et où aller pour en avoir
+/// une.
+///
+/// Sans lui, l'étape paraissait vide ou inachevée : trois listes déroulantes
+/// avaient disparu et rien ne disait ce qui les remplaçait. La réserve peut
+/// parfaitement être consignée telle quelle — elle sera rattachée au chantier —
+/// mais si un plan existe, la poser dessus vaut mieux, et c'est à un appui
+/// d'ici.
+class _SansPlan extends StatelessWidget {
+  final String chantierId;
+  const _SansPlan({required this.chantierId});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.infoBg,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.info_outline_rounded, size: 17, color: AppColors.info),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  l10n.wizardLocalisationParLePlan,
+                  style: const TextStyle(fontSize: 12.5, height: 1.4, color: AppColors.info),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => context.push('/chantiers/$chantierId/plans/explorer'),
+              icon: const Icon(Icons.map_outlined, size: 17),
+              label: Text(l10n.wizardChoisirSurUnPlan, style: const TextStyle(fontSize: 13)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

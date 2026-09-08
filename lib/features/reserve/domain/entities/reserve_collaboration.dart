@@ -73,14 +73,25 @@ class CommentaireReserve extends Equatable {
 
 /// Affectation d'une réserve — miroir de `models/reserveAffectation.model.js`.
 ///
-/// Le serveur accepte une affectation à un UTILISATEUR ou à une ENTREPRISE
-/// (`affecterReserveSchema` exige l'un des deux), d'où les deux champs
-/// mutuellement exclusifs plutôt qu'un destinataire unique polymorphe.
+/// TROIS natures de destinataire, et il en manquait une :
+///
+///  - [utilisateur] — un compte de l'organisation ;
+///  - [entrepriseNom] — une entreprise UTILISATRICE de la plateforme, qui a
+///    son propre espace (table `organisations`) ;
+///  - [partenaireNom] — une entreprise de l'ANNUAIRE du chantier (table
+///    `partenaires`), sans compte. C'est le cas le plus fréquent.
+///
+/// L'onglet « Intervenant » du mobile liste l'annuaire, mais envoyait
+/// l'identifiant retenu dans `entrepriseId` : le serveur y cherchait une
+/// organisation et répondait « Entreprise introuvable » pour une entreprise
+/// qui existait bel et bien.
 class AffectationReserve extends Equatable {
   final String id;
   final PersonneReserve? utilisateur;
   final String? entrepriseId;
   final String? entrepriseNom;
+  final String? partenaireId;
+  final String? partenaireNom;
   final DateTime? dateAffectation;
 
   const AffectationReserve({
@@ -88,11 +99,14 @@ class AffectationReserve extends Equatable {
     this.utilisateur,
     this.entrepriseId,
     this.entrepriseNom,
+    this.partenaireId,
+    this.partenaireNom,
     this.dateAffectation,
   });
 
   factory AffectationReserve.fromJson(Map<String, dynamic> json) {
     final entreprise = json['entreprise'] as Map<String, dynamic>?;
+    final partenaire = json['partenaire'] as Map<String, dynamic>?;
     return AffectationReserve(
       id: json['id'] as String,
       utilisateur: json['utilisateur'] != null
@@ -100,6 +114,12 @@ class AffectationReserve extends Equatable {
           : null,
       entrepriseId: entreprise?['id'] as String?,
       entrepriseNom: entreprise?['nom'] as String?,
+      // Repli sur la clé étrangère brute : le POST de création renvoyait
+      // autrefois la ligne SANS ses jointures, et la ligne s'affichait « — »
+      // jusqu'au rechargement suivant. Le serveur recharge désormais
+      // l'affectation avec ses associations ; ce repli reste la ceinture.
+      partenaireId: partenaire?['id'] as String? ?? json['partenaireId'] as String?,
+      partenaireNom: partenaire?['nom'] as String?,
       dateAffectation: json['date_affectation'] != null
           ? DateTime.tryParse(json['date_affectation'] as String)
           : null,
@@ -107,12 +127,22 @@ class AffectationReserve extends Equatable {
   }
 
   /// Libellé du destinataire, quelle que soit sa nature.
-  String get libelle => utilisateur?.nomComplet ?? entrepriseNom ?? '—';
+  ///
+  /// L'ordre compte : une affectation ne porte qu'un seul destinataire, mais
+  /// si deux étaient renseignés, la personne prime sur l'entreprise — c'est
+  /// elle qu'on interpelle.
+  String get libelle => utilisateur?.nomComplet ?? partenaireNom ?? entrepriseNom ?? '—';
 
-  bool get estEntreprise => utilisateur == null && entrepriseNom != null;
+  /// Vrai quand le destinataire est une ENTREPRISE et non une personne — que
+  /// ce soit une organisation de la plateforme ou une fiche d'annuaire.
+  bool get estEntreprise =>
+      utilisateur == null && (partenaireNom != null || entrepriseNom != null);
 
   @override
-  List<Object?> get props => [id, utilisateur, entrepriseId, entrepriseNom, dateAffectation];
+  List<Object?> get props => [
+        id, utilisateur, entrepriseId, entrepriseNom, partenaireId, partenaireNom,
+        dateAffectation,
+      ];
 }
 
 /// QR code d'une réserve — `GET /reserves/:id/qr`.

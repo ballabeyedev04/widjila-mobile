@@ -268,10 +268,21 @@ class _Contenu extends StatelessWidget {
           Row(
             children: [
               Expanded(child: _TitreSection(l10n.depotBatiments)),
-              TextButton.icon(
-                onPressed: () => _ajouterBatiment(context),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: Text(l10n.depotAjouterBatiment),
+              // `Flexible` + ellipse : le libellé est traduit, et « Gebäude
+              // hinzufügen » à côté du titre de section dépassait de 34 points
+              // sur un téléphone de 320 dp — mesuré par le balayage des
+              // formats. L'icône « + » reste, elle, toujours visible : c'est
+              // elle qui porte le sens de l'action.
+              Flexible(
+                child: TextButton.icon(
+                  onPressed: () => _ajouterBatiment(context),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: Text(
+                    l10n.depotAjouterBatiment,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ),
             ],
           ),
@@ -395,11 +406,19 @@ class _Section extends StatelessWidget {
                   ),
                 ),
               ),
-              TextButton.icon(
-                onPressed: () => _ajouter(context),
-                icon: const Icon(Icons.add_rounded, size: 16),
-                label: Text(l10n.depotAjouterNiveau),
-                style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+              // Même raison qu'au-dessus : un libellé traduit à côté d'un titre
+              // de section, sur la largeur d'un petit téléphone.
+              Flexible(
+                child: TextButton.icon(
+                  onPressed: () => _ajouter(context),
+                  icon: const Icon(Icons.add_rounded, size: 16),
+                  label: Text(
+                    l10n.depotAjouterNiveau,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                ),
               ),
             ],
           ),

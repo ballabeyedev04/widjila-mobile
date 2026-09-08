@@ -14,6 +14,7 @@ import 'package:suivie_chantier_mobile/features/referentiel/domain/usecases/get_
 import 'package:suivie_chantier_mobile/features/referentiel/presentation/cubit/pays_cubit.dart';
 import 'package:suivie_chantier_mobile/injection_container.dart';
 
+import '../../../../helpers/balayage_responsive.dart';
 import '../../../../helpers/pompe_page.dart';
 
 class _MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
@@ -115,5 +116,28 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(tester.takeException(), isNull);
+  });
+
+  group('mise en page — balayage des formats', () {
+    // La porte d'entrée d'un nouveau client, et le formulaire le plus long de
+    // l'application : nom, prénom, e-mail, pays, téléphone, mot de passe et sa
+    // confirmation. Sur un téléphone couché, rien de tout cela ne tient sans
+    // défilement.
+    for (final format in tousLesFormats) {
+      testWidgets('sans débordement sur $format', (tester) async {
+        when(getPays.call).thenAnswer((_) async => const Right(catalogue));
+
+        await pomperPage(
+          tester,
+          const RegisterPage(),
+          auth: bloc(repos),
+          taille: format.taille,
+        );
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(tester.takeException(), isNull,
+            reason: 'débordement de mise en page sur $format');
+      });
+    }
   });
 }

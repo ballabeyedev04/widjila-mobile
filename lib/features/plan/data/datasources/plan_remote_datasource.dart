@@ -6,6 +6,17 @@ import '../../domain/entities/plan.dart';
 abstract class PlanRemoteDataSource {
   Future<List<Plan>> getTousPlans();
   Future<List<Plan>> getPlansChantier(String chantierId);
+
+  /// Plans GLOBAUX d'un chantier — ceux qui n'ont pas de parent.
+  ///
+  /// C'est le point d'entrée de la navigation par niveau, et il est distinct
+  /// de [getPlansChantier], qui renvoie l'arborescence À PLAT (plans globaux,
+  /// plans de bâtiment, plans d'étage et plans de détail mélangés).
+  Future<List<Plan>> getPlansRacines(String chantierId);
+
+  /// Sous-plans DIRECTS d'un plan — jamais les sous-plans de ceux-là.
+  Future<List<Plan>> getSousPlans(String planId);
+
   Future<Plan> getPlanDetail(String id);
 
   Future<Plan> uploaderPlan({
@@ -18,6 +29,12 @@ abstract class PlanRemoteDataSource {
     String? batimentId,
     String? etageId,
     String? zoneId,
+    String? parentId,
+    /// Discipline du plan et date DU PLAN — cahier technique § 4.
+    /// Facultatives : un chantier qui n'a qu'un jeu de plans n'a rien à
+    /// distinguer, et une date inconnue vaut mieux qu'une date inventée.
+    String? typePlan,
+    DateTime? datePlan,
   });
 }
 
@@ -49,6 +66,38 @@ class PlanRemoteDataSourceImpl implements PlanRemoteDataSource {
     }
   }
 
+  /// `GET /chantiers/:chantierId/plans/racines`.
+  ///
+  /// Le serveur ne renvoie qu'une version par plan (la plus récente) et joint
+  /// à chacun ses compteurs — combien de sous-plans, combien de réserves. Ce
+  /// sont eux qui disent à la tuile si elle fait descendre d'un cran ou si
+  /// elle ouvre la zone de travail.
+  @override
+  Future<List<Plan>> getPlansRacines(String chantierId) async {
+    try {
+      return _plans(await dio.get('/chantiers/$chantierId/plans/racines'));
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  /// `GET /plans/:id/sous-plans` — un seul cran, jamais l'arborescence.
+  ///
+  /// La réponse porte la liste sous la clé `sousPlans` et non `plans` : c'est
+  /// la seule différence de forme avec [getPlansRacines], les objets sont
+  /// identiques, compteurs compris.
+  @override
+  Future<List<Plan>> getSousPlans(String planId) async {
+    try {
+      final response = await dio.get('/plans/$planId/sous-plans');
+      return (_data(response)['sousPlans'] as List)
+          .map((e) => Plan.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
   @override
   Future<Plan> getPlanDetail(String id) async {
     try {
@@ -73,6 +122,12 @@ class PlanRemoteDataSourceImpl implements PlanRemoteDataSource {
     String? batimentId,
     String? etageId,
     String? zoneId,
+    String? parentId,
+    /// Discipline du plan et date DU PLAN — cahier technique § 4.
+    /// Facultatives : un chantier qui n'a qu'un jeu de plans n'a rien à
+    /// distinguer, et une date inconnue vaut mieux qu'une date inventée.
+    String? typePlan,
+    DateTime? datePlan,
   }) async {
     try {
       final formData = FormData.fromMap({
@@ -83,6 +138,14 @@ class PlanRemoteDataSourceImpl implements PlanRemoteDataSource {
         if (batimentId != null && batimentId.isNotEmpty) 'batimentId': batimentId,
         if (etageId != null && etageId.isNotEmpty) 'etageId': etageId,
         if (zoneId != null && zoneId.isNotEmpty) 'zoneId': zoneId,
+        // Le PARENT prime : le serveur ignore alors le rattachement de
+        // structure et fait hériter le détail de la place de son parent.
+        if (parentId != null && parentId.isNotEmpty) 'parentId': parentId,
+        // Discipline et date DU PLAN — cahier technique § 4. Omises quand
+        // elles ne sont pas renseignées : le schéma Joi tolère la chaîne vide,
+        // mais l'envoyer ferait échouer la validation de date côté serveur.
+        if (typePlan != null && typePlan.isNotEmpty) 'type_plan': typePlan,
+        if (datePlan != null) 'date_plan': datePlan.toIso8601String().split('T').first,
         'fichier': await MultipartFile.fromFile(cheminFichier),
       });
       final response = await dio.post('/chantiers/$chantierId/plans', data: formData);

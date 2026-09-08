@@ -17,11 +17,20 @@ import '../cubit/reserve_detail_cubit.dart';
 
 /// Choix de l'intervenant à affecter à une réserve.
 ///
-/// Deux onglets parce que le serveur accepte deux natures de destinataire —
-/// un UTILISATEUR de l'organisation ou une ENTREPRISE partenaire
-/// (`affecterReserveSchema` exige l'un ou l'autre). Les mélanger dans une
-/// seule liste aurait obligé à deviner, à la lecture d'un nom, lequel des
-/// deux champs partirait dans la requête.
+/// Deux onglets parce que les destinataires ne sont pas de même nature :
+///
+///  - ÉQUIPE — les COMPTES de l'organisation (`utilisateurId`) ;
+///  - INTERVENANT — l'ANNUAIRE du chantier (`partenaireId`), c'est-à-dire des
+///    entreprises qui, pour la plupart, n'ont aucun compte sur la plateforme.
+///
+/// Les mélanger dans une seule liste aurait obligé à deviner, à la lecture
+/// d'un nom, lequel des deux champs partirait dans la requête — et c'est
+/// exactement l'erreur qui produisait « Entreprise introuvable » : l'annuaire
+/// partait dans `entrepriseId`, un champ qui référence les organisations.
+///
+/// Le troisième destinataire accepté par le serveur, `entrepriseId` (une
+/// organisation cliente de la plateforme), n'a pas d'onglet : il n'existe que
+/// pour les groupes multi-sociétés, qui pilotent depuis le web.
 Future<void> ouvrirAffectationReserve(BuildContext context) {
   final cubit = context.read<ReserveDetailCubit>();
   return showModalBottomSheet<void>(
@@ -56,10 +65,13 @@ class _AffecterReserveSheetState extends State<_AffecterReserveSheet>
     super.dispose();
   }
 
-  Future<void> _affecter({String? utilisateurId, String? entrepriseId}) async {
+  Future<void> _affecter({String? utilisateurId, String? partenaireId}) async {
     final cubit = context.read<ReserveDetailCubit>();
     final l10n = context.l10n;
-    final ok = await cubit.affecter(utilisateurId: utilisateurId, entrepriseId: entrepriseId);
+    final ok = await cubit.affecter(
+      utilisateurId: utilisateurId,
+      partenaireId: partenaireId,
+    );
     if (!mounted || !context.mounted) return;
 
     if (ok) {
@@ -163,7 +175,14 @@ class _AffecterReserveSheetState extends State<_AffecterReserveSheet>
                   controller: _onglets,
                   children: [
                     _ListeMembres(onChoix: (id) => _affecter(utilisateurId: id)),
-                    _ListeIntervenants(onChoix: (id) => _affecter(entrepriseId: id)),
+                    // `partenaireId` et NON `entrepriseId` : cet onglet liste
+                    // l'ANNUAIRE du chantier (table `partenaires`), dont les
+                    // entreprises n'ont pour la plupart aucun compte sur la
+                    // plateforme. L'envoyer dans `entrepriseId` faisait chercher
+                    // au serveur une organisation portant un identifiant de
+                    // partenaire — d'où le « Entreprise introuvable » signalé,
+                    // pour une entreprise qui existait pourtant.
+                    _ListeIntervenants(onChoix: (id) => _affecter(partenaireId: id)),
                   ],
                 ),
               ),

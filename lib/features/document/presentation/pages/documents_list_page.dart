@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/config/user_role.dart';
+import '../../../../core/services/capture_photo.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/services/ouverture_fichier.dart';
 import '../../../../core/widgets/app_alert.dart';
@@ -70,19 +71,33 @@ class _MediathequeViewState extends State<_MediathequeView> with SingleTickerPro
     final source = await _choisirSource(context);
     if (source == null) return;
 
-    final picker = ImagePicker();
-    // `maxWidth: 1920` — même plafond que les photos de réserve
-    // (`nouvelle_reserve_sheet.dart`) : sans lui, une photo de document prise
-    // à l'appareil part à sa résolution native (souvent 3 à 8 Mo) pour un
-    // rendu qui ne dépasse jamais l'écran. 1920 px reste largement suffisant
-    // pour relire le texte d'un document photographié.
-    final fichier = onglet == 0
-        ? await picker.pickImage(source: source, imageQuality: 85, maxWidth: 1920)
-        : await picker.pickVideo(source: source);
-    if (fichier == null) return;
+    // PHOTO : `capturerPhoto`, qui récupère le cliché mis en attente quand
+    // Android détruit l'activité pendant la prise de vue — sans quoi la photo
+    // semble perdue au retour (voir `core/services/capture_photo.dart`).
+    //
+    // Le plafond de 1920 px reste : à sa résolution native, une photo de
+    // document pèse 3 à 8 Mo pour un rendu qui ne dépasse jamais l'écran, et
+    // 1920 px suffit largement à en relire le texte.
+    //
+    // VIDÉO : `pickVideo` est laissé tel quel. La reprise d'`image_picker` ne
+    // couvre que les images, et une vidéo ne se recompresse pas ici.
+    String? chemin;
+    if (onglet == 0) {
+      try {
+        chemin = (await capturerPhoto(source))?.path;
+      } on PhotoIndisponible {
+        if (context.mounted) {
+          AppAlert.error(context, message: context.l10n.reserveNouvPhotoIndisponible);
+        }
+        return;
+      }
+    } else {
+      chemin = (await ImagePicker().pickVideo(source: source))?.path;
+    }
+    if (chemin == null) return;
 
     await cubit.deposer(
-      cheminFichier: fichier.path,
+      cheminFichier: chemin,
       type: onglet == 0 ? DocumentType.photo : DocumentType.autre,
     );
   }

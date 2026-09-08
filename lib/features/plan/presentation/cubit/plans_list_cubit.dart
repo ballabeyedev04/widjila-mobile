@@ -143,6 +143,9 @@ class PlansListCubit extends Cubit<PlansListState> {
     required String nom,
     PlanFormat? format,
     String? chantierIdCourant,
+    /// Discipline et date DU PLAN — cahier technique § 4.
+    String? typePlan,
+    DateTime? datePlan,
   }) async {
     if (state.importEnCours) return;
     emit(state.copyWith(importEnCours: true));
@@ -152,6 +155,8 @@ class PlansListCubit extends Cubit<PlansListState> {
       cheminFichier: cheminFichier,
       nom: nom,
       format: format,
+      typePlan: typePlan,
+      datePlan: datePlan,
     );
 
     if (isClosed) return;

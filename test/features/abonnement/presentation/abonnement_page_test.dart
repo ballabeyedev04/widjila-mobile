@@ -18,6 +18,7 @@ import 'package:suivie_chantier_mobile/features/auth/presentation/bloc/auth_even
 import 'package:suivie_chantier_mobile/features/auth/presentation/bloc/auth_state.dart';
 import 'package:suivie_chantier_mobile/injection_container.dart';
 
+import '../../../helpers/balayage_responsive.dart';
 import '../../../helpers/l10n_test_helpers.dart';
 
 class _MockFormules extends Mock implements GetFormules {}
@@ -79,8 +80,10 @@ void main() {
     if (sl.isRegistered<AbonnementCubit>()) sl.unregister<AbonnementCubit>();
   });
 
-  Future<void> pomper(WidgetTester tester, UserRole role) async {
-    tester.view.physicalSize = const Size(390, 900);
+  Future<void> pomper(WidgetTester tester, UserRole role, {Size? taille}) async {
+    // La taille est un PARAMÈTRE : figée à 390 × 900, ni le paysage ni la
+    // tablette n'étaient jamais vus.
+    tester.view.physicalSize = taille ?? const Size(390, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
@@ -163,5 +166,19 @@ void main() {
     await pomper(tester, UserRole.entreprise);
 
     expect(find.text('Il vous reste 12 jours'), findsOneWidget);
+  });
+
+  group('mise en page — balayage des formats', () {
+    // L'écran empile un état d'abonnement, un montant, une échéance et un
+    // historique de paiements. Les lignes « libellé / montant » y sont le point
+    // sensible : deux textes variables sur la même ligne.
+    for (final format in tousLesFormats) {
+      testWidgets('sans débordement sur $format', (tester) async {
+        await pomper(tester, UserRole.chefProjet, taille: format.taille);
+
+        expect(tester.takeException(), isNull,
+            reason: 'débordement de mise en page sur $format');
+      });
+    }
   });
 }

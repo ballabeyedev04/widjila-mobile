@@ -28,6 +28,8 @@ class CreerReserve {
     String? planId,
     double? positionX,
     double? positionY,
+    /// Page du document, pour un PDF multi-page (cahier technique § 18).
+    int positionPage = 1,
     /// Entreprise responsable de la correction (« Entreprise concernée » du
     /// guide client) — un PARTENAIRE de l'annuaire du chantier, et non une
     /// organisation : la plupart des entreprises d'un chantier n'ont pas de
@@ -60,6 +62,7 @@ class CreerReserve {
       planId: planId,
       positionX: positionX,
       positionY: positionY,
+      positionPage: positionPage,
       partenaireId: partenaireId,
       severite: severite,
       corpsEtatId: corpsEtatId,

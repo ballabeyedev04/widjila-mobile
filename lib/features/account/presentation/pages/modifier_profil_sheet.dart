@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../../core/services/capture_photo.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_alert.dart';
 import '../../../../core/widgets/fiche_chrome.dart';
@@ -122,16 +123,28 @@ class _ModifierProfilSheetState extends State<_ModifierProfilSheet> {
     // `imageQuality` : une photo d'appareil moderne dépasse largement les 5 Mo
     // acceptés par le serveur. La recompresser ici évite de faire échouer un
     // envoi pour une raison que l'utilisateur ne maîtrise pas.
-    final fichier = await ImagePicker().pickImage(source: source, imageQuality: 85, maxWidth: 1024);
+    //
+    // `capturerPhoto` : sur Android, le système peut détruire l'activité
+    // pendant que l'appareil photo occupe l'écran ; le service récupère alors
+    // le cliché mis en attente au lieu de le laisser disparaître.
+    final File? fichier;
+    try {
+      fichier = await capturerPhoto(source, largeurMax: 1024);
+    } on PhotoIndisponible {
+      if (mounted) {
+        AppAlert.error(context, message: context.l10n.reserveNouvPhotoIndisponible);
+      }
+      return;
+    }
     if (fichier == null || !mounted) return;
 
-    final taille = await File(fichier.path).length();
+    final taille = await fichier.length();
     if (!mounted) return;
     if (taille > _maxOctetsPhoto) {
       AppAlert.error(context, message: context.l10n.profilPhotoTropLourde);
       return;
     }
-    setState(() => _cheminPhoto = fichier.path);
+    setState(() => _cheminPhoto = fichier!.path);
   }
 
   /// `null` si la valeur n'a pas bougé — le champ est alors omis de la

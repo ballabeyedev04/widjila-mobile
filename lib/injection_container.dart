@@ -117,6 +117,8 @@ import 'features/plan/data/repositories/plan_repository_impl.dart';
 import 'features/plan/domain/repositories/plan_repository.dart';
 import 'features/plan/domain/usecases/get_plan_detail.dart';
 import 'features/plan/domain/usecases/get_plans_chantier.dart';
+import 'features/plan/domain/usecases/get_plans_racines.dart';
+import 'features/plan/domain/usecases/get_sous_plans.dart';
 import 'features/plan/domain/usecases/get_tous_plans.dart';
 import 'features/plan/domain/usecases/uploader_plan.dart';
 import 'features/plan/presentation/cubit/plan_detail_cubit.dart';
@@ -363,6 +365,9 @@ Future<void> init() async {
   sl.registerLazySingleton<PlanRepository>(() => PlanRepositoryImpl(sl()));
   sl.registerLazySingleton(() => GetTousPlans(sl()));
   sl.registerLazySingleton(() => GetPlansChantier(sl()));
+  // Navigation par niveau : les plans globaux, puis les enfants directs.
+  sl.registerLazySingleton(() => GetPlansRacines(sl()));
+  sl.registerLazySingleton(() => GetSousPlans(sl()));
   sl.registerLazySingleton(() => GetPlanDetail(sl()));
   sl.registerLazySingleton(() => UploaderPlan(sl()));
   sl.registerFactory(() => PlansListCubit(getTousPlans: sl(), getPlansChantier: sl(), uploaderPlan: sl()));

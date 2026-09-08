@@ -361,6 +361,41 @@ class ReserveHistoriqueEntry extends Equatable {
 
 /// Réserve — miroir de `backend/src/models/reserve.model.js` + des
 /// associations chargées par `listReserves`/`getReserve`.
+/// Le plan sur lequel une réserve a été posée, tel que joint par le détail.
+///
+/// Plus riche qu'un [ReserveLocalisationRef] : il porte de quoi ROUVRIR le
+/// plan — sa version et son fichier — et pas seulement de quoi le nommer.
+class ReservePlanRef extends Equatable {
+  final String id;
+  final String nom;
+  final int version;
+  final String fichierUrl;
+
+  const ReservePlanRef({
+    required this.id,
+    required this.nom,
+    this.version = 1,
+    this.fichierUrl = '',
+  });
+
+  factory ReservePlanRef.fromJson(Map<String, dynamic> json) => ReservePlanRef(
+        id: json['id'] as String,
+        nom: json['nom'] as String? ?? '',
+        version: (json['version'] as num?)?.toInt() ?? 1,
+        fichierUrl: json['fichier_url'] as String? ?? '',
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'nom': nom,
+        'version': version,
+        'fichier_url': fichierUrl,
+      };
+
+  @override
+  List<Object?> get props => [id, nom, version, fichierUrl];
+}
+
 class Reserve extends Equatable {
   /// Marqueur de numéro provisoire posé par `ReserveRepositoryImpl.creerReserve`
   /// en mode hors ligne, en attendant que le serveur attribue le vrai numéro
@@ -397,6 +432,16 @@ class Reserve extends Equatable {
   /// (où il serait redondant : on sait déjà de quel chantier il s'agit).
   final ReserveLocalisationRef? chantier;
 
+  /// PLAN sur lequel la réserve a été posée — la localisation principale
+  /// depuis que le relevé se fait en appuyant sur un plan.
+  ///
+  /// Servi par le DÉTAIL uniquement. Il manquait : la fiche affichait bâtiment,
+  /// étage et zone — que le serveur DÉDUIT justement du plan — sans jamais dire
+  /// sur quel document la réserve avait été relevée, ni permettre d'y revenir.
+  ///
+  /// Nul pour une réserve consignée avant le dépôt des plans du chantier.
+  final ReservePlanRef? plan;
+
   final ReserveUtilisateurRef? assigne;
   final ReserveUtilisateurRef? createur;
   final String? motifRefus;
@@ -431,6 +476,7 @@ class Reserve extends Equatable {
     this.entreprise,
     this.partenaire,
     this.chantier,
+    this.plan,
     this.assigne,
     this.createur,
     this.motifRefus,
@@ -441,8 +487,23 @@ class Reserve extends Equatable {
 
   /// Localisation lisible — concatène bâtiment/étage/zone dans l'ordre,
   /// à défaut « Non localisée » (aucun des trois n'est renseigné).
+  /// Où se trouve cette réserve, en une ligne.
+  ///
+  /// Le PLAN vient EN TÊTE, et c'est la correction : depuis que le relevé se
+  /// fait en appuyant sur un plan, c'est lui la localisation principale — le
+  /// serveur en déduit d'ailleurs bâtiment, étage et zone.
+  ///
+  /// Or un chantier dont personne n'a saisi la structure n'a NI bâtiment, NI
+  /// étage, NI zone. Toute réserve posée dessus s'affichait donc « Non
+  /// localisée » dans les listes, alors qu'elle porte un plan et un point
+  /// précis. C'est ce qui donnait des cartes sans information.
+  ///
+  /// Le plan seul suffit à situer ; les niveaux de structure, quand ils
+  /// existent, le précisent.
   String localisationLabel(AppLocalizations l10n) {
-    final parts = [batiment?.nom, etage?.nom, zone?.nom].whereType<String>().where((s) => s.isNotEmpty);
+    final parts = [plan?.nom, batiment?.nom, etage?.nom, zone?.nom]
+        .whereType<String>()
+        .where((s) => s.trim().isNotEmpty);
     return parts.isEmpty ? l10n.reserveNonLocalisee : parts.join(' · ');
   }
 
@@ -470,6 +531,7 @@ class Reserve extends Equatable {
       entreprise: json['entreprise'] != null ? ReserveLocalisationRef.fromJson(json['entreprise'] as Map<String, dynamic>) : null,
       partenaire: json['partenaire'] != null ? ReserveLocalisationRef.fromJson(json['partenaire'] as Map<String, dynamic>) : null,
       chantier: json['chantier'] != null ? ReserveLocalisationRef.fromJson(json['chantier'] as Map<String, dynamic>) : null,
+      plan: json['plan'] != null ? ReservePlanRef.fromJson(json['plan'] as Map<String, dynamic>) : null,
       assigne: json['assigne'] != null ? ReserveUtilisateurRef.fromJson(json['assigne'] as Map<String, dynamic>) : null,
       createur: json['createur'] != null ? ReserveUtilisateurRef.fromJson(json['createur'] as Map<String, dynamic>) : null,
       motifRefus: json['motif_refus'] as String?,
@@ -507,6 +569,7 @@ class Reserve extends Equatable {
         'entreprise': entreprise?.toJson(),
         'partenaire': partenaire?.toJson(),
         'chantier': chantier?.toJson(),
+        'plan': plan?.toJson(),
         'assigne': assigne?.toJson(),
         'createur': createur?.toJson(),
         'motif_refus': motifRefus,
@@ -547,7 +610,8 @@ class Reserve extends Equatable {
   @override
   List<Object?> get props => [
         id, numero, chantierId, titre, description, severite, priorite, categorie, statut, dateLimite, createdAt,
-        batiment, etage, zone, lot, entreprise, partenaire, chantier, assigne, createur, motifRefus, photoApercu, medias, historiques,
+        batiment, etage, zone, lot, entreprise, partenaire, chantier, plan, assigne, createur,
+        motifRefus, photoApercu, medias, historiques,
       ];
 }
 

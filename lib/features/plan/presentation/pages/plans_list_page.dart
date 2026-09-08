@@ -118,6 +118,8 @@ class _PlansListViewState extends State<_PlansListView> {
       cheminFichier: chemin,
       nom: detail.nom,
       format: detail.format,
+      typePlan: detail.typePlan,
+      datePlan: detail.datePlan,
       chantierIdCourant: widget.chantierId,
     );
   }

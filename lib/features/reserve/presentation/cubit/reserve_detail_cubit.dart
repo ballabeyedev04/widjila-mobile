@@ -79,7 +79,13 @@ class ReserveDetailCubit extends Cubit<ReserveDetailState> {
     );
   }
 
-  Future<bool> affecter({String? utilisateurId, String? entrepriseId}) async {
+  /// Affecte la réserve à un compte, à une entreprise utilisatrice, ou à une
+  /// entreprise de l'annuaire du chantier — voir `ReserveRepository.affecter`.
+  Future<bool> affecter({
+    String? utilisateurId,
+    String? entrepriseId,
+    String? partenaireId,
+  }) async {
     if (state.affectationStatus == ActionReserveStatus.enCours) return false;
     emit(state.copyWith(affectationStatus: ActionReserveStatus.enCours));
 
@@ -87,6 +93,7 @@ class ReserveDetailCubit extends Cubit<ReserveDetailState> {
       reserveId: reserveId,
       utilisateurId: utilisateurId,
       entrepriseId: entrepriseId,
+      partenaireId: partenaireId,
     );
     if (isClosed) return false;
 

@@ -29,6 +29,24 @@ class PlanRepositoryImpl implements PlanRepository {
   }
 
   @override
+  Future<Either<Failure, List<Plan>>> getPlansRacines(String chantierId) async {
+    try {
+      return Right(await remoteDataSource.getPlansRacines(chantierId));
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<Plan>>> getSousPlans(String planId) async {
+    try {
+      return Right(await remoteDataSource.getSousPlans(planId));
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
   Future<Either<Failure, Plan>> getPlanDetail(String id) async {
     try {
       return Right(await remoteDataSource.getPlanDetail(id));
@@ -46,6 +64,12 @@ class PlanRepositoryImpl implements PlanRepository {
     String? batimentId,
     String? etageId,
     String? zoneId,
+    String? parentId,
+    /// Discipline du plan et date DU PLAN — cahier technique § 4.
+    /// Facultatives : un chantier qui n'a qu'un jeu de plans n'a rien à
+    /// distinguer, et une date inconnue vaut mieux qu'une date inventée.
+    String? typePlan,
+    DateTime? datePlan,
   }) async {
     try {
       return Right(await remoteDataSource.uploaderPlan(
@@ -56,6 +80,9 @@ class PlanRepositoryImpl implements PlanRepository {
         batimentId: batimentId,
         etageId: etageId,
         zoneId: zoneId,
+        parentId: parentId,
+        typePlan: typePlan,
+        datePlan: datePlan,
       ));
     } catch (e) {
       return Left(exceptionToFailure(e));

@@ -8,6 +8,7 @@ import 'package:suivie_chantier_mobile/core/widgets/loading_list.dart';
 import 'package:suivie_chantier_mobile/features/synchronisation/presentation/pages/taches_synchronisation_page.dart';
 import 'package:suivie_chantier_mobile/injection_container.dart';
 
+import '../../../../helpers/balayage_responsive.dart';
 import '../../../../helpers/pompe_page.dart';
 
 class _MockFile extends Mock implements FileAttente {}
@@ -125,5 +126,25 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
+  });
+
+  group('mise en page — balayage des formats', () {
+    // Chaque tâche affiche son nom, son état et sa date sur une ligne. Sur un
+    // téléphone étroit, ces trois éléments se disputent la même largeur.
+    for (final format in tousLesFormats) {
+      testWidgets('sans débordement sur $format', (tester) async {
+        // Une file GARNIE : c'est elle qui met la mise en page à l'épreuve.
+        // Sur une file vide, l'écran n'affiche qu'un message centré, qui ne
+        // déborde jamais.
+        when(file.toutesLesTaches)
+            .thenAnswer((_) async => [tache('a'), tache('b'), tache('c')]);
+
+        await pomperPage(tester, const TachesSynchronisationPage(), taille: format.taille);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull,
+            reason: 'débordement de mise en page sur $format');
+      });
+    }
   });
 }

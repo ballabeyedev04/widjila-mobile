@@ -15,7 +15,36 @@ import '../../../plan/presentation/widgets/plan_vignette.dart';
 /// Nombre de plans montrés — demandé par le client.
 const _combien = 8;
 
-/// Les [_combien] plans les plus récents.
+/// Un plan GLOBAL : celui du chantier, en tête de l'arborescence.
+///
+/// Deux conditions, et il fallait bien les deux :
+///
+///  - `parentId == null` — le plan n'est le DÉTAIL de personne. C'est la
+///    condition qui manquait, et le trou était réel : un plan de détail HÉRITE
+///    des rattachements de son parent (`plan.service.js#_resoudreRattachement`).
+///    Le détail d'un plan de masse n'a donc, lui non plus, ni bâtiment, ni
+///    étage, ni zone — il passait le filtre et venait s'afficher dans la bande
+///    à côté du plan dont il dépend, sans que rien ne les distingue.
+///
+///  - aucun rattachement de structure — le plan n'est pas celui d'un bâtiment,
+///    d'un étage ou d'un appartement. Un tel plan est le résultat d'une
+///    descente, pas une porte d'entrée.
+bool estPlanGlobal(Plan p) =>
+    p.parentId == null && p.batiment == null && p.etage == null && p.zone == null;
+
+/// Les [_combien] plans GLOBAUX les plus récents.
+///
+/// ── Pourquoi seulement les globaux ────────────────────────────────────────
+///
+/// La bande mélangeait tous les niveaux : le plan de masse d'un chantier y
+/// voisinait avec le plan de l'appartement A203, sans que rien ne dise lequel
+/// était lequel. Or cette bande est une porte d'ENTRÉE — on y choisit un
+/// chantier pour y descendre ensuite, bâtiment par bâtiment. Un sous-plan
+/// n'est pas une entrée : il est le résultat d'une descente.
+///
+/// Et une carte sur deux y était un doublon visuel : les plans d'étages d'un
+/// même bâtiment se ressemblent, et huit vignettes presque identiques ne
+/// permettaient plus de reconnaître quoi que ce soit.
 ///
 /// Un plan sans date passe EN DERNIER plutôt que de remonter en tête : un
 /// `createdAt` absent est une information manquante, pas une date nulle, et
@@ -24,7 +53,7 @@ const _combien = 8;
 /// La liste reçue n'est pas modifiée : elle appartient à l'état du cubit.
 @visibleForTesting
 List<Plan> derniersPlans(List<Plan> plans) {
-  final tries = [...plans]
+  final tries = plans.where(estPlanGlobal).toList()
     ..sort((a, b) {
       final da = a.createdAt, db = b.createdAt;
       if (da == null && db == null) return 0;
@@ -298,8 +327,17 @@ class _Carte extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
+          // Ouvre l'EXPLORATEUR positionné sur CE plan, et non la visionneuse.
+          //
+          // La visionneuse montrait le document seul, sans dire ce qu'il y
+          // avait dessous : depuis la bande, on ne pouvait pas descendre du
+          // plan de masse vers ses plans de détail. L'explorateur affiche le
+          // plan ET ses sous-plans directs — un cran à la fois — et l'appui sur
+          // l'image y pose une réserve.
           onTap: () => context.push(
-            AppRoutes.planDetail.replaceFirst(':id', plan.id),
+            '${AppRoutes.chantierPlansExplorer.replaceFirst(':chantierId', plan.chantierId)}'
+            '?planId=${plan.id}'
+            '${plan.chantierNom == null ? '' : '&nom=${Uri.encodeComponent(plan.chantierNom!)}'}',
           ),
           child: Container(
             decoration: BoxDecoration(

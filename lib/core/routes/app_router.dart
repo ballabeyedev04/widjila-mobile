@@ -28,6 +28,7 @@ import '../../features/inspection/presentation/pages/inspections_list_page.dart'
 import '../../features/rapport/presentation/pages/rapports_list_page.dart';
 import '../../features/plan/presentation/pages/plan_navigation_page.dart';
 import '../../features/plan/presentation/pages/plan_viewer_page.dart';
+import '../../features/plan/presentation/pages/plan_explorer_page.dart';
 import '../../features/plan/presentation/pages/plans_list_page.dart';
 import '../../features/chantier/presentation/pages/demandes_chantier_page.dart';
 import '../../features/chantier/presentation/pages/depot_plans_page.dart';
@@ -114,6 +115,15 @@ class AppRoutes {
   // Distinct de `chantierPlans`, qui reste la LISTE à plat des documents
   // (import, versions) — les deux répondent à deux besoins différents.
   static const chantierPlansParcours = '/chantiers/:chantierId/plans/parcourir';
+
+  /// Parcours des plans PAR NIVEAU — plans globaux, puis sous-plans directs.
+  ///
+  /// Distinct de `chantierPlansParcours`, qui descend la STRUCTURE du chantier
+  /// (bâtiment → étage → appartement). Celui-ci descend l'arborescence des
+  /// PLANS eux-mêmes (`plans.parent_id`), et c'est le parcours du relevé d'une
+  /// réserve : on choisit un chantier, on voit ses plans globaux, on descend
+  /// jusqu'au plan concerné, et on appuie dessus à l'endroit du défaut.
+  static const chantierPlansExplorer = '/chantiers/:chantierId/plans/explorer';
   static const planDetail = '/plans/:id';
 
   // Inspections et rapports — mêmes règles que les réserves : drill-down
@@ -449,6 +459,21 @@ class AppRouter {
       // que `/plans/parcourir` ne doit pas capturer — go_router préfère la
       // route la plus spécifique, mais on la déclare juste après pour que la
       // lecture du fichier suive la hiérarchie réelle.
+      // Déclarée avant `chantierPlansParcours` : les deux sous-chemins sont
+      // statiques et distincts, l'ordre n'a donc aucune incidence sur le
+      // routage — il suit la fréquence d'usage, l'explorateur étant le
+      // parcours du relevé quotidien.
+      GoRoute(
+        path: AppRoutes.chantierPlansExplorer,
+        pageBuilder: (_, state) => _pagePleine(state, PlanExplorerPage(
+          chantierId: state.pathParameters['chantierId']!,
+          chantierNom: state.uri.queryParameters['nom'],
+          // Facultatif : ouvre l'explorateur DIRECTEMENT sur ce plan au lieu
+          // de partir des plans globaux. Utilisé par la bande « Derniers
+          // plans » de l'accueil, où l'on appuie sur un plan précis.
+          planIdInitial: state.uri.queryParameters['planId'],
+        )),
+      ),
       GoRoute(
         path: AppRoutes.chantierPlansParcours,
         pageBuilder: (_, state) => _pagePleine(state, PlanNavigationPage(

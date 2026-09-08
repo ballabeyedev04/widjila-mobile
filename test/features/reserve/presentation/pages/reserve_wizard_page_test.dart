@@ -16,6 +16,7 @@ import 'package:suivie_chantier_mobile/features/reserve/presentation/cubit/reser
 import 'package:suivie_chantier_mobile/features/reserve/presentation/pages/reserve_wizard_page.dart';
 import 'package:suivie_chantier_mobile/injection_container.dart';
 
+import '../../../../helpers/balayage_responsive.dart';
 import '../../../../helpers/pompe_page.dart';
 
 class _MockStructure extends Mock implements GetChantierStructure {}
@@ -146,5 +147,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
+  });
+
+  group('mise en page — balayage des formats', () {
+    // L'assistant empile trois pastilles d'étape, un formulaire et une barre
+    // d'actions. La barre est le point sensible : deux boutons côte à côte,
+    // dont les libellés s'allongent en allemand — et la hauteur utile
+    // s'effondre en paysage, où le formulaire doit continuer de défiler.
+    for (final format in tousLesFormats) {
+      testWidgets('sans débordement sur $format', (tester) async {
+        await pomperPage(tester, page, role: UserRole.entreprise, taille: format.taille);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull,
+            reason: 'débordement de mise en page sur $format');
+      });
+    }
   });
 }

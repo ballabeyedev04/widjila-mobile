@@ -428,16 +428,26 @@ class _BarreProgression extends StatelessWidget {
               ),
               const SizedBox(width: 14),
             ],
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              onPressed: () => cubit.avancerVers(suivant),
-              child: Text(
-                libelle,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            // `Flexible` : le libellé de l'action suivante est traduit, et la
+            // barre porte déjà l'avancement à sa gauche. Sur un téléphone de
+            // 320 dp, les deux ensemble dépassaient — le balayage des formats
+            // le mesurait. C'est le BOUTON qui cède, parce que son libellé
+            // reste lisible tronqué là où une barre de progression écrasée ne
+            // dirait plus rien.
+            Flexible(
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: () => cubit.avancerVers(suivant),
+                child: Text(
+                  libelle,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
           ],
@@ -456,9 +466,17 @@ class _TitreSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(
-          texte,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+        // `Flexible` : le titre est TRADUIT, et la version allemande d'une
+        // section (« Anwesenheitsbestätigungen ») dépassait de 30 points sur un
+        // téléphone de 320 dp — mesuré par le balayage des formats. La pastille
+        // de comptage, elle, garde sa taille : c'est le titre qui cède.
+        Flexible(
+          child: Text(
+            texte,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
         if (compteur != null) ...[
           const SizedBox(width: 8),

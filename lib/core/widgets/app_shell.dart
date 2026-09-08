@@ -15,7 +15,6 @@ import '../../l10n/l10n_extension.dart';
 import 'action_rapide.dart';
 import 'chantier_picker_sheet.dart';
 import 'menu_plus_sheet.dart';
-import 'plan_picker_sheet.dart';
 
 /// Un onglet de la barre. [prefixes] liste TOUTES les routes qui doivent
 /// allumer cet onglet — pas seulement sa destination : « Plus » reste
@@ -404,13 +403,25 @@ class _AppShellState extends State<AppShell> {
   /// ## Pourquoi passer par le plan
   ///
   /// Une réserve se situe : « fissure » sans dire où n'aide personne. Le plan
-  /// est le repère commun de tous les intervenants, et le serveur sait le
-  /// rattacher (`planId` de `POST /reserves`). Le chantier d'abord, puisqu'un
-  /// plan appartient à un chantier.
+  /// est le repère commun de tous les intervenants, et il porte DÉJÀ sa place
+  /// dans le chantier — le serveur en déduit bâtiment, étage et zone
+  /// (`reserve.service.js#_heriterLocalisationDuPlan`). Le chantier d'abord,
+  /// puisqu'un plan appartient à un chantier.
   ///
-  /// Le sélecteur de plan sait aussi répondre « sans plan » : un chantier dont
-  /// les plans ne sont pas encore déposés ne doit pas empêcher de relever une
-  /// réserve (voir [choisirPlan]).
+  /// ## Ce qui a changé
+  ///
+  /// Le chantier choisi, une feuille listait TOUS ses plans à plat — plan
+  /// global, plans de bâtiment, plans d'étage et plans de détail mélangés — et
+  /// le premier appui ouvrait directement le formulaire. On ne pouvait donc ni
+  /// se repérer dans l'arborescence, ni regarder un plan avant de s'en servir.
+  ///
+  /// Le « + » ouvre désormais l'EXPLORATEUR : les plans globaux, puis les
+  /// sous-plans directs à chaque appui, et au bout le plan lui-même — son image
+  /// réelle, ses réserves posées, et l'appui qui en crée une à l'endroit exact.
+  /// Voir [PlanExplorerPage].
+  ///
+  /// Un chantier sans aucun plan y affiche un état vide explicite : le relevé
+  /// suppose un plan, et c'est le dépôt qu'il faut faire d'abord.
   Future<void> _nouvelleReserve() async {
     // Le sélecteur propose de DEMANDER un chantier à qui en a le droit : une
     // entreprise qui vient relever sa première réserve et n'a encore aucun
@@ -427,14 +438,12 @@ class _AppShellState extends State<AppShell> {
     );
     if (chantier == null || !mounted || !context.mounted) return;
 
-    final choix = await choisirPlan(context, chantierId: chantier.id, chantierNom: chantier.nom);
-    // Feuille refermée sans rien décider : on s'arrête là. Enchaîner sur le
-    // formulaire ignorerait un abandon explicite.
-    if (choix == null || !mounted || !context.mounted) return;
-
-    final plan = choix.plan;
-    final query = plan == null ? '' : '?planId=${plan.id}&planNom=${Uri.encodeComponent(plan.nom)}';
-    context.push('/chantiers/${chantier.id}/reserves/nouvelle$query');
+    // Le nom suit en query : l'explorateur n'a pas le chantier chargé, et son
+    // fil d'Ariane commence par lui.
+    context.push(
+      '/chantiers/${chantier.id}/plans/explorer'
+      '?nom=${Uri.encodeComponent(chantier.nom)}',
+    );
   }
 
   @override

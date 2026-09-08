@@ -72,31 +72,11 @@ class ReserveWizardCubit extends Cubit<ReserveWizardState> {
   void changerDescription(String v) => emit(state.copyWith(description: v));
 
   // ── Étape 2 ──────────────────────────────────────────────────────────────
-  /// Choisir un nouveau bâtiment réinitialise étage/zone (qui lui sont
-  /// rattachés) — évite d'envoyer un `etageId` orphelin d'un autre bâtiment.
-  void changerBatiment(BatimentStructure? v) {
-    if (v == null) {
-      emit(state.copyWith(effacerBatiment: true, effacerEtage: true, effacerZone: true));
-    } else {
-      emit(state.copyWith(batiment: v, effacerEtage: true, effacerZone: true));
-    }
-  }
-
-  void changerEtage(EtageStructure? v) {
-    if (v == null) {
-      emit(state.copyWith(effacerEtage: true, effacerZone: true));
-    } else {
-      emit(state.copyWith(etageValue: v, effacerZone: true));
-    }
-  }
-
-  void changerZone(ZoneStructure? v) {
-    if (v == null) {
-      emit(state.copyWith(effacerZone: true));
-    } else {
-      emit(state.copyWith(zoneValue: v));
-    }
-  }
+  //
+  // `changerBatiment`, `changerEtage` et `changerZone` ont disparu avec les
+  // trois sélecteurs qui les appelaient. La localisation d'une réserve vient
+  // désormais du PLAN sur lequel elle est posée, et le serveur en déduit les
+  // trois niveaux. Voir `ReserveWizardState`.
 
   void changerLot(StructureRef? v) {
     if (v == null) {
@@ -137,9 +117,10 @@ class ReserveWizardCubit extends Cubit<ReserveWizardState> {
       priorite: state.priorite,
       corpsEtatId: state.corpsEtatId,
       phaseId: state.phaseId,
-      batimentId: state.batiment?.id,
-      etageId: state.etage?.id,
-      zoneId: state.zone?.id,
+      // Ni bâtiment, ni étage, ni zone : quand un plan est désigné, le serveur
+      // les en déduit ; sans plan, la réserve est simplement rattachée au
+      // chantier — ce qui est exact, et vaut mieux qu'une localisation
+      // ressaisie de mémoire.
       lotId: state.lot?.id,
       dateLimite: state.dateLimite,
       // Sans position : l'assistant demande le plan, pas l'endroit exact. Le

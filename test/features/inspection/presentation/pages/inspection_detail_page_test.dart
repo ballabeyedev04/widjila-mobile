@@ -11,6 +11,7 @@ import 'package:suivie_chantier_mobile/features/inspection/domain/usecases/inspe
 import 'package:suivie_chantier_mobile/injection_container.dart';
 import 'package:suivie_chantier_mobile/features/inspection/presentation/pages/inspection_detail_page.dart';
 
+import '../../../../helpers/balayage_responsive.dart';
 import '../../../../helpers/pompe_page.dart';
 
 class _MockGet extends Mock implements GetInspection {}
@@ -138,5 +139,25 @@ void main() {
     expect(find.textContaining('Etancheite toiture'), findsOneWidget);
     expect(find.textContaining('Garde-corps'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  group('mise en page — balayage des formats', () {
+    // Une visite porte une checklist, des convocations et une barre d'actions.
+    // Les libellés de statut y voisinent des noms de personnes : deux textes
+    // variables sur la même ligne, le cas classique du débordement.
+    for (final format in tousLesFormats) {
+      testWidgets('sans débordement sur $format', (tester) async {
+        when(() => getInspection(any()))
+            .thenAnswer((_) async => const Right<Failure, Inspection>(visiteNue));
+        when(() => getConvocations(any()))
+            .thenAnswer((_) async => const Right<Failure, List<Convocation>>([]));
+
+        await pomperPage(tester, page, taille: format.taille);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull,
+            reason: 'débordement de mise en page sur $format');
+      });
+    }
   });
 }

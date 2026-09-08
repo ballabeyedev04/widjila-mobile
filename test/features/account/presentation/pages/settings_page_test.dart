@@ -14,6 +14,7 @@ import 'package:suivie_chantier_mobile/features/account/presentation/cubit/setti
 import 'package:suivie_chantier_mobile/features/account/presentation/pages/settings_page.dart';
 import 'package:suivie_chantier_mobile/injection_container.dart';
 
+import '../../../../helpers/balayage_responsive.dart';
 import '../../../../helpers/pompe_page.dart';
 
 class _MockRepo extends Mock implements AccountRepository {}
@@ -113,5 +114,23 @@ void main() {
 
     expect(find.byType(ListView), findsWidgets);
     expect(tester.takeException(), isNull);
+  });
+
+  group('mise en page — balayage des formats', () {
+    // L'écran empile une quinzaine de lignes « libellé à gauche, interrupteur
+    // à droite ». C'est la forme qui casse le plus tôt : un libellé traduit en
+    // allemand pousse l'interrupteur hors de l'écran sur un téléphone de
+    // 320 dp, et rien ne le rattrape si le libellé n'est pas contraint.
+    for (final format in tousLesFormats) {
+      testWidgets('sans débordement sur $format', (tester) async {
+        toutRepond();
+
+        await pomperPage(tester, const SettingsPage(), taille: format.taille);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull,
+            reason: 'débordement de mise en page sur $format');
+      });
+    }
   });
 }

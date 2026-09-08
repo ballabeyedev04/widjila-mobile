@@ -198,11 +198,13 @@ class ReserveRepositoryImpl implements ReserveRepository {
     required String reserveId,
     String? utilisateurId,
     String? entrepriseId,
+    String? partenaireId,
   }) async {
     try {
       return Right(await remoteDataSource.affecter(reserveId, {
         if (utilisateurId != null) 'utilisateurId': utilisateurId,
         if (entrepriseId != null) 'entrepriseId': entrepriseId,
+        if (partenaireId != null) 'partenaireId': partenaireId,
       }));
     } catch (e) {
       return Left(exceptionToFailure(e));
@@ -270,6 +272,7 @@ class ReserveRepositoryImpl implements ReserveRepository {
     String? planId,
     double? positionX,
     double? positionY,
+    int positionPage = 1,
     String? partenaireId,
     ReserveSeverite? severite,
     String? corpsEtatId,
@@ -299,6 +302,7 @@ class ReserveRepositoryImpl implements ReserveRepository {
         categorie: categorie, batimentId: batimentId, etageId: etageId, zoneId: zoneId, lotId: lotId,
         dateLimite: dateLimite,
         planId: planId, positionX: positionX, positionY: positionY,
+        positionPage: positionPage,
         partenaireId: partenaireId, severite: severite, corpsEtatId: corpsEtatId, phaseId: phaseId,
       ));
     }
@@ -309,6 +313,7 @@ class ReserveRepositoryImpl implements ReserveRepository {
         categorie: categorie, batimentId: batimentId, etageId: etageId, zoneId: zoneId, lotId: lotId,
         dateLimite: dateLimite,
         planId: planId, positionX: positionX, positionY: positionY,
+        positionPage: positionPage,
         partenaireId: partenaireId, severite: severite, corpsEtatId: corpsEtatId, phaseId: phaseId,
       );
       await _cache.enregistrer(result);
@@ -321,6 +326,7 @@ class ReserveRepositoryImpl implements ReserveRepository {
         categorie: categorie, batimentId: batimentId, etageId: etageId, zoneId: zoneId, lotId: lotId,
         dateLimite: dateLimite,
         planId: planId, positionX: positionX, positionY: positionY,
+        positionPage: positionPage,
         partenaireId: partenaireId, severite: severite, corpsEtatId: corpsEtatId, phaseId: phaseId,
       ));
     } on DioException catch (e) {
@@ -331,6 +337,7 @@ class ReserveRepositoryImpl implements ReserveRepository {
           categorie: categorie, batimentId: batimentId, etageId: etageId, zoneId: zoneId, lotId: lotId,
           dateLimite: dateLimite,
           planId: planId, positionX: positionX, positionY: positionY,
+          positionPage: positionPage,
           partenaireId: partenaireId, severite: severite, corpsEtatId: corpsEtatId, phaseId: phaseId,
         ));
       }
@@ -365,6 +372,7 @@ class ReserveRepositoryImpl implements ReserveRepository {
     String? planId,
     double? positionX,
     double? positionY,
+    int positionPage = 1,
     String? partenaireId,
     ReserveSeverite? severite,
     String? corpsEtatId,
@@ -413,6 +421,10 @@ class ReserveRepositoryImpl implements ReserveRepository {
         'planId': planId,
         'positionX': positionX,
         'positionY': positionY,
+        // La PAGE, sans quoi une réserve posée hors ligne sur la page 7 d'un
+        // PDF repartait sur la page 1 à la synchronisation — au bon endroit,
+        // sur le mauvais plan.
+        'positionPage': positionPage,
         'partenaireId': partenaireId,
         'severite': severite?.raw,
         // Sans cette clé, une réserve créée SANS RÉSEAU repartait au retour

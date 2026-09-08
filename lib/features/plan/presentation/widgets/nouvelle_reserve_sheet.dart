@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/services/capture_photo.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_alert.dart';
 import '../../../../core/widgets/primary_button.dart';
@@ -59,11 +60,18 @@ class NouvelleReserveSheet extends StatefulWidget {
   final double positionX;
   final double positionY;
 
+  /// PAGE du document sur laquelle le point a été posé — cahier technique § 18.
+  ///
+  /// `1` par défaut : un plan d'une seule page est le cas courant, et les
+  /// écrans qui n'affichent qu'une page n'ont rien à préciser.
+  final int positionPage;
+
   const NouvelleReserveSheet({
     super.key,
     required this.localisation,
     required this.positionX,
     required this.positionY,
+    this.positionPage = 1,
   });
 
   @override
@@ -91,9 +99,16 @@ class _NouvelleReserveSheetState extends State<NouvelleReserveSheet> {
   List<PhaseReferentiel> _phases = const [];
   bool _envoiEnCours = false;
 
-  /// Signale la phase manquante SOUS le champ, plutôt que par une alerte :
-  /// l'utilisateur voit immédiatement lequel des champs bloque.
+  /// Signale un champ obligatoire manquant SOUS le champ concerné, plutôt que
+  /// par une alerte : l'utilisateur voit immédiatement lequel bloque, au lieu
+  /// de relire tout le formulaire.
+  ///
+  /// Trois champs, parce que le cahier technique (§ 9) en impose trois que le
+  /// formulaire laissait passer : la phase, l'entreprise concernée et
+  /// l'échéance de levée.
   bool _phaseManquante = false;
+  bool _entrepriseManquante = false;
+  bool _echeanceManquante = false;
 
   @override
   void initState() {
@@ -148,10 +163,26 @@ class _NouvelleReserveSheetState extends State<NouvelleReserveSheet> {
     );
   }
 
+  /// Prend une photo, ou en choisit une dans la galerie.
+  ///
+  /// Passe par `capturerPhoto` et non directement par `ImagePicker` : sur
+  /// Android, le système peut détruire l'activité pendant que l'appareil photo
+  /// occupe l'écran, et `pickImage` rend alors `null` alors que le cliché
+  /// existe. C'est exactement le défaut signalé — « la caméra s'ouvre, je
+  /// prends la photo, et rien ne s'affiche ». Le service récupère le cliché
+  /// mis en attente par le système.
   Future<void> _choisirPhoto(ImageSource source) async {
-    final fichier = await ImagePicker().pickImage(source: source, imageQuality: 85, maxWidth: 1920);
-    if (fichier == null || !mounted) return;
-    setState(() => _photo = File(fichier.path));
+    try {
+      final fichier = await capturerPhoto(source);
+      // `null` = abandon volontaire : on ne dit rien, on ne change rien.
+      if (fichier == null || !mounted) return;
+      setState(() => _photo = fichier);
+    } on PhotoIndisponible {
+      // Un échec RÉEL (permission refusée, appareil indisponible) mérite un
+      // message : sans lui, l'utilisateur réappuie indéfiniment sur un bouton
+      // qui ne fait rien.
+      if (mounted) AppAlert.error(context, message: context.l10n.reserveNouvPhotoIndisponible);
+    }
   }
 
   Future<void> _choisirDate() async {
@@ -164,7 +195,12 @@ class _NouvelleReserveSheetState extends State<NouvelleReserveSheet> {
       firstDate: maintenant,
       lastDate: maintenant.add(const Duration(days: 365 * 5)),
     );
-    if (choisie != null && mounted) setState(() => _dateLimite = choisie);
+    if (choisie != null && mounted) {
+      setState(() {
+        _dateLimite = choisie;
+        _echeanceManquante = false;
+      });
+    }
   }
 
   Future<void> _enregistrer() async {
@@ -172,8 +208,23 @@ class _NouvelleReserveSheetState extends State<NouvelleReserveSheet> {
     // La phase est obligatoire. Le serveur l'impose aussi
     // (`creerReserveSchema`) : ce contrôle évite un aller-retour réseau et
     // signale le champ fautif SOUS le sélecteur, pas dans une alerte.
-    if (_phaseId == null) {
-      setState(() => _phaseManquante = true);
+    // Les trois champs obligatoires sont vérifiés ENSEMBLE, et tous signalés
+    // d'un coup : les traiter l'un après l'autre ferait remplir le formulaire
+    // en trois allers-retours, chacun révélant le manque suivant.
+    final phaseManque = _phaseId == null;
+    // Cahier technique § 9 : « Entreprise — obligatoire ». Une réserve sans
+    // entreprise n'est adressée à personne.
+    final entrepriseManque = _partenaireId == null;
+    // Cahier technique § 9 : « Échéance — obligatoire ». Sans elle, la réserve
+    // n'est jamais en retard, et sort donc de tout suivi.
+    final echeanceManque = _dateLimite == null;
+
+    if (phaseManque || entrepriseManque || echeanceManque) {
+      setState(() {
+        _phaseManquante = phaseManque;
+        _entrepriseManquante = entrepriseManque;
+        _echeanceManquante = echeanceManque;
+      });
       return;
     }
     // Verrou de double soumission — même raison que dans `ReserveWizardCubit` :
@@ -202,6 +253,7 @@ class _NouvelleReserveSheetState extends State<NouvelleReserveSheet> {
       planId: loc.planId,
       positionX: widget.positionX,
       positionY: widget.positionY,
+      positionPage: widget.positionPage,
       partenaireId: _partenaireId,
       dateLimite: _dateLimite,
     );
@@ -314,14 +366,21 @@ class _NouvelleReserveSheetState extends State<NouvelleReserveSheet> {
                       ),
                       const SizedBox(height: 8),
 
+                      // Entreprise concernée — OBLIGATOIRE (cahier § 9), d'où
+                      // l'astérisque et la disparition de l'option « aucune » :
+                      // proposer « — Aucune — » sur un champ requis serait se
+                      // contredire.
                       DropdownButtonFormField<String?>(
                         initialValue: _partenaireId,
                         isExpanded: true,
-                        decoration: InputDecoration(labelText: l10n.reserveNouvEntreprise),
+                        decoration: InputDecoration(
+                          labelText: '${l10n.reserveNouvEntreprise} *',
+                          errorText: _entrepriseManquante ? l10n.reserveNouvEntrepriseRequise : null,
+                        ),
                         items: [
                           DropdownMenuItem<String?>(
                             value: null,
-                            child: Text(l10n.reserveNouvAucuneEntreprise),
+                            child: Text(l10n.reserveNouvChoisirEntreprise),
                           ),
                           for (final p in _partenaires)
                             DropdownMenuItem<String?>(
@@ -329,7 +388,10 @@ class _NouvelleReserveSheetState extends State<NouvelleReserveSheet> {
                               child: Text(p.nom, overflow: TextOverflow.ellipsis),
                             ),
                         ],
-                        onChanged: (v) => setState(() => _partenaireId = v),
+                        onChanged: (v) => setState(() {
+                          _partenaireId = v;
+                          _entrepriseManquante = false;
+                        }),
                       ),
                       const SizedBox(height: 16),
 
@@ -402,13 +464,15 @@ class _NouvelleReserveSheetState extends State<NouvelleReserveSheet> {
                       ),
                       const SizedBox(height: 12),
 
+                      // Échéance de levée — OBLIGATOIRE (cahier § 9).
                       InkWell(
                         onTap: _choisirDate,
                         borderRadius: BorderRadius.circular(12),
                         child: InputDecorator(
                           decoration: InputDecoration(
-                            labelText: l10n.reserveNouvDelai,
+                            labelText: '${l10n.reserveNouvDelai} *',
                             suffixIcon: const Icon(Icons.event_outlined, size: 20),
+                            errorText: _echeanceManquante ? l10n.reserveNouvDelaiRequis : null,
                           ),
                           child: Text(
                             _dateLimite == null
@@ -429,10 +493,40 @@ class _NouvelleReserveSheetState extends State<NouvelleReserveSheet> {
                       ),
                       const SizedBox(height: 22),
 
-                      PrimaryButton(
-                        label: l10n.reserveNouvEnregistrer,
-                        onPressed: _enregistrer,
-                        enCours: _envoiEnCours,
+                      // « Retour » à côté de « Enregistrer », et pas seulement
+                      // la croix du haut.
+                      //
+                      // Se tromper d'endroit est le geste le plus fréquent sur
+                      // un plan : on vise un mur, on touche celui d'à côté. Le
+                      // bouton ramène AU PLAN, au même niveau, prêt pour un
+                      // autre point — sans refaire le parcours depuis le
+                      // chantier. C'est l'écran d'où l'on vient qui efface le
+                      // repère provisoire ; ici, il suffit de repartir sans
+                      // rien créer.
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _envoiEnCours ? null : () => Navigator.of(context).pop(),
+                              icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                              label: Text(l10n.reserveNouvRetour),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size.fromHeight(50),
+                                foregroundColor: AppColors.textSecondary,
+                                side: const BorderSide(color: AppColors.border),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: PrimaryButton(
+                              label: l10n.reserveNouvEnregistrer,
+                              onPressed: _enregistrer,
+                              enCours: _envoiEnCours,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -482,78 +576,142 @@ class _ChampPhoto extends StatelessWidget {
           style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
         ),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            if (photo != null)
-              Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.file(
-                      photo!,
-                      width: 74,
-                      height: 58,
-                      fit: BoxFit.cover,
-                      // La photo est déjà plafonnée à 1920 px par
-                      // `image_picker` (voir `_choisirPhoto`), mais rien
-                      // n'empêche `Image.file` de la décoder à cette pleine
-                      // résolution pour un aperçu de 74×58 : jusqu'à 20 Mo
-                      // de mémoire pour quelques centaines de pixels
-                      // affichés. Même correctif que `FichierImage` —
-                      // décoder à la taille d'affichage réelle.
-                      cacheWidth: (74 * MediaQuery.devicePixelRatioOf(context)).ceil(),
-                      filterQuality: FilterQuality.low,
-                    ),
-                  ),
-                  Positioned(
-                    top: 2,
-                    right: 2,
-                    child: GestureDetector(
-                      onTap: onRetirer,
-                      child: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.6),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.close_rounded, size: 13, color: Colors.white),
-                      ),
-                    ),
-                  ),
-                ],
-              )
-            else
-              Container(
-                width: 74,
-                height: 58,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.border, style: BorderStyle.solid),
-                  color: AppColors.background,
+        if (photo != null) ...[
+          _Apercu(photo: photo!, onRetirer: onRetirer),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              // « Reprendre » d'abord : quand une photo est déjà là, la refaire
+              // est ce qu'on vient chercher — le cadrage était mauvais, le
+              // défaut mal visible.
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onAppareil,
+                  icon: const Icon(Icons.replay_rounded, size: 17),
+                  label: Text(l10n.reserveNouvReprendrePhoto, style: const TextStyle(fontSize: 13)),
                 ),
-                child: const Icon(Icons.photo_camera_outlined, color: AppColors.textMuted, size: 22),
               ),
-            const SizedBox(width: 12),
-            Expanded(
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: onGalerie,
+                  icon: const Icon(Icons.photo_library_outlined, size: 17),
+                  label: Text(l10n.reserveNouvChoisirGalerie, style: const TextStyle(fontSize: 13)),
+                ),
+              ),
+            ],
+          ),
+        ] else ...[
+          // Pas encore de photo : une zone d'appel large, l'appareil photo en
+          // premier. Sur un chantier, la photo se prend sur place au moment du
+          // constat ; la galerie n'est qu'un repli.
+          InkWell(
+            onTap: onAppareil,
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              height: 96,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.border),
+                color: AppColors.background,
+              ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  OutlinedButton.icon(
-                    onPressed: onAppareil,
-                    icon: const Icon(Icons.photo_camera_outlined, size: 17),
-                    label: Text(l10n.reserveNouvPrendrePhoto, style: const TextStyle(fontSize: 13)),
-                  ),
+                  const Icon(Icons.photo_camera_outlined, color: AppColors.primary, size: 26),
                   const SizedBox(height: 6),
-                  TextButton.icon(
-                    onPressed: onGalerie,
-                    icon: const Icon(Icons.photo_library_outlined, size: 17),
-                    label: Text(l10n.reserveNouvChoisirGalerie, style: const TextStyle(fontSize: 13)),
+                  Text(
+                    l10n.reserveNouvPrendrePhoto,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
                   ),
                 ],
               ),
             ),
-          ],
+          ),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: onGalerie,
+              icon: const Icon(Icons.photo_library_outlined, size: 17),
+              label: Text(l10n.reserveNouvChoisirGalerie, style: const TextStyle(fontSize: 13)),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// La photo capturée, en grand.
+///
+/// ## Pourquoi grand
+///
+/// L'aperçu tenait dans une vignette de 74 x 58 : à cette taille, on voit
+/// qu'IL Y A une photo, pas CE QU'ELLE MONTRE. Or c'est exactement ce qu'on
+/// veut vérifier avant d'enregistrer — le défaut est-il net, cadré,
+/// reconnaissable ? S'en apercevoir plus tard suppose de revenir sur place.
+///
+/// `BoxFit.contain` et non `cover` : une photo de chantier vise souvent un
+/// défaut haut ou bas dans le cadre, et un recadrage automatique couperait
+/// justement ce qu'elle montre.
+class _Apercu extends StatelessWidget {
+  final File photo;
+  final VoidCallback onRetirer;
+
+  const _Apercu({required this.photo, required this.onRetirer});
+
+  @override
+  Widget build(BuildContext context) {
+    // `cacheWidth` : le cliché est plafonné à 1920 px par `capturerPhoto`, mais
+    // rien n'empêche `Image.file` de le décoder à cette pleine résolution pour
+    // un aperçu large de quelques centaines de points — plusieurs mégaoctets de
+    // mémoire pour rien. On décode à la taille réellement affichée.
+    final largeurEcran = MediaQuery.sizeOf(context).width;
+    final densite = MediaQuery.devicePixelRatioOf(context);
+
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            width: double.infinity,
+            height: 190,
+            color: AppColors.background,
+            child: Image.file(
+              photo,
+              fit: BoxFit.contain,
+              cacheWidth: (largeurEcran * densite).ceil(),
+              filterQuality: FilterQuality.medium,
+              // Un fichier illisible ne doit pas faire tomber le formulaire :
+              // la réserve reste enregistrable sans sa photo.
+              errorBuilder: (_, _, _) => const Center(
+                child: Icon(Icons.broken_image_outlined, color: AppColors.textMuted, size: 28),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Material(
+            color: Colors.black54,
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onRetirer,
+              child: const SizedBox(
+                width: 30,
+                height: 30,
+                child: Icon(Icons.close_rounded, size: 17, color: Colors.white),
+              ),
+            ),
+          ),
         ),
       ],
     );

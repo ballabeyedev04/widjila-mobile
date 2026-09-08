@@ -24,6 +24,19 @@ class UploaderPlan {
     String? batimentId,
     String? etageId,
     String? zoneId,
+
+    /// Plan PARENT — celui dont ce plan est le DÉTAIL.
+    ///
+    /// Prioritaire sur les trois précédents : le serveur ignore alors le
+    /// rattachement de structure et fait hériter le détail de la place de son
+    /// parent (`plan.service.js#_resoudreRattachement`). Deux places
+    /// contradictoires pour un même plan seraient impossibles à arbitrer.
+    String? parentId,
+    /// Discipline du plan et date DU PLAN — cahier technique § 4.
+    /// Facultatives : un chantier qui n'a qu'un jeu de plans n'a rien à
+    /// distinguer, et une date inconnue vaut mieux qu'une date inventée.
+    String? typePlan,
+    DateTime? datePlan,
   }) =>
       repository.uploaderPlan(
         chantierId: chantierId,
@@ -33,5 +46,8 @@ class UploaderPlan {
         batimentId: batimentId,
         etageId: etageId,
         zoneId: zoneId,
+        parentId: parentId,
+        typePlan: typePlan,
+        datePlan: datePlan,
       );
 }

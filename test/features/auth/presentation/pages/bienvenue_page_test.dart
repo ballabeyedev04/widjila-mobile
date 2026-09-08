@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:suivie_chantier_mobile/core/routes/app_router.dart';
 import 'package:suivie_chantier_mobile/features/auth/presentation/pages/bienvenue_page.dart';
 
+import '../../../../helpers/balayage_responsive.dart';
 import '../../../../helpers/l10n_test_helpers.dart';
 
 /// Écran d'accueil du visiteur non connecté.
@@ -24,7 +25,12 @@ void main() {
         ],
       );
 
-  Future<void> pomper(WidgetTester tester) async {
+  Future<void> pomper(WidgetTester tester, {Size? taille}) async {
+    if (taille != null) {
+      tester.view.physicalSize = taille;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+    }
     await tester.pumpWidget(MaterialApp.router(
       locale: testLocale,
       localizationsDelegates: testLocalizationsDelegates,
@@ -66,5 +72,19 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('ECRAN_REGISTER'), findsOneWidget);
+  });
+
+  group('mise en page — balayage des formats', () {
+    // Premier écran vu par un nouvel utilisateur : une illustration, une
+    // accroche et deux boutons. L'illustration a une taille propre, et c'est
+    // elle qui ne tient plus quand l'écran se couche.
+    for (final format in tousLesFormats) {
+      testWidgets('sans débordement sur $format', (tester) async {
+        await pomper(tester, taille: format.taille);
+
+        expect(tester.takeException(), isNull,
+            reason: 'débordement de mise en page sur $format');
+      });
+    }
   });
 }

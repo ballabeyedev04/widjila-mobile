@@ -8,8 +8,16 @@ abstract class PlanRepository {
   /// alimente l'onglet « Plans ».
   Future<Either<Failure, List<Plan>>> getTousPlans();
 
-  /// Plans d'un chantier donné.
+  /// Plans d'un chantier donné — l'arborescence À PLAT, tous niveaux
+  /// confondus. Alimente l'écran « tous les documents du chantier ».
   Future<Either<Failure, List<Plan>>> getPlansChantier(String chantierId);
+
+  /// Plans GLOBAUX d'un chantier — le point d'entrée de la navigation par
+  /// niveau, où l'on ne voit à chaque étape que les enfants DIRECTS.
+  Future<Either<Failure, List<Plan>>> getPlansRacines(String chantierId);
+
+  /// Sous-plans DIRECTS d'un plan — un seul cran plus bas.
+  Future<Either<Failure, List<Plan>>> getSousPlans(String planId);
 
   /// Détail d'un plan, réserves positionnées incluses.
   Future<Either<Failure, Plan>> getPlanDetail(String id);
@@ -29,5 +37,11 @@ abstract class PlanRepository {
     String? batimentId,
     String? etageId,
     String? zoneId,
+    String? parentId,
+    /// Discipline du plan et date DU PLAN — cahier technique § 4.
+    /// Facultatives : un chantier qui n'a qu'un jeu de plans n'a rien à
+    /// distinguer, et une date inconnue vaut mieux qu'une date inventée.
+    String? typePlan,
+    DateTime? datePlan,
   });
 }

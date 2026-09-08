@@ -41,10 +41,15 @@ class ReserveWizardState extends Equatable {
   final String? planId;
   final String? planNom;
 
-  // Étape 2 — localisation
-  final BatimentStructure? batiment;
-  final EtageStructure? etage;
-  final ZoneStructure? zone;
+  // Étape 2 — complément
+  //
+  // Bâtiment, étage et zone ont QUITTÉ cet assistant. La localisation d'une
+  // réserve vient du plan sur lequel elle est posée : le serveur en déduit les
+  // trois niveaux (`reserve.service.js#_heriterLocalisationDuPlan`). Les
+  // redemander ici revenait à faire ressaisir une information déjà connue —
+  // et à permettre de la contredire.
+  //
+  // Ne restent que ce que le plan ne dit pas : le lot de marché et l'échéance.
   final StructureRef? lot;
   final DateTime? dateLimite;
 
@@ -63,9 +68,6 @@ class ReserveWizardState extends Equatable {
     this.description = '',
     this.planId,
     this.planNom,
-    this.batiment,
-    this.etage,
-    this.zone,
     this.lot,
     this.dateLimite,
   });
@@ -87,9 +89,6 @@ class ReserveWizardState extends Equatable {
   bool get aDesDonneesSaisies =>
       titre.trim().isNotEmpty ||
       description.trim().isNotEmpty ||
-      batiment != null ||
-      etage != null ||
-      zone != null ||
       lot != null ||
       dateLimite != null;
 
@@ -109,12 +108,6 @@ class ReserveWizardState extends Equatable {
     String? description,
     String? planId,
     String? planNom,
-    BatimentStructure? batiment,
-    bool effacerBatiment = false,
-    EtageStructure? etageValue,
-    bool effacerEtage = false,
-    ZoneStructure? zoneValue,
-    bool effacerZone = false,
     StructureRef? lot,
     bool effacerLot = false,
     DateTime? dateLimite,
@@ -135,9 +128,6 @@ class ReserveWizardState extends Equatable {
       description: description ?? this.description,
       planId: planId ?? this.planId,
       planNom: planNom ?? this.planNom,
-      batiment: effacerBatiment ? null : (batiment ?? this.batiment),
-      etage: effacerEtage ? null : (etageValue ?? etage),
-      zone: effacerZone ? null : (zoneValue ?? zone),
       lot: effacerLot ? null : (lot ?? this.lot),
       dateLimite: effacerDateLimite ? null : (dateLimite ?? this.dateLimite),
     );
@@ -147,6 +137,6 @@ class ReserveWizardState extends Equatable {
   List<Object?> get props => [
         etape, structureStatus, structure, soumissionStatus, erreur, titre,
         corpsEtatDisponibles, corpsEtatId, phasesDisponibles, phaseId, priorite, description,
-        planId, planNom, batiment, etage, zone, lot, dateLimite,
+        planId, planNom, lot, dateLimite,
       ];
 }

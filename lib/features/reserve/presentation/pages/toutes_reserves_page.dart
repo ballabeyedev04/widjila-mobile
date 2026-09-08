@@ -78,7 +78,15 @@ class _ToutesReservesViewState extends State<_ToutesReservesView> {
       peutDemanderChantier: peutDemander,
     );
     if (chantier == null || !mounted) return;
-    if (context.mounted) context.push('/chantiers/${chantier.id}/reserves/nouvelle');
+    // Puis l'EXPLORATEUR de plans, comme partout ailleurs : plans globaux,
+    // sous-plans directs, et l'appui sur le plan qui pose la réserve à
+    // l'endroit exact. Le formulaire n'est plus atteint sans plan.
+    if (context.mounted) {
+      context.push(
+        '/chantiers/${chantier.id}/plans/explorer'
+        '?nom=${Uri.encodeComponent(chantier.nom)}',
+      );
+    }
   }
 
   @override

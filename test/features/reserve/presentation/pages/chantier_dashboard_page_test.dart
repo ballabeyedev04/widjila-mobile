@@ -14,6 +14,7 @@ import 'package:suivie_chantier_mobile/features/reserve/presentation/cubit/chant
 import 'package:suivie_chantier_mobile/features/reserve/presentation/pages/chantier_dashboard_page.dart';
 import 'package:suivie_chantier_mobile/injection_container.dart';
 
+import '../../../../helpers/balayage_responsive.dart';
 import '../../../../helpers/pompe_page.dart';
 
 class _MockCount extends Mock implements GetReserveStatutsCount {}
@@ -123,5 +124,27 @@ void main() {
 
     expect(find.byType(ErrorView), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  group('mise en page — balayage des formats', () {
+    // L'écran le plus exposé du lot : il porte des GRAPHIQUES. Un donut et une
+    // courbe ont une taille propre, indépendante du texte qui les entoure, et
+    // c'est exactement ce que le cahier des charges responsive vise — « pas de
+    // graphique écrasé, pas de labels qui se chevauchent ».
+    for (final format in tousLesFormats) {
+      testWidgets('sans débordement sur $format', (tester) async {
+        when(() => count(any())).thenAnswer(
+          (_) async => Right<Failure, ReserveStatutsCount>(ReserveStatutsCount.vide()),
+        );
+        when(() => evolution(any()))
+            .thenAnswer((_) async => const Right<Failure, ReserveEvolution>(ReserveEvolution()));
+
+        await pomperPage(tester, page, taille: format.taille);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull,
+            reason: 'débordement de mise en page sur $format');
+      });
+    }
   });
 }

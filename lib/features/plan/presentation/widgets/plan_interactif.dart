@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:pdfx/pdfx.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../l10n/l10n_extension.dart';
 import '../../domain/entities/plan.dart';
 
 /// Repère à dessiner sur le plan — une réserve, ou le point que
@@ -52,6 +53,44 @@ class PlanInteractif extends StatefulWidget {
   /// En mode pointage, l'appui remonte un point au lieu d'être ignoré.
   final bool modePointage;
 
+  /// Affiche les commandes de zoom posées sur le plan.
+  ///
+  /// Le pincement à deux doigts reste la façon naturelle de zoomer, mais il
+  /// n'est pas toujours praticable sur un chantier — une main tient le
+  /// téléphone, l'autre un outil, et des gants rendent le geste incertain.
+  /// Surtout, RIEN ne ramenait à la vue d'ensemble une fois le plan agrandi :
+  /// il fallait dézoomer à tâtons jusqu'à retrouver ses repères.
+  ///
+  /// Masquées sur les aperçus de petite taille, où trois boutons prendraient
+  /// plus de place que le plan lui-même.
+  final bool controlesZoom;
+
+  /// Appelé quand le document a été ouvert et que son NOMBRE DE PAGES est
+  /// connu.
+  ///
+  /// Le nombre de pages vient du document lui-même, jamais du champ
+  /// `page_count` de la base : celui-ci est facultatif au dépôt et vaut `null`
+  /// pour l'immense majorité des plans déjà en ligne. S'y fier ferait
+  /// disparaître la barre de pages sur les documents qui en ont le plus
+  /// besoin.
+  final void Function(int nombrePages)? onPagesDetectees;
+
+  /// Demande le passage en plein écran, ou la sortie (cahier technique § 6).
+  ///
+  /// Nul quand l'écran hôte n'a rien à replier — l'aperçu d'une liste, par
+  /// exemple. Le bouton disparaît alors, plutôt que de ne rien faire.
+  final VoidCallback? onPleinEcran;
+
+  /// Vrai quand l'hôte EST déjà en plein écran : l'icône devient « réduire ».
+  final bool pleinEcran;
+
+  /// Demande l'affichage d'une autre page du document.
+  ///
+  /// C'est l'HÔTE qui garde la page courante, pas ce widget : la page fait
+  /// partie de la position d'une réserve, et l'écran qui crée la réserve doit
+  /// donc la connaître. Nul, la barre de pages n'apparaît pas.
+  final void Function(int page)? onPageChangee;
+
   final void Function(double x, double y)? onPointAppuye;
   final void Function(MarqueurPlan marqueur)? onMarqueurAppuye;
   final void Function(PlanHotspot hotspot)? onHotspotAppuye;
@@ -63,6 +102,11 @@ class PlanInteractif extends StatefulWidget {
     this.marqueurs = const [],
     this.hotspots = const [],
     this.modePointage = false,
+    this.controlesZoom = false,
+    this.onPagesDetectees,
+    this.onPleinEcran,
+    this.pleinEcran = false,
+    this.onPageChangee,
     this.onPointAppuye,
     this.onMarqueurAppuye,
     this.onHotspotAppuye,
@@ -78,6 +122,9 @@ class _PlanInteractifState extends State<PlanInteractif> {
   Uint8List? _image;
   double _ratio = 1.414; // A4 portrait, en attendant la vraie page
   String? _erreur;
+
+  /// Nombre de pages du document ouvert — 1 tant qu'on ne sait pas.
+  int _nombrePages = 1;
 
   @override
   void initState() {
@@ -97,11 +144,54 @@ class _PlanInteractifState extends State<PlanInteractif> {
     super.dispose();
   }
 
+  /// Ce fichier commence-t-il par l'en-tête d'un PDF (`%PDF-`) ?
+  ///
+  /// On lit les OCTETS, jamais l'extension ni le champ `format` : celui-ci
+  /// vaut 'pdf' par défaut côté serveur pour tout dépôt sans format explicite,
+  /// alors que png, jpg, jpeg et webp sont acceptés.
+  static bool _estPdf(Uint8List o) {
+    const entete = [0x25, 0x50, 0x44, 0x46, 0x2D]; // %PDF-
+    if (o.length < entete.length) return false;
+    for (var i = 0; i < entete.length; i++) {
+      if (o[i] != entete[i]) return false;
+    }
+    return true;
+  }
+
   Future<void> _rendre() async {
+    // Une IMAGE est déjà sa propre page : rien à rasteriser.
+    //
+    // Sans cette branche, `PdfDocument.openData` échouait sur des octets PNG
+    // et l'écran affichait un message d'erreur à la place du plan — sur
+    // l'écran qui EST la zone de travail. C'est ce que le client décrit :
+    // « l'image du plan n'est pas visible ».
+    if (!_estPdf(widget.octets)) {
+      final image = await decodeImageFromList(widget.octets);
+      if (!mounted) return;
+      // Une image est un document d'UNE page : on le dit à l'hôte, pour qu'il
+      // n'affiche pas une barre de pages inutile.
+      widget.onPagesDetectees?.call(1);
+      setState(() {
+        _nombrePages = 1;
+        _image = widget.octets;
+        // Le ratio vient des dimensions réelles : le forcer à 1 déformerait
+        // un plan panoramique, et les repères posés dessus seraient décalés.
+        _ratio = image.height / image.width;
+        _erreur = null;
+      });
+      return;
+    }
+
     PdfDocument? document;
     try {
       document = await PdfDocument.openData(widget.octets);
-      final numero = widget.page.clamp(1, document.pagesCount);
+      final total = document.pagesCount;
+      if (mounted) widget.onPagesDetectees?.call(total);
+      // `clamp` : l'hôte peut demander une page qui n'existe pas — un plan
+      // remplacé par une version plus courte, une réserve posée page 9 d'un
+      // document qui n'en compte plus que 4. On affiche alors la dernière
+      // plutôt que d'échouer.
+      final numero = widget.page.clamp(1, total);
       final page = await document.getPage(numero);
 
       try {
@@ -122,6 +212,7 @@ class _PlanInteractifState extends State<PlanInteractif> {
         );
         if (!mounted) return;
         setState(() {
+          _nombrePages = total;
           _image = rendu?.bytes;
           _ratio = page.height / page.width;
           _erreur = null;
@@ -142,8 +233,22 @@ class _PlanInteractifState extends State<PlanInteractif> {
   /// `InteractiveViewer` — c'est-à-dire APRÈS annulation du zoom et du
   /// déplacement. Il n'y a donc aucune matrice à inverser à la main : la
   /// division par la taille de l'enfant donne directement le ratio cherché.
+  /// Un appui sur une zone libre pose une réserve — sans mode préalable.
+  ///
+  /// Il fallait auparavant armer un « mode pointage » depuis le bandeau bas
+  /// avant que l'appui ne fasse quoi que ce soit. Le client l'a tranché :
+  /// « l'utilisateur n'a pas besoin de chercher un bouton pour choisir
+  /// l'emplacement d'une réserve ». Le plan EST la zone de travail.
+  ///
+  /// C'est désormais `onPointAppuye` qui décide : nul quand le rôle n'a pas le
+  /// droit de poser une réserve, l'appui reste alors sans effet. Le mode
+  /// pointage, lui, ne sert plus qu'à afficher l'aide — c'est la seconde
+  /// méthode décrite par le client, le bouton puis le choix de l'emplacement.
+  ///
+  /// `InteractiveViewer` distingue déjà l'appui du glissement : zoomer et
+  /// déplacer le plan n'ouvre pas le formulaire.
   void _appui(TapDownDetails details, Size taille) {
-    if (!widget.modePointage) return;
+    if (widget.onPointAppuye == null) return;
     if (taille.width <= 0 || taille.height <= 0) return;
 
     final x = (details.localPosition.dx / taille.width * 100).clamp(0.0, 100.0);
@@ -153,6 +258,38 @@ class _PlanInteractifState extends State<PlanInteractif> {
       double.parse(y.toStringAsFixed(2)),
     );
   }
+
+  /// Échelle courante du plan — 1 = vue d'ensemble.
+  double get _echelle => _transformation.value.getMaxScaleOnAxis();
+
+  /// Zoome autour du CENTRE DE L'ÉCRAN, et non autour de l'origine du plan.
+  ///
+  /// Zoomer sur l'origine ferait fuir hors de l'écran ce que l'utilisateur
+  /// était en train de regarder : il devrait le rattraper au doigt après
+  /// chaque appui. On ramène donc le centre visible en coordonnées du plan, on
+  /// change l'échelle autour de ce point, et on le remet où il était.
+  ///
+  /// Les bornes sont celles de l'`InteractiveViewer` juste en dessous : les
+  /// dépasser par les boutons créerait un état que le pincement ne sait pas
+  /// reproduire.
+  void _zoomer(double facteur, Size viewport) {
+    final cible = (_echelle * facteur).clamp(1.0, 8.0);
+    if ((cible - _echelle).abs() < 0.001) return;
+
+    final centre = _transformation.toScene(
+      Offset(viewport.width / 2, viewport.height / 2),
+    );
+    final rapport = cible / _echelle;
+
+    final matrice = _transformation.value.clone()
+      ..translateByDouble(centre.dx, centre.dy, 0, 1)
+      ..scaleByDouble(rapport, rapport, 1, 1)
+      ..translateByDouble(-centre.dx, -centre.dy, 0, 1);
+    setState(() => _transformation.value = matrice);
+  }
+
+  /// Retour à la vue initiale — le plan entier, sans déplacement.
+  void _reinitialiserVue() => setState(() => _transformation.value = Matrix4.identity());
 
   @override
   Widget build(BuildContext context) {
@@ -181,7 +318,7 @@ class _PlanInteractifState extends State<PlanInteractif> {
         final hauteur = largeur * _ratio;
         final taille = Size(largeur, hauteur);
 
-        return ClipRect(
+        final vue = ClipRect(
           child: InteractiveViewer(
             transformationController: _transformation,
             minScale: 1,
@@ -225,7 +362,138 @@ class _PlanInteractifState extends State<PlanInteractif> {
             ),
           ),
         );
+
+        if (!widget.controlesZoom) return vue;
+
+        return Stack(
+          children: [
+            Positioned.fill(child: vue),
+            // Posées HORS du `InteractiveViewer` : dedans, elles subiraient le
+            // zoom et deviendraient minuscules au moment précis où l'on veut
+            // s'en servir.
+            Positioned(
+              right: 10,
+              bottom: 10,
+              child: _CommandesZoom(
+                echelle: _echelle,
+                onZoomAvant: () => _zoomer(1.6, Size(largeur, contraintes.maxHeight)),
+                onZoomArriere: () => _zoomer(1 / 1.6, Size(largeur, contraintes.maxHeight)),
+                onVueInitiale: _reinitialiserVue,
+                onPleinEcran: widget.onPleinEcran,
+                pleinEcran: widget.pleinEcran,
+              ),
+            ),
+            // Barre de pages — cahier technique § 6, « changement de page si le
+            // PDF en contient plusieurs ». Posée EN BAS À GAUCHE, à l'opposé du
+            // zoom : les deux se manipulent au pouce, chacun de son côté.
+            if (_nombrePages > 1 && widget.onPageChangee != null)
+              Positioned(
+                left: 10,
+                bottom: 10,
+                child: _BarrePages(
+                  page: widget.page.clamp(1, _nombrePages),
+                  total: _nombrePages,
+                  onPage: (n) => widget.onPageChangee?.call(n),
+                ),
+              ),
+          ],
+        );
       },
+    );
+  }
+}
+
+/// Zoom avant, zoom arrière, vue initiale — empilés en bas à droite du plan.
+///
+/// « Vue initiale » n'apparaît QUE lorsqu'elle sert à quelque chose : proposer
+/// un retour à la vue d'ensemble alors qu'on y est déjà n'est qu'un bouton de
+/// plus à lire.
+class _CommandesZoom extends StatelessWidget {
+  final double echelle;
+  final VoidCallback onZoomAvant;
+  final VoidCallback onZoomArriere;
+  final VoidCallback onVueInitiale;
+  final VoidCallback? onPleinEcran;
+  final bool pleinEcran;
+
+  const _CommandesZoom({
+    required this.echelle,
+    required this.onZoomAvant,
+    required this.onZoomArriere,
+    required this.onVueInitiale,
+    this.onPleinEcran,
+    this.pleinEcran = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final agrandi = echelle > 1.01;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // PLEIN ÉCRAN — cahier technique § 6. En tête de colonne : c'est le
+        // premier geste de qui veut vraiment lire un plan sur un téléphone.
+        if (onPleinEcran != null) ...[
+          _Bouton(
+            icone: pleinEcran ? Icons.close_fullscreen_rounded : Icons.open_in_full_rounded,
+            tooltip: pleinEcran ? l10n.planQuitterPleinEcran : l10n.planPleinEcran,
+            onAppui: onPleinEcran,
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (agrandi)
+          _Bouton(
+            icone: Icons.fullscreen_exit_rounded,
+            tooltip: l10n.planVueInitiale,
+            onAppui: onVueInitiale,
+          ),
+        if (agrandi) const SizedBox(height: 8),
+        _Bouton(icone: Icons.add_rounded, tooltip: l10n.planZoomAvant, onAppui: onZoomAvant),
+        const SizedBox(height: 8),
+        _Bouton(
+          icone: Icons.remove_rounded,
+          tooltip: l10n.planZoomArriere,
+          // Inerte à l'échelle 1 : on ne peut pas dézoomer sous la vue
+          // d'ensemble, l'`InteractiveViewer` a `minScale: 1`.
+          onAppui: agrandi ? onZoomArriere : null,
+        ),
+      ],
+    );
+  }
+}
+
+class _Bouton extends StatelessWidget {
+  final IconData icone;
+  final String tooltip;
+  final VoidCallback? onAppui;
+
+  const _Bouton({required this.icone, required this.tooltip, this.onAppui});
+
+  @override
+  Widget build(BuildContext context) {
+    final actif = onAppui != null;
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.white,
+        shape: const CircleBorder(),
+        elevation: 2,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onAppui,
+          child: SizedBox(
+            width: 38,
+            height: 38,
+            child: Icon(
+              icone,
+              size: 20,
+              color: actif ? AppColors.textPrimary : AppColors.textMuted,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -331,6 +599,94 @@ class _Hotspot extends StatelessWidget {
           alignment: Alignment.topLeft,
           padding: const EdgeInsets.all(4),
           child: hotspot.libelle == null ? null : FittedBox(child: etiquette),
+        ),
+      ),
+    );
+  }
+}
+
+/// Navigation entre les pages d'un document — cahier technique § 6.
+///
+/// N'apparaît QUE si le document en compte plusieurs : une barre « 1 / 1 » ne
+/// dirait rien et prendrait la place du plan.
+///
+/// Les flèches de bout de course sont INERTES mais VISIBLES, contrairement au
+/// zoom : ici, la position dans le document est elle-même une information — on
+/// veut voir qu'on est à la première page, pas voir un bouton disparaître.
+class _BarrePages extends StatelessWidget {
+  final int page;
+  final int total;
+  final void Function(int) onPage;
+
+  const _BarrePages({required this.page, required this.total, required this.onPage});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+
+    return Material(
+      color: Colors.white,
+      elevation: 2,
+      borderRadius: BorderRadius.circular(19),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _Fleche(
+              icone: Icons.chevron_left_rounded,
+              tooltip: l10n.planPagePrecedente,
+              onAppui: page > 1 ? () => onPage(page - 1) : null,
+            ),
+            ConstrainedBox(
+              // Largeur minimale : sans elle, la barre saute d'un pixel à
+              // chaque changement de page — « 9/12 » puis « 10/12 ».
+              constraints: const BoxConstraints(minWidth: 46),
+              child: Text(
+                '$page / $total',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+            _Fleche(
+              icone: Icons.chevron_right_rounded,
+              tooltip: l10n.planPageSuivante,
+              onAppui: page < total ? () => onPage(page + 1) : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Flèche de la barre de pages — carrée, 38 points, comme les boutons de zoom.
+class _Fleche extends StatelessWidget {
+  final IconData icone;
+  final String tooltip;
+  final VoidCallback? onAppui;
+
+  const _Fleche({required this.icone, required this.tooltip, this.onAppui});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onAppui,
+        child: SizedBox(
+          width: 38,
+          height: 38,
+          child: Icon(
+            icone,
+            size: 22,
+            color: onAppui == null ? AppColors.textMuted : AppColors.textPrimary,
+          ),
         ),
       ),
     );

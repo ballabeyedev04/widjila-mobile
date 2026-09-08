@@ -47,16 +47,29 @@ class PlanPosition extends Equatable {
   final double y;
   final double zoom;
 
-  const PlanPosition({required this.x, required this.y, this.zoom = 1});
+  /// PAGE du document sur laquelle le repère est posé — cahier technique § 6
+  /// et § 18 (« plan multi-page → bonne page associée à la réserve »).
+  ///
+  /// Sans elle, les repères d'un PDF de douze pages se dessinaient tous sur la
+  /// page affichée : chacun à ses bonnes coordonnées, mais sur la mauvaise
+  /// page. Un repère faux envoie quelqu'un constater un défaut là où il n'y en
+  /// a pas — c'est pire qu'un repère absent.
+  ///
+  /// `1` par défaut : le cas d'un plan d'une seule page, et celui de toutes
+  /// les réserves posées avant que la page ne soit enregistrée.
+  final int page;
+
+  const PlanPosition({required this.x, required this.y, this.zoom = 1, this.page = 1});
 
   factory PlanPosition.fromJson(Map<String, dynamic> json) => PlanPosition(
         x: (json['x'] as num?)?.toDouble() ?? 0,
         y: (json['y'] as num?)?.toDouble() ?? 0,
         zoom: (json['zoom'] as num?)?.toDouble() ?? 1,
+        page: (json['page'] as num?)?.toInt() ?? 1,
       );
 
   @override
-  List<Object?> get props => [x, y, zoom];
+  List<Object?> get props => [x, y, zoom, page];
 }
 
 /// Réserve telle que renvoyée par le détail d'un plan — volontairement
@@ -67,35 +80,68 @@ class PlanReserve extends Equatable {
   final String id;
   final String numero;
   final String titre;
+
+  /// Observation saisie à la création.
+  ///
+  /// Servie par le détail du plan depuis que la fiche qui s'ouvre au clic sur
+  /// un repère doit montrer CE QUI A ÉTÉ SAISI. Sans elle, la fiche n'affichait
+  /// qu'un titre et un badge, et lire l'observation obligeait à quitter le
+  /// plan.
+  final String? description;
+
   final ReserveStatut statut;
   final ReserveSeverite severite;
   final PlanPosition? position;
   final String? photoApercu;
 
+  /// Dates portées par le modèle : création, dernière modification, échéance
+  /// de levée. Toutes facultatives — une réserve sans échéance est le cas
+  /// courant, et l'inventer serait pire que de ne rien afficher.
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+  final DateTime? dateLimite;
+
+  /// Auteur du constat, tel que joint par le détail du plan. « Qui a relevé
+  /// ça ? » est la question qui suit immédiatement « qu'est-ce que c'est ? ».
+  final String? createurNom;
+
   const PlanReserve({
     required this.id,
     required this.numero,
     required this.titre,
+    this.description,
     required this.statut,
     required this.severite,
     this.position,
     this.photoApercu,
+    this.createdAt,
+    this.updatedAt,
+    this.dateLimite,
+    this.createurNom,
   });
 
   factory PlanReserve.fromJson(Map<String, dynamic> json) => PlanReserve(
         id: json['id'] as String,
         numero: json['numero'] as String? ?? '',
         titre: json['titre'] as String? ?? '',
+        description: json['description'] as String?,
         statut: ReserveStatutX.fromString(json['statut'] as String?),
         severite: ReserveSeveriteX.fromString(json['severite'] as String?),
         position: json['position'] != null
             ? PlanPosition.fromJson(json['position'] as Map<String, dynamic>)
             : null,
         photoApercu: _apercu(json['medias']),
+        createdAt: _date(json['createdAt']),
+        updatedAt: _date(json['updatedAt']),
+        dateLimite: _date(json['date_limite']),
+        createurNom: _nomComplet(json['createur']),
       );
 
   @override
-  List<Object?> get props => [id, numero, titre, statut, severite, position, photoApercu];
+  List<Object?> get props => [
+        id, numero, titre, description, statut, severite, position, photoApercu,
+        createdAt, updatedAt, dateLimite, createurNom,
+      ];
 }
 
 /// Référence à un niveau de la structure du chantier, telle que jointe au
@@ -197,6 +243,59 @@ class Plan extends Equatable {
   /// ne les a dessinées : la navigation reste alors possible par les listes.
   final List<PlanHotspot> hotspots;
 
+  /// Plan dont celui-ci est le DÉTAIL — le plan d'une pièce dans celui d'un
+  /// appartement, celui d'une façade dans celui d'un bâtiment.
+  ///
+  /// Nul pour l'immense majorité des plans : leur place vient alors de leurs
+  /// rattachements de structure ([batiment], [etage], [zone]), qui restent la
+  /// source de vérité pour « dans quel bâtiment, à quel étage ». Renseigné, il
+  /// ouvre une profondeur quelconque SOUS le dernier niveau de structure — et
+  /// le plan de détail hérite de la place de son parent, posée par le serveur.
+  ///
+  /// Miroir de `plans.parent_id` (migration 20260907000001).
+  final String? parentId;
+
+  /// Discipline du plan — « Architecture », « Électricité », « Plomberie »…
+  /// (cahier technique § 4, champ « Type »).
+  ///
+  /// À ne pas confondre avec [format], qui décrit le FICHIER (pdf, dwg, ifc)
+  /// et non son contenu.
+  final String? typePlan;
+
+  /// Date DU PLAN, distincte de [createdAt] qui est la date de DÉPÔT
+  /// (cahier technique § 4).
+  final DateTime? datePlan;
+
+  /// Version COURANTE du plan (cahier technique § 10 et § 15).
+  ///
+  /// Le serveur ne sert que les versions courantes dans les listes ; ce
+  /// drapeau permet de le DIRE à l'écran, comme le demande le § 15
+  /// (« afficher clairement la version active »).
+  final bool estVersionCourante;
+
+  /// Cycle de validation du plan — miroir de `plans.statut`.
+  ///
+  /// Un plan joint à une DEMANDE de chantier attend la même validation que le
+  /// chantier auquel il est joint, et le serveur refuse d'y poser une réserve
+  /// (`reserve.service.js#_verifierLocalisation`). Le lire ici permet de le
+  /// dire à l'écran plutôt que de laisser l'utilisateur remplir un formulaire
+  /// pour rien.
+  final String statut;
+
+  /// Combien de sous-plans DIRECTS ce plan possède, et combien de réserves y
+  /// sont posées — comptés par le serveur (`plan.service.js#_compterEnfants`).
+  ///
+  /// Indispensables à la navigation par niveau : le mobile ne charge qu'un
+  /// cran d'arborescence à la fois, il ne peut donc pas déduire d'une liste
+  /// locale qu'une tuile mène plus bas. Sans eux, il faudrait ouvrir chaque
+  /// plan pour l'apprendre.
+  ///
+  /// Valent 0 sur les routes qui ne les servent pas (liste à plat, détail
+  /// d'une version) : une tuile annonce alors « aucun sous-plan », ce qui est
+  /// le cas le plus fréquent et jamais bloquant — la descente reste possible.
+  final int nombreSousPlans;
+  final int nombreReserves;
+
   const Plan({
     required this.id,
     required this.chantierId,
@@ -213,6 +312,13 @@ class Plan extends Equatable {
     this.etage,
     this.zone,
     this.hotspots = const [],
+    this.parentId,
+    this.statut = 'actif',
+    this.nombreSousPlans = 0,
+    this.nombreReserves = 0,
+    this.typePlan,
+    this.datePlan,
+    this.estVersionCourante = true,
   });
 
   factory Plan.fromJson(Map<String, dynamic> json) {
@@ -226,6 +332,16 @@ class Plan extends Equatable {
       format: PlanFormatX.fromString(json['format'] as String?),
       nombrePages: json['page_count'] as int?,
       fichierNom: json['fichier_nom'] as String?,
+      parentId: (json['parentId'] ?? json['parent_id']) as String?,
+      statut: json['statut'] as String? ?? 'actif',
+      typePlan: json['type_plan'] as String?,
+      datePlan: json['date_plan'] != null ? DateTime.tryParse(json['date_plan'] as String) : null,
+      // Absent des réponses d'un serveur pas encore migré : on suppose alors
+      // que le plan servi EST le courant — c'est ce que faisait le code avant
+      // que le drapeau n'existe.
+      estVersionCourante: json['is_current'] as bool? ?? true,
+      nombreSousPlans: (json['nombre_sous_plans'] as num?)?.toInt() ?? 0,
+      nombreReserves: (json['nombre_reserves'] as num?)?.toInt() ?? 0,
       createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'] as String) : null,
       chantierNom: chantier?['nom'] as String?,
       reserves: json['reserves'] is List
@@ -254,11 +370,44 @@ class Plan extends Equatable {
   /// Nombre de repères réellement positionnables sur l'image du plan.
   int get nombreReperes => reserves.where((r) => r.position != null).length;
 
+  /// Ce plan mène-t-il plus bas dans l'arborescence ?
+  ///
+  /// La navigation est progressive : une tuile qui a des enfants FAIT DESCENDRE
+  /// d'un cran, une feuille ouvre directement sa zone de travail. C'est le seul
+  /// endroit où cette distinction se décide.
+  bool get aDesSousPlans => nombreSousPlans > 0;
+
+  /// Vrai tant que le plan attend la validation de sa demande de chantier :
+  /// le serveur y refuse toute réserve.
+  bool get enAttenteValidation => statut == 'en_attente_validation';
+
   @override
   List<Object?> get props => [
         id, chantierId, nom, version, fichierUrl, format, nombrePages, fichierNom, createdAt,
-        chantierNom, reserves, batiment, etage, zone, hotspots,
+        chantierNom, reserves, batiment, etage, zone, hotspots, parentId, statut,
+        nombreSousPlans, nombreReserves, typePlan, datePlan, estVersionCourante,
       ];
+}
+
+/// Une date de l'API, ou `null` — jamais une exception.
+///
+/// Le serveur sert de l'ISO 8601, mais une valeur absente, nulle ou malformée
+/// ne doit pas faire tomber l'écran : une fiche sans date reste lisible.
+DateTime? _date(Object? valeur) =>
+    valeur is String ? DateTime.tryParse(valeur) : null;
+
+/// « Prénom Nom » d'un utilisateur joint, ou `null` s'il n'y en a pas.
+///
+/// Les deux champs sont traités comme facultatifs : un compte peut n'avoir que
+/// l'un des deux, et « null Diop » serait pire que « Diop ».
+String? _nomComplet(Object? utilisateur) {
+  if (utilisateur is! Map<String, dynamic>) return null;
+  final morceaux = [utilisateur['prenom'], utilisateur['nom']]
+      .whereType<String>()
+      .map((m) => m.trim())
+      .where((m) => m.isNotEmpty);
+  final nom = morceaux.join(' ');
+  return nom.isEmpty ? null : nom;
 }
 
 /// URL d'aperçu d'une liste de médias — la VIGNETTE d'abord.

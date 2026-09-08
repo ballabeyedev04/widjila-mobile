@@ -19,6 +19,7 @@ import 'package:suivie_chantier_mobile/features/plan/presentation/cubit/plans_li
 import 'package:suivie_chantier_mobile/features/plan/presentation/pages/plans_list_page.dart';
 import 'package:suivie_chantier_mobile/injection_container.dart';
 
+import '../../../../helpers/balayage_responsive.dart';
 import '../../../../helpers/l10n_test_helpers.dart';
 
 class _MockTousPlans extends Mock implements GetTousPlans {}
@@ -80,8 +81,10 @@ void main() {
     if (sl.isRegistered<PlansListCubit>()) sl.unregister<PlansListCubit>();
   });
 
-  Future<void> pomper(WidgetTester tester, UserRole role) async {
-    tester.view.physicalSize = const Size(390, 844);
+  Future<void> pomper(WidgetTester tester, UserRole role, {Size? taille}) async {
+    // La taille est un PARAMÈTRE : figée à 390 × 844, ni le paysage ni la
+    // tablette n'étaient jamais vus.
+    tester.view.physicalSize = taille ?? const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
@@ -140,5 +143,19 @@ void main() {
       findsOneWidget,
       reason: 'le texte de simple lecture reste juste pour qui ne peut pas deposer',
     );
+  });
+
+  group('mise en page — balayage des formats', () {
+    // La liste des plans porte des VIGNETTES : chaque carte télécharge et rend
+    // la première page de son document. C'est l'écran où une grille mal bornée
+    // se voit le plus, parce que ses éléments ont une taille propre.
+    for (final format in tousLesFormats) {
+      testWidgets('sans débordement sur $format', (tester) async {
+        await pomper(tester, UserRole.entreprise, taille: format.taille);
+
+        expect(tester.takeException(), isNull,
+            reason: 'débordement de mise en page sur $format');
+      });
+    }
   });
 }

@@ -80,6 +80,7 @@ class ExecuteurActionsHorsLigne {
       planId: c['planId'] as String?,
       positionX: (c['positionX'] as num?)?.toDouble(),
       positionY: (c['positionY'] as num?)?.toDouble(),
+      positionPage: (c['positionPage'] as num?)?.toInt() ?? 1,
       partenaireId: c['partenaireId'] as String?,
       // Absente des actions déposées AVANT cette version : `fromString`
       // retombe alors sur la valeur par défaut, et le datasource sur la

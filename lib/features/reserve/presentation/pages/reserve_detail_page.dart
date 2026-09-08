@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/config/user_role.dart';
+import '../../../../core/services/capture_photo.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_alert.dart';
 import '../../../../core/widgets/error_view.dart';
@@ -293,6 +296,29 @@ class _DetailBody extends StatelessWidget {
           _Carte(
             child: Column(
               children: [
+                // CHANTIER et PLAN en tête : ce sont les deux questions qu'on
+                // se pose devant une réserve qu'on n'a pas relevée soi-même —
+                // « c'est où ? » avant « c'est quoi ? ». Aucun des deux
+                // n'était affiché : le chantier était pourtant chargé, et le
+                // plan n'était même pas joint par le serveur.
+                if (reserve.chantier != null)
+                  _InfoRow(
+                    icon: Icons.apartment_outlined,
+                    label: l10n.reserveProjetLabel,
+                    valeur: reserve.chantier!.nom,
+                  ),
+                if (reserve.plan != null)
+                  _InfoRow(
+                    icon: Icons.map_outlined,
+                    label: l10n.navPlans,
+                    valeur: reserve.plan!.version > 1
+                        ? '${reserve.plan!.nom} · v${reserve.plan!.version}'
+                        : reserve.plan!.nom,
+                    // Ouvre le plan, repère compris : depuis la fiche, on veut
+                    // souvent revoir l'endroit exact plutôt que relire le
+                    // texte.
+                    onTap: () => context.push('/plans/${reserve.plan!.id}'),
+                  ),
                 _InfoRow(icon: Icons.calendar_today_outlined, label: l10n.reserveDetailCreeeLe, valeur: reserve.createdAt != null ? df.format(reserve.createdAt!) : '—'),
                 if (reserve.createur != null)
                   _InfoRow(icon: Icons.person_outline, label: l10n.reserveDetailSignaleePar, valeur: reserve.createur!.nomComplet),
@@ -460,13 +486,24 @@ class _DetailBody extends StatelessWidget {
     );
     if (source == null) return;
 
-    // `maxWidth: 1920` — même plafond que la création de réserve
-    // (`nouvelle_reserve_sheet.dart`) : sans lui, une photo prise avec
-    // l'appareil photo (12 Mpx et plus) part à sa résolution native, souvent
-    // 3 à 8 Mo, pour un affichage qui ne dépasse jamais l'écran du
-    // téléphone. Le réseau de chantier est aussi celui qui en a le moins
-    // besoin.
-    final fichier = await ImagePicker().pickImage(source: source, imageQuality: 85, maxWidth: 1920);
+    // `capturerPhoto` plutôt que `ImagePicker` directement : sur Android, le
+    // système peut détruire l'activité pendant que l'appareil photo occupe
+    // l'écran, et `pickImage` rend alors `null` alors que le cliché existe.
+    // Même défaut, même correction que le formulaire de création — voir
+    // `core/services/capture_photo.dart`.
+    //
+    // Le plafond de 1920 px reste : une photo à sa résolution native pèse 3 à
+    // 8 Mo pour un affichage qui ne dépasse jamais l'écran du téléphone, et le
+    // réseau d'un chantier est celui qui en a le moins besoin.
+    final File? fichier;
+    try {
+      fichier = await capturerPhoto(source);
+    } on PhotoIndisponible {
+      if (context.mounted) {
+        AppAlert.error(context, message: l10n.reserveNouvPhotoIndisponible);
+      }
+      return;
+    }
     if (fichier == null || !context.mounted) return;
 
     final ok = await cubit.ajouterPhoto(fichier.path);
@@ -781,28 +818,57 @@ class _InfoRow extends StatelessWidget {
   final String label;
   final String valeur;
   final bool dernier;
-  const _InfoRow({required this.icon, required this.label, required this.valeur, this.dernier = false});
+
+  /// Rend la ligne ACTIONNABLE — le plan s'ouvre d'un appui.
+  ///
+  /// Nul pour les lignes purement informatives : un chevron sur une date
+  /// promettrait une action qui n'existe pas.
+  final VoidCallback? onTap;
+
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.valeur,
+    this.dernier = false,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: dernier ? 0 : 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 17, color: AppColors.textMuted),
-          const SizedBox(width: 10),
-          Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
-          const Spacer(),
-          Flexible(
-            child: Text(
-              valeur,
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontSize: 13.5, color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+    final ligne = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 17, color: onTap == null ? AppColors.textMuted : AppColors.primary),
+        const SizedBox(width: 10),
+        Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+        const Spacer(),
+        Flexible(
+          child: Text(
+            valeur,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: 13.5,
+              color: onTap == null ? AppColors.textPrimary : AppColors.primary,
+              fontWeight: FontWeight.w600,
             ),
           ),
+        ),
+        if (onTap != null) ...[
+          const SizedBox(width: 2),
+          const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.primary),
         ],
-      ),
+      ],
+    );
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: dernier ? 0 : 12),
+      child: onTap == null
+          ? ligne
+          : InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: ligne),
+            ),
     );
   }
 }

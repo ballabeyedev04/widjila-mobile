@@ -71,9 +71,22 @@ class _ReservesListViewState extends State<_ReservesListView> {
     }
   }
 
+  /// Relever une réserve depuis la liste d'un chantier.
+  ///
+  /// Passe par l'EXPLORATEUR de plans, comme le « + » de la barre : plans
+  /// globaux, puis sous-plans directs, puis le plan lui-même où l'appui pose la
+  /// réserve à l'endroit exact du défaut.
+  ///
+  /// Le formulaire n'est plus atteint directement. Ouvert sans plan, il
+  /// demandait la localisation à la main — bâtiment, étage, zone — c'est-à-dire
+  /// une information que le plan porte déjà, et qui pouvait le contredire.
+  ///
+  /// Le rechargement est INCONDITIONNEL au retour : l'explorateur peut avoir
+  /// servi à poser plusieurs réserves d'affilée, et il ne rend pas de résultat
+  /// — chaque création est déjà visible sur son plan.
   Future<void> _creerReserve() async {
-    final cree = await context.push<bool>('/chantiers/${widget.chantierId}/reserves/nouvelle');
-    if (cree == true && mounted && context.mounted) {
+    await context.push<void>('/chantiers/${widget.chantierId}/plans/explorer');
+    if (mounted && context.mounted) {
       context.read<ReservesListCubit>().charger();
     }
   }

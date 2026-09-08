@@ -12,6 +12,7 @@ import 'package:suivie_chantier_mobile/features/organisation/presentation/cubit/
 import 'package:suivie_chantier_mobile/features/organisation/presentation/pages/membres_list_page.dart';
 import 'package:suivie_chantier_mobile/injection_container.dart';
 
+import '../../../helpers/balayage_responsive.dart';
 import '../../../helpers/l10n_test_helpers.dart';
 
 class _MockGetMembres extends Mock implements GetMembres {}
@@ -74,8 +75,11 @@ void main() {
     if (sl.isRegistered<MembresCubit>()) sl.unregister<MembresCubit>();
   });
 
-  Future<List<FlutterErrorDetails>> pomper(WidgetTester tester, {double largeur = 390}) async {
-    tester.view.physicalSize = Size(largeur, 844);
+  Future<List<FlutterErrorDetails>> pomper(WidgetTester tester, {double largeur = 390, double hauteur = 844}) async {
+    // La HAUTEUR est un paramètre, et pas une constante : à 844 dp, ni le
+    // paysage ni la tablette n'étaient jamais vus — et c'est là que la place
+    // manque le plus.
+    tester.view.physicalSize = Size(largeur, hauteur);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
@@ -162,5 +166,27 @@ void main() {
       // conserve qu'en empreinte. Le taire perdrait le compte.
       expect(find.text('abc123def456'), findsOneWidget);
     });
+  });
+
+  group('mise en page — balayage complet des formats', () {
+    // Le balayage par largeur ci-dessus gardait une hauteur fixe de 844 dp :
+    // la liste des membres n'était donc jamais vu couché, ni sur une
+    // tablette. Ces deux situations sont pourtant celles où la mise en page
+    // cède — hauteur divisée par trois d'un côté, largeur doublée de l'autre.
+    for (final format in tousLesFormats) {
+      testWidgets('sans débordement sur $format', (tester) async {
+        final erreurs = await pomper(
+          tester,
+          largeur: format.taille.width,
+          hauteur: format.taille.height,
+        );
+
+        expect(
+          erreurs.map((e) => e.exceptionAsString()).toList(),
+          isEmpty,
+          reason: 'débordement de mise en page sur $format',
+        );
+      });
+    }
   });
 }

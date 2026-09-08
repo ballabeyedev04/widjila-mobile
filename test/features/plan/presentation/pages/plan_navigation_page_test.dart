@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +10,8 @@ import 'package:suivie_chantier_mobile/features/plan/domain/entities/plan.dart';
 import 'package:suivie_chantier_mobile/features/plan/domain/usecases/get_plan_detail.dart';
 import 'package:suivie_chantier_mobile/features/plan/domain/usecases/get_plans_chantier.dart';
 import 'package:suivie_chantier_mobile/features/plan/presentation/pages/plan_navigation_page.dart';
+import 'package:suivie_chantier_mobile/core/config/user_role.dart';
+import 'package:suivie_chantier_mobile/features/plan/presentation/widgets/plan_interactif.dart';
 import 'package:suivie_chantier_mobile/features/reserve/domain/entities/chantier_structure.dart';
 import 'package:suivie_chantier_mobile/features/reserve/domain/usecases/get_chantier_structure.dart';
 import 'package:suivie_chantier_mobile/injection_container.dart';
@@ -22,6 +26,8 @@ class _MockPlansChantier extends Mock implements GetPlansChantier {}
 class _MockPlanDetail extends Mock implements GetPlanDetail {}
 
 class _MockOuverture extends Mock implements OuvertureFichier {}
+
+class _MockDio extends Mock implements Dio {}
 
 /// La navigation dans les plans d'un chantier, par niveaux.
 ///
@@ -65,6 +71,37 @@ void main() {
   tearDown(desinscrire);
 
   const page = PlanNavigationPage(chantierId: 'c1', chantierNom: 'Les Cedres');
+
+  /// Une image PNG valide de 1x1 — le plan que le faux Dio renverra.
+  final png = base64Decode(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  );
+
+  /// Remplace le Dio du conteneur par un double qui rend une vraie image.
+  ///
+  /// Sans lui, le telechargement du plan echoue et la vue interactive affiche
+  /// son message d'erreur : le test ne verrait jamais `PlanInteractif`.
+  void dioQuiRendUnPlan() {
+    final faux = _MockDio();
+    when(() => faux.get<List<int>>(any(), options: any(named: 'options'))).thenAnswer(
+      (_) async => Response<List<int>>(
+        data: png,
+        statusCode: 200,
+        requestOptions: RequestOptions(path: '/x'),
+      ),
+    );
+    if (sl.isRegistered<Dio>()) sl.unregister<Dio>();
+    sl.registerSingleton<Dio>(faux);
+  }
+
+  /// Laisse le VRAI travail asynchrone avancer — decodage de l'image compris.
+  Future<void> pomperAvecReseau(WidgetTester tester) async {
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+    });
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 
   Plan plan(String id, {String? etageId}) => Plan(
         id: id,
@@ -216,5 +253,213 @@ void main() {
             reason: 'debordement de mise en page sur $format');
       });
     }
+  });
+
+  // ── Une feuille ouvre la vue interactive, à N'IMPORTE QUEL niveau ────────
+  //
+  // Elle n'existait qu'au niveau de l'appartement. Un chantier sans bâtiment,
+  // un bâtiment sans étage ou un étage sans appartement affichait « aucun
+  // bâtiment / étage / appartement » AU-DESSUS de son plan, sans jamais
+  // permettre d'y poser une réserve — alors que c'était une feuille comme une
+  // autre. Le client l'a écrit : « lorsqu'on arrive sur un plan qui n'a plus
+  // de sous-plan, ouvrir la vue interactive de ce plan ».
+
+  testWidgets('un chantier sans bâtiment ouvre directement son plan global',
+      (tester) async {
+    repondre(
+      structure: const ChantierStructure(),
+      plans: [plan('global')],
+    );
+    dioQuiRendUnPlan();
+
+    await pomperPage(tester, page);
+    await pomperAvecReseau(tester);
+
+    // Plus le message « aucun plan global » ni une liste vide : le plan lui-même.
+    expect(find.byType(PlanInteractif), findsOneWidget);
+  });
+
+  testWidgets('un bâtiment sans étage ouvre son plan', (tester) async {
+    repondre(
+      structure: const ChantierStructure(
+        batiments: [BatimentStructure(id: 'b1', nom: 'Bâtiment A', etages: [])],
+      ),
+      plans: [
+        plan('global'),
+        Plan(
+          id: 'pb1',
+          chantierId: 'c1',
+          nom: 'Plan du bâtiment A',
+          fichierUrl: 'https://exemple.test/pb1.pdf',
+          batiment: const PlanNiveauRef(id: 'b1', nom: 'Bâtiment A'),
+        ),
+      ],
+    );
+    dioQuiRendUnPlan();
+
+    await pomperPage(tester, page);
+    await pomperSansRepos(tester);
+
+    // On descend dans le bâtiment : il n'a aucun étage, sa vue interactive
+    // doit s'ouvrir.
+    await tester.tap(find.text('Bâtiment A').first);
+    await pomperAvecReseau(tester);
+
+    expect(find.byType(PlanInteractif), findsOneWidget);
+  });
+
+  testWidgets('un chantier sans bâtiment NI plan garde son message', (tester) async {
+    // Pas de plan à ouvrir : le message reste la seule chose honnête à dire.
+    repondre(structure: const ChantierStructure(), plans: const []);
+
+    await pomperPage(tester, page);
+    await pomperSansRepos(tester);
+
+    expect(find.byType(PlanInteractif), findsNothing);
+  });
+
+  // ── Plans de DÉTAIL : la profondeur sous le dernier niveau de structure ───
+  //
+  // La hiérarchie venait de la structure du chantier et s'arrêtait donc à
+  // l'appartement. `parentId` ouvre une profondeur quelconque en dessous : le
+  // plan d'une pièce dans celui d'un appartement, celui d'un mur dans celui de
+  // la pièce. La règle reste la même à chaque cran — seuls les enfants DIRECTS
+  // du plan ouvert sont affichés.
+
+  Plan detail(String id, String parentId) => Plan(
+        id: id,
+        chantierId: 'c1',
+        nom: 'Detail $id',
+        fichierUrl: 'https://exemple.test/$id.pdf',
+        parentId: parentId,
+      );
+
+  testWidgets('un plan qui a des détails les LISTE au lieu de s’ouvrir',
+      (tester) async {
+    repondre(
+      structure: const ChantierStructure(),
+      plans: [plan('global'), detail('d1', 'global')],
+    );
+    dioQuiRendUnPlan();
+
+    await pomperPage(tester, page);
+    await pomperAvecReseau(tester);
+
+    // Le plan global a un détail : on doit voir la section qui les liste.
+    // (Le plan lui-même reste affiché en tête, c'est voulu : on voit où l'on
+    // est en même temps que ce vers quoi on peut descendre.)
+    expect(find.text('Detail d1'), findsWidgets);
+    expect(find.text('PLANS DE DÉTAIL'), findsWidgets);
+  });
+
+  testWidgets('ouvrir un détail sans enfant donne la vue interactive',
+      (tester) async {
+    repondre(
+      structure: const ChantierStructure(),
+      plans: [plan('global'), detail('d1', 'global')],
+    );
+    dioQuiRendUnPlan();
+
+    await pomperPage(tester, page);
+    await pomperAvecReseau(tester);
+
+    await tester.tap(find.text('Detail d1').first);
+    await pomperAvecReseau(tester);
+
+    // `d1` n'a aucun détail : c'est une feuille, le plan devient la zone de
+    // travail — plus de section « Plans de détail » à proposer.
+    expect(find.byType(PlanInteractif), findsOneWidget);
+    expect(find.text('PLANS DE DÉTAIL'), findsNothing);
+  });
+
+  testWidgets('un détail de détail ne remonte JAMAIS au niveau du dessus',
+      (tester) async {
+    // La navigation est progressive : ouvrir le plan global ne doit pas
+    // révéler les petits-enfants.
+    repondre(
+      structure: const ChantierStructure(),
+      plans: [plan('global'), detail('d1', 'global'), detail('d11', 'd1')],
+    );
+    dioQuiRendUnPlan();
+
+    await pomperPage(tester, page);
+    await pomperAvecReseau(tester);
+
+    expect(find.text('Detail d1'), findsWidgets);
+    expect(find.text('Detail d11'), findsNothing);
+
+    // Un cran plus bas, c'est lui qu'on voit — et lui seul.
+    await tester.tap(find.text('Detail d1').first);
+    await pomperAvecReseau(tester);
+
+    expect(find.text('Detail d11'), findsWidgets);
+  });
+
+  testWidgets('un plan de détail ne se substitue pas au plan de son niveau',
+      (tester) async {
+    // Un détail HÉRITE des rattachements de son parent : sans exclusion, le
+    // plan de la cuisine pouvait être retenu COMME le plan de l'appartement,
+    // qui disparaissait derrière l'un de ses détails.
+    repondre(
+      structure: const ChantierStructure(),
+      plans: [
+        plan('global'),
+        // Version supérieure : c'est lui qui l'emporterait sans la garde.
+        Plan(
+          id: 'd1',
+          chantierId: 'c1',
+          nom: 'Detail d1',
+          version: 9,
+          fichierUrl: 'https://exemple.test/d1.pdf',
+          parentId: 'global',
+        ),
+      ],
+    );
+    dioQuiRendUnPlan();
+
+    await pomperPage(tester, page);
+    await pomperAvecReseau(tester);
+
+    // Le global reste le plan du niveau : son détail est proposé EN DESSOUS.
+    expect(find.text('Detail d1'), findsWidgets);
+  });
+
+  // ── La porte d'entrée : créer un plan de détail ──────────────────────────
+  //
+  // Sans elle, la profondeur existait en base et dans la navigation mais on ne
+  // pouvait pas créer un détail depuis l'application. Une fonctionnalité sans
+  // porte d'entrée n'existe pas.
+
+  testWidgets('un rôle qui dépose voit l’action « ajouter un détail »',
+      (tester) async {
+    repondre(structure: const ChantierStructure(), plans: [plan('global')]);
+    dioQuiRendUnPlan();
+
+    await pomperPage(tester, page, role: UserRole.entreprise);
+    await pomperAvecReseau(tester);
+
+    expect(find.byTooltip('Ajouter un plan de détail'), findsOneWidget);
+  });
+
+  testWidgets('un rôle sans droit de dépôt ne la voit pas', (tester) async {
+    // Miroir du groupe `DEPOSANT` du serveur : la proposer mènerait à un 403.
+    repondre(structure: const ChantierStructure(), plans: [plan('global')]);
+    dioQuiRendUnPlan();
+
+    await pomperPage(tester, page, role: UserRole.sousTraitant);
+    await pomperAvecReseau(tester);
+
+    expect(find.byTooltip('Ajouter un plan de détail'), findsNothing);
+  });
+
+  testWidgets('aucune action quand il n’y a AUCUN plan à l’écran', (tester) async {
+    // Un détail se rattache à un plan : sans plan courant, il n'y a rien à
+    // quoi le rattacher.
+    repondre(structure: const ChantierStructure(), plans: const []);
+
+    await pomperPage(tester, page, role: UserRole.entreprise);
+    await pomperSansRepos(tester);
+
+    expect(find.byTooltip('Ajouter un plan de détail'), findsNothing);
   });
 }

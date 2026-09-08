@@ -39,7 +39,7 @@ description: |
   Moins d'allers-retours entre le chantier et le bureau, plus de photos perdues dans une galerie, plus de réserves oubliées dans un carnet : tout est daté, localisé, assigné et suivi.
 publish_to: 'none'
 
-version: 1.0.4+9
+version: 1.0.4+10
 
 environment:
   sdk: ^3.12.2
@@ -169,10 +169,16 @@ dependencies:
   # Rendu d'une page de PDF en IMAGE — indispensable au geste central du
   # guide client : « cliquez n'importe où sur le plan ».
   #
-  # `flutter_pdfview` (conservé ci-dessus pour la simple consultation) est une
-  # vue NATIVE : on ne connaît ni son zoom ni son décalage courants, aucun
-  # marqueur ne peut y être superposé sans dériver au premier geste, et aucun
-  # clic n'en ressort avec des coordonnées exploitables.
+  # `flutter_pdfview` (toujours déclaré ci-dessus) est une vue NATIVE : on ne
+  # connaît ni son zoom ni son décalage courants, aucun marqueur ne peut y être
+  # superposé sans dériver au premier geste, et aucun clic n'en ressort avec des
+  # coordonnées exploitables.
+  #
+  # PLUS AUCUN ÉCRAN NE S'EN SERT : la visionneuse `/plans/:id` l'utilisait
+  # encore et affichait, faute de pouvoir dessiner les repères, une pastille
+  # « N réserves » à la place des points. Elle est passée à `pdfx` comme le
+  # reste. La dépendance reste déclarée le temps d'un build de vérification sur
+  # les deux plateformes ; elle pourra être retirée ensuite.
   #
   # `pdfx` rend la page dans une image que l'on place soi-même dans un
   # `InteractiveViewer` : la géométrie devient entièrement connue, les repères

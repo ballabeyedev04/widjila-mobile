@@ -18,6 +18,7 @@ import 'package:suivie_chantier_mobile/core/config/user_role.dart';
 import 'package:suivie_chantier_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:suivie_chantier_mobile/features/auth/presentation/bloc/auth_state.dart';
 
+import '../../../helpers/balayage_responsive.dart';
 import '../../../helpers/l10n_test_helpers.dart';
 import '../../../helpers/pompe_page.dart';
 
@@ -87,9 +88,13 @@ void main() {
   Future<List<FlutterErrorDetails>> pomper(
     WidgetTester tester, {
     double largeur = 390,
+    double hauteur = 844,
     UserRole role = UserRole.conducteurTravaux,
   }) async {
-    tester.view.physicalSize = Size(largeur, 844);
+    // La HAUTEUR est un paramètre, et pas une constante : à 844 dp, ni le
+    // paysage ni la tablette n'étaient jamais vus — et c'est là que la place
+    // manque le plus.
+    tester.view.physicalSize = Size(largeur, hauteur);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
@@ -269,5 +274,28 @@ void main() {
     await pomper(tester, role: UserRole.sousTraitant);
 
     expect(find.text('Demander un chantier'), findsNothing);
+  });
+
+  group('mise en page — balayage complet des formats', () {
+    // Le balayage par largeur ci-dessus gardait une hauteur fixe de 844 dp :
+    // la liste des chantiers n'était donc jamais vu couché, ni sur une tablette.
+    // Ces deux situations sont pourtant celles où la mise en page cède —
+    // hauteur divisée par trois d'un côté, largeur doublée de l'autre.
+    for (final format in tousLesFormats) {
+      testWidgets('sans débordement sur $format', (tester) async {
+        stubListeAvecUnChantier();
+        final erreurs = await pomper(
+          tester,
+          largeur: format.taille.width,
+          hauteur: format.taille.height,
+        );
+
+        expect(
+          erreurs.map((e) => e.exceptionAsString()).toList(),
+          isEmpty,
+          reason: 'débordement de mise en page sur $format',
+        );
+      });
+    }
   });
 }

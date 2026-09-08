@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/liste_chrome.dart';
@@ -7,7 +8,24 @@ import '../../../../l10n/l10n_extension.dart';
 import '../../domain/entities/plan.dart';
 
 /// Ce que l'utilisateur renseigne avant l'envoi du fichier.
-typedef DetailPlan = ({String nom, PlanFormat format});
+typedef DetailPlan = ({String nom, PlanFormat format, String? typePlan, DateTime? datePlan});
+
+/// Disciplines proposées à l'import — cahier technique § 4.
+///
+/// Le document en nomme trois puis écrit « etc. » : la liste est donc une AIDE
+/// À LA SAISIE, pas une contrainte. Le champ reste libre côté serveur, et cette
+/// liste ne fait qu'éviter d'écrire « Electricité », « électricité » et
+/// « ELEC » sur trois plans du même chantier — trois disciplines différentes
+/// pour tout filtre.
+const disciplinesPlan = <String>[
+  'Architecture',
+  'Structure',
+  'Électricité',
+  'Plomberie',
+  'CVC',
+  'VRD',
+  'Sécurité incendie',
+];
 
 /// Demande le nom et le format du plan avant l'import.
 ///
@@ -37,6 +55,17 @@ class _ImportPlanSheet extends StatefulWidget {
 class _ImportPlanSheetState extends State<_ImportPlanSheet> {
   late final TextEditingController _nom = TextEditingController(text: _sansExtension(widget.nomPropose));
   PlanFormat _format = PlanFormat.pdf;
+
+  /// Discipline du plan (§ 4) — facultative : un chantier de maison
+  /// individuelle n'a qu'un jeu de plans et n'a rien à distinguer.
+  String? _typePlan;
+
+  /// Date DU PLAN (§ 4), distincte de la date de dépôt.
+  ///
+  /// Pré-remplie au jour même : c'est le cas le plus fréquent — on verse le
+  /// plan qu'on vient de recevoir — et cela évite de laisser le champ vide par
+  /// simple lassitude.
+  DateTime? _datePlan = DateTime.now();
   String? _erreur;
 
   /// Le nom proposé vient du fichier : « Niveau R+2.pdf » se lit mieux sans
@@ -65,7 +94,28 @@ class _ImportPlanSheetState extends State<_ImportPlanSheet> {
       setState(() => _erreur = context.l10n.planImportSheetErreurLong);
       return;
     }
-    Navigator.of(context).pop((nom: nom, format: _format));
+    Navigator.of(context).pop((
+      nom: nom,
+      format: _format,
+      typePlan: _typePlan,
+      datePlan: _datePlan,
+    ));
+  }
+
+  /// Choisit la date DU PLAN.
+  ///
+  /// Bornée à un an dans le futur, comme le serveur : un plan daté de 2040 est
+  /// une faute de frappe. Vingt ans en arrière, en revanche, est légitime — on
+  /// verse encore des plans d'origine sur des chantiers de rénovation.
+  Future<void> _choisirDate() async {
+    final maintenant = DateTime.now();
+    final choisie = await showDatePicker(
+      context: context,
+      initialDate: _datePlan ?? maintenant,
+      firstDate: DateTime(maintenant.year - 20),
+      lastDate: maintenant.add(const Duration(days: 365)),
+    );
+    if (choisie != null && mounted) setState(() => _datePlan = choisie);
   }
 
   @override
@@ -157,6 +207,80 @@ class _ImportPlanSheetState extends State<_ImportPlanSheet> {
                     ],
                   ],
                 ),
+                const SizedBox(height: 16),
+
+                // TYPE — cahier technique § 4. Deux plans d'un même niveau,
+                // l'un architectural et l'autre électrique, étaient sinon
+                // indiscernables autrement que par leur nom.
+                Text(
+                  l10n.planImportSheetTypeLabel,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                ),
+                const SizedBox(height: 7),
+                DropdownButtonFormField<String?>(
+                  initialValue: _typePlan,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: AppColors.background,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  items: [
+                    DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text(l10n.planImportSheetTypeAucun),
+                    ),
+                    for (final d in disciplinesPlan)
+                      DropdownMenuItem<String?>(value: d, child: Text(d)),
+                  ],
+                  onChanged: (v) => setState(() => _typePlan = v),
+                ),
+                const SizedBox(height: 16),
+
+                // DATE DU PLAN — cahier technique § 4. Distincte de la date de
+                // dépôt : un plan daté du 3 mars peut être versé en septembre.
+                Text(
+                  l10n.planImportSheetDateLabel,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                ),
+                const SizedBox(height: 7),
+                InkWell(
+                  onTap: _choisirDate,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _datePlan == null
+                                ? l10n.planImportSheetDateAucune
+                                : DateFormat.yMd(Localizations.localeOf(context).toString())
+                                    .format(_datePlan!),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: _datePlan == null ? AppColors.textMuted : AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.event_outlined, size: 20, color: AppColors.textSecondary),
+                      ],
+                    ),
+                  ),
+                ),
+
                 const SizedBox(height: 24),
                 PrimaryButton(label: l10n.planImportSheetValiderBouton, onPressed: _valider),
                 const SizedBox(height: 6),
