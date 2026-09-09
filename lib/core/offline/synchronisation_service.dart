@@ -85,6 +85,21 @@ class SynchronisationService {
   /// ce service ne connaît rien aux réserves, il orchestre seulement.
   final Future<void> Function(ActionEnAttente action) _executer;
 
+  /// Défait l'écriture OPTIMISTE d'une action DÉFINITIVEMENT refusée.
+  ///
+  /// Symétrique de [_executer], et injectée pour la même raison : ce service
+  /// ne sait pas ce qu'une action a écrit en local, seulement qu'elle a échoué
+  /// sans appel.
+  ///
+  /// Sans elle, un refus serveur (transition illégale, preuves manquantes,
+  /// droits retirés) laissait la base locale sur la valeur demandée par
+  /// l'utilisateur — et `CacheReserves.enregistrerTous`, qui épargne les
+  /// lignes « en attente », empêchait ensuite toute correction par le serveur.
+  /// L'écran affichait indéfiniment un état que le serveur avait rejeté.
+  ///
+  /// Facultative : un appelant qui n'a rien à défaire n'a pas à la fournir.
+  final Future<void> Function(ActionEnAttente action)? _annuler;
+
   // Champs privés, paramètres publics : les appelants écrivent
   // `SynchronisationService(file: ...)`. Utiliser `this._file` en paramètre,
   // comme le suggère la règle, imposerait le préfixe souligne à chaque site
@@ -95,10 +110,12 @@ class SynchronisationService {
     required DetecteurConnexion detecteur,
     required BaseLocale base,
     required Future<void> Function(ActionEnAttente action) executer,
+    Future<void> Function(ActionEnAttente action)? annuler,
   })  : _file = file,
         _detecteur = detecteur,
         _base = base,
-        _executer = executer;
+        _executer = executer,
+        _annuler = annuler;
 
   final _statut = ValueNotifier<StatutOffline>(const StatutOffline());
 
@@ -302,6 +319,11 @@ class SynchronisationService {
         // 4xx : le serveur a compris et refuse (chantier supprimé, droits
         // retirés). Retenter indéfiniment ne changerait rien et bloquerait
         // la file derrière cette action.
+        //
+        // On DÉFAIT d'abord ce que l'action avait écrit en local : sans cela,
+        // l'écriture optimiste survivait au refus, et la protection des lignes
+        // « en attente » interdisait au serveur de la corriger ensuite.
+        await _annuler?.call(action);
         await _file.marquerEchecDefinitif(action.id, e.message);
         return _ResultatAction.echecDefinitif;
       }
@@ -319,6 +341,9 @@ class SynchronisationService {
         return _ResultatAction.coupureReseau;
       }
       if (_estRefusMetier(e)) {
+        // Même règle que ci-dessus : l'écriture optimiste est défaite avant
+        // que l'action ne quitte la file.
+        await _annuler?.call(action);
         await _file.marquerEchecDefinitif(action.id, _messageErreur(e));
         return _ResultatAction.echecDefinitif;
       }

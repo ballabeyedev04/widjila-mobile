@@ -19,6 +19,17 @@ abstract class PlanRemoteDataSource {
 
   Future<Plan> getPlanDetail(String id);
 
+  /// `DELETE /plans/:id` — retire le plan et ses versions.
+  Future<void> supprimerPlan(String id);
+
+  /// `POST /plans/:id/versions` — REMPLACE le document d'un plan.
+  ///
+  /// Une nouvelle version, pas un nouveau plan : le nom, le rattachement et
+  /// les réserves déjà posées sont conservés, et l'historique garde la version
+  /// précédente. C'est ce que veut dire « Remplacer » pour l'utilisateur, et
+  /// c'est le seul geste qui ne perd rien.
+  Future<Plan> remplacerFichier(String id, {required String cheminFichier});
+
   Future<Plan> uploaderPlan({
     required String chantierId,
     required String cheminFichier,
@@ -93,6 +104,28 @@ class PlanRemoteDataSourceImpl implements PlanRemoteDataSource {
       return (_data(response)['sousPlans'] as List)
           .map((e) => Plan.fromJson(e as Map<String, dynamic>))
           .toList();
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<void> supprimerPlan(String id) async {
+    try {
+      await dio.delete('/plans/$id');
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<Plan> remplacerFichier(String id, {required String cheminFichier}) async {
+    try {
+      final formData = FormData.fromMap({
+        'fichier': await MultipartFile.fromFile(cheminFichier),
+      });
+      final response = await dio.post('/plans/$id/versions', data: formData);
+      return Plan.fromJson(_data(response)['plan'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw mapDioException(e);
     }

@@ -5,13 +5,45 @@ import '../../../plan/domain/entities/plan.dart';
 import '../../../plan/domain/usecases/get_plans_chantier.dart';
 import '../../../plan/domain/usecases/uploader_plan.dart';
 import '../../../referentiel/domain/entities/code_niveau.dart';
+import '../../../referentiel/domain/entities/code_appartement.dart';
+import '../../../referentiel/domain/usecases/codes_appartement.dart';
 import '../../../referentiel/domain/usecases/creer_code_niveau.dart';
 import '../../../referentiel/domain/usecases/get_codes_niveau.dart';
 import '../../../reserve/domain/entities/chantier_structure.dart';
 import '../../../reserve/domain/usecases/get_chantier_structure.dart';
+import '../../../plan/domain/usecases/gerer_plan.dart';
 import '../../domain/usecases/creer_structure.dart';
 
 enum DepotStatus { chargement, pret, erreur }
+
+/// Un appartement saisi par l'utilisateur dans la feuille d'un niveau — un
+/// code et, éventuellement, son plan.
+///
+/// Public : c'est ce que la feuille de saisie ([SaisieNiveau] dans
+/// `niveau_sheet.dart`) construit et transmet à [DepotPlansCubit.ajouterNiveau].
+class SaisieAppartement {
+  final String code;
+  final String? cheminFichier;
+  final String? nomFichier;
+
+  const SaisieAppartement({
+    required this.code,
+    this.cheminFichier,
+    this.nomFichier,
+  });
+}
+
+/// Un fichier de plan choisi pour un appartement — chemin et nom d'affichage.
+///
+/// Public : c'est ce que l'écran construit après une sélection de fichier et
+/// transmet au cubit. Un appartement peut en porter plusieurs, le client l'a
+/// demandé explicitement.
+class SaisieFichierPlan {
+  final String chemin;
+  final String nom;
+
+  const SaisieFichierPlan({required this.chemin, required this.nom});
+}
 
 /// Un fichier choisi, pas encore téléversé.
 class _FichierEnAttente {
@@ -34,7 +66,12 @@ class _NiveauEnAttente {
   final String? cheminFichier;
   final String? nomFichier;
 
-  const _NiveauEnAttente({
+  /// Les appartements du niveau, saisis dans la MÊME feuille — le client l'a
+  /// demandé explicitement : ajouter plusieurs logements et leur plan avant
+  /// de valider, pas un par un sur des écrans séparés.
+  final List<_AppartementEnAttente> appartements;
+
+  _NiveauEnAttente({
     required this.batimentTempId,
     required this.niveauTempId,
     required this.typeNiveau,
@@ -42,7 +79,40 @@ class _NiveauEnAttente {
     this.description,
     this.cheminFichier,
     this.nomFichier,
-  });
+    List<_AppartementEnAttente>? appartements,
+  }) : appartements = appartements ?? <_AppartementEnAttente>[];
+}
+
+/// Un fichier de plan retenu pour un appartement, le temps du brouillon.
+///
+/// [idLocal] est l'identifiant du [Plan] d'affichage correspondant : c'est lui
+/// qui permet de retrouver le fichier à retirer quand l'utilisateur supprime
+/// une vignette, sans avoir à deviner par le nom — deux plans peuvent porter
+/// le même.
+class _FichierPlan {
+  final String idLocal;
+  final String chemin;
+  final String nom;
+
+  const _FichierPlan({required this.idLocal, required this.chemin, required this.nom});
+}
+
+/// Un appartement saisi avant que le chantier — et donc l'appartement —
+/// n'existe côté serveur.
+///
+/// Mutable, contrairement au reste des structures en attente : le client veut
+/// pouvoir renommer un appartement et lui ajouter des plans APRÈS l'avoir
+/// créé, sans repasser par la feuille du niveau.
+class _AppartementEnAttente {
+  final String zoneTempId;
+  String code;
+  final List<_FichierPlan> plans;
+
+  _AppartementEnAttente({
+    required this.zoneTempId,
+    required this.code,
+    List<_FichierPlan>? plans,
+  }) : plans = plans ?? <_FichierPlan>[];
 }
 
 class DepotPlansState extends Equatable {
@@ -58,6 +128,14 @@ class DepotPlansState extends Equatable {
   /// Codes proposés à la saisie, toutes sections confondues.
   final List<CodeNiveau> codes;
 
+  /// Codes d'APPARTEMENT proposés à la saisie — « A001 » à « A015 », plus
+  /// ceux que l'organisation a ajoutés.
+  ///
+  /// Le code d'appartement était un champ libre : deux utilisateurs
+  /// saisissaient « A001 » et « A-001 » pour le même logement. Le client a
+  /// demandé la même liste que pour les niveaux.
+  final List<CodeAppartement> codesAppartement;
+
   /// `true` pendant un envoi. La liste reste affichée : la remplacer par un
   /// squelette à chaque dépôt donnerait l'impression que l'écran redémarre.
   final bool envoiEnCours;
@@ -70,6 +148,7 @@ class DepotPlansState extends Equatable {
     this.batiments = const [],
     this.plans = const [],
     this.codes = const [],
+    this.codesAppartement = const [],
     this.envoiEnCours = false,
     this.erreur,
     this.messageSucces,
@@ -84,6 +163,7 @@ class DepotPlansState extends Equatable {
     List<BatimentStructure>? batiments,
     List<Plan>? plans,
     List<CodeNiveau>? codes,
+    List<CodeAppartement>? codesAppartement,
     bool? envoiEnCours,
     String? erreur,
     String? messageSucces,
@@ -94,6 +174,7 @@ class DepotPlansState extends Equatable {
       batiments: batiments ?? this.batiments,
       plans: plans ?? this.plans,
       codes: codes ?? this.codes,
+      codesAppartement: codesAppartement ?? this.codesAppartement,
       envoiEnCours: envoiEnCours ?? this.envoiEnCours,
       erreur: effacerMessages ? null : (erreur ?? this.erreur),
       messageSucces: effacerMessages ? null : (messageSucces ?? this.messageSucces),
@@ -102,7 +183,7 @@ class DepotPlansState extends Equatable {
 
   @override
   List<Object?> get props =>
-      [status, batiments, plans, codes, envoiEnCours, erreur, messageSucces];
+      [status, batiments, plans, codes, codesAppartement, envoiEnCours, erreur, messageSucces];
 }
 
 /// Dépôt des plans d'un chantier — plan global, bâtiments, niveaux.
@@ -141,8 +222,15 @@ class DepotPlansCubit extends Cubit<DepotPlansState> {
   final GetPlansChantier getPlans;
   final GetCodesNiveau getCodes;
   final CreerCodeNiveau creerCode;
+  final GetCodesAppartement getCodesAppartement;
+  final CreerCodeAppartement creerCodeAppartement;
   final CreerBatiment creerBatiment;
   final CreerEtage creerEtage;
+  final CreerZone creerZone;
+  final ModifierZone modifierZone;
+  final SupprimerZone supprimerZone;
+  final SupprimerPlan supprimerPlan;
+  final RemplacerFichierPlan remplacerFichierPlan;
   final UploaderPlan uploaderPlan;
 
   DepotPlansCubit({
@@ -151,8 +239,15 @@ class DepotPlansCubit extends Cubit<DepotPlansState> {
     required this.getPlans,
     required this.getCodes,
     required this.creerCode,
+    required this.getCodesAppartement,
+    required this.creerCodeAppartement,
     required this.creerBatiment,
     required this.creerEtage,
+    required this.creerZone,
+    required this.modifierZone,
+    required this.supprimerZone,
+    required this.supprimerPlan,
+    required this.remplacerFichierPlan,
     required this.uploaderPlan,
   }) : super(const DepotPlansState());
 
@@ -181,11 +276,17 @@ class DepotPlansCubit extends Cubit<DepotPlansState> {
     // l'entreprise d'en créer un que le suivant retrouvera.
     if (brouillon) {
       emit(state.copyWith(status: DepotStatus.chargement, effacerMessages: true));
-      final codes = await getCodes();
+      // Les DEUX référentiels : niveaux et appartements. Le second manquait —
+      // la feuille de niveau aurait proposé une liste d'appartements vide en
+      // mode brouillon, c'est-à-dire précisément dans le parcours « plans
+      // d'abord, demande ensuite » que le client a décrit.
+      final resultats = await Future.wait([getCodes(), getCodesAppartement()]);
       if (isClosed) return;
       emit(state.copyWith(
         status: DepotStatus.pret,
-        codes: codes.fold((_) => const <CodeNiveau>[], (c) => c),
+        codes: (resultats[0] as dynamic).fold((_) => const <CodeNiveau>[], (c) => c) as List<CodeNiveau>,
+        codesAppartement: (resultats[1] as dynamic)
+            .fold((_) => const <CodeAppartement>[], (c) => c) as List<CodeAppartement>,
       ));
       return;
     }
@@ -207,7 +308,11 @@ class DepotPlansCubit extends Cubit<DepotPlansState> {
 
     // Plans et codes en parallèle : ni l'un ni l'autre ne dépend de l'autre,
     // et les enchaîner doublerait l'attente sur un réseau de chantier.
-    final resultats = await Future.wait([getPlans(chantierId!), getCodes()]);
+    final resultats = await Future.wait([
+      getPlans(chantierId!),
+      getCodes(),
+      getCodesAppartement(),
+    ]);
     if (isClosed) return;
 
     emit(state.copyWith(
@@ -217,6 +322,8 @@ class DepotPlansCubit extends Cubit<DepotPlansState> {
       // liste s'affiche vide, et l'essentiel — l'ajout — reste possible.
       plans: (resultats[0] as dynamic).fold((_) => const <Plan>[], (p) => p) as List<Plan>,
       codes: (resultats[1] as dynamic).fold((_) => const <CodeNiveau>[], (c) => c) as List<CodeNiveau>,
+      codesAppartement: (resultats[2] as dynamic)
+          .fold((_) => const <CodeAppartement>[], (c) => c) as List<CodeAppartement>,
     ));
   }
 
@@ -262,12 +369,21 @@ class DepotPlansCubit extends Cubit<DepotPlansState> {
     });
   }
 
-  /// Crée un niveau et y dépose son plan.
+  /// Crée un niveau, dépose éventuellement son plan, puis crée chacun de ses
+  /// appartements avec le sien.
   ///
-  /// Les deux vont ENSEMBLE : un niveau sans plan n'a pas d'intérêt dans ce
-  /// parcours, et un plan sans niveau n'a nulle part où se rattacher. Si le
-  /// dépôt échoue après la création, le niveau subsiste — on le signale plutôt
-  /// que de le supprimer, l'utilisateur n'ayant qu'à réessayer le fichier.
+  /// Niveau et plan vont ENSEMBLE : un niveau sans plan n'a pas d'intérêt dans
+  /// ce parcours, et un plan sans niveau n'a nulle part où se rattacher. Les
+  /// appartements suivent la même logique, un cran plus bas — c'est le client
+  /// qui l'a demandé : « pouvoir mettre les plans de chaque appartement avant
+  /// d'enregistrer le tout », en un seul geste depuis la feuille du niveau.
+  ///
+  /// L'ordre est CONTRAINT : un appartement appartient au niveau, il ne peut
+  /// donc être créé qu'une fois celui-ci enregistré et son identifiant connu.
+  ///
+  /// Si un dépôt échoue en cours de route, on s'arrête LÀ : le niveau et les
+  /// appartements déjà créés subsistent — on le signale plutôt que de tout
+  /// défaire, l'utilisateur n'ayant qu'à corriger et réessayer ce qui manque.
   Future<void> ajouterNiveau({
     required String batimentId,
     required TypeNiveau typeNiveau,
@@ -275,6 +391,7 @@ class DepotPlansCubit extends Cubit<DepotPlansState> {
     String? description,
     String? cheminFichier,
     String? nomFichier,
+    List<SaisieAppartement> appartements = const [],
   }) async {
     if (brouillon) {
       _retenirNiveau(
@@ -284,6 +401,7 @@ class DepotPlansCubit extends Cubit<DepotPlansState> {
         description: description,
         cheminFichier: cheminFichier,
         nomFichier: nomFichier,
+        appartements: appartements,
       );
       return;
     }
@@ -301,21 +419,357 @@ class DepotPlansCubit extends Cubit<DepotPlansState> {
         description: description,
       );
 
+      final echecNiveau = creation.fold((e) => e.errorMessage, (_) => null);
+      if (echecNiveau != null) return echecNiveau;
+
+      final etage = creation.fold((_) => null, (e) => e);
+
+      if (cheminFichier != null) {
+        final depot = await uploaderPlan(
+          chantierId: chantierId!,
+          cheminFichier: cheminFichier,
+          nom: nomFichier ?? codeNiveau,
+          etageId: etage?.id,
+        );
+        final echecPlan = depot.fold((e) => e.errorMessage, (_) => null);
+        if (echecPlan != null) return echecPlan;
+      }
+
+      // Les appartements, un par un — chacun a besoin de l'identifiant DU
+      // NIVEAU qui vient d'être créé, jamais d'un identifiant temporaire.
+      for (final a in appartements) {
+        final creationZone = await creerZone(
+          chantierId!, batimentId, etage!.id, nom: a.code,
+        );
+        final echecZone = creationZone.fold((e) => e.errorMessage, (_) => null);
+        if (echecZone != null) return echecZone;
+
+        if (a.cheminFichier == null) continue;
+
+        final zone = creationZone.fold((_) => null, (z) => z);
+        final depotZone = await uploaderPlan(
+          chantierId: chantierId!,
+          cheminFichier: a.cheminFichier!,
+          nom: a.nomFichier ?? a.code,
+          zoneId: zone?.id,
+        );
+        final echecDepotZone = depotZone.fold((e) => e.errorMessage, (_) => null);
+        if (echecDepotZone != null) return echecDepotZone;
+      }
+
+      return null;
+    });
+  }
+
+  /// Crée un code d'appartement absent de la liste, et le rend immédiatement
+  /// sélectionnable.
+  ///
+  /// Renvoie le code créé, ou `null` en cas d'échec — l'appelant s'en sert
+  /// pour présélectionner ce que l'utilisateur vient de taper.
+  Future<CodeAppartement?> ajouterCodeAppartement(String code) async {
+    final result = await creerCodeAppartement(code: code);
+    if (isClosed) return null;
+
+    return result.fold(
+      (echec) {
+        emit(state.copyWith(erreur: echec.errorMessage));
+        return null;
+      },
+      (cree) {
+        emit(state.copyWith(
+          codesAppartement: [...state.codesAppartement, cree],
+          effacerMessages: true,
+        ));
+        return cree;
+      },
+    );
+  }
+
+  // ── Appartements d'un niveau, et leurs plans ─────────────────────────────
+  //
+  // Le client : « Alors là il faut qu'on puisse voir du R+1 avec tous les
+  // plans des appartements à l'intérieur. Du R+2 avec tous les plans des
+  // appartements à l'intérieur, ainsi de suite. »
+  //
+  // Les appartements VIENNENT DU SERVEUR (`EtageStructure.zones`, servi par la
+  // structure du chantier) ; ces méthodes ne servent qu'à compléter ce qui
+  // manque et à corriger ce qui est faux.
+
+  /// Ajoute un appartement à un niveau, avec ses éventuels premiers plans.
+  Future<void> ajouterAppartement({
+    required String batimentId,
+    required String etageId,
+    required String code,
+    List<SaisieFichierPlan> plans = const [],
+  }) async {
+    if (brouillon) {
+      _retenirAppartement(
+        batimentId: batimentId,
+        etageId: etageId,
+        code: code,
+        plans: plans,
+      );
+      return;
+    }
+
+    await _envoyer(() async {
+      final creation = await creerZone(chantierId!, batimentId, etageId, nom: code);
       final echec = creation.fold((e) => e.errorMessage, (_) => null);
       if (echec != null) return echec;
 
-      if (cheminFichier == null) return null;
-
-      final etage = creation.fold((_) => null, (e) => e);
-      final depot = await uploaderPlan(
-        chantierId: chantierId!,
-        cheminFichier: cheminFichier,
-        nom: nomFichier ?? codeNiveau,
-        etageId: etage?.id,
-      );
-      return depot.fold((e) => e.errorMessage, (_) => null);
+      final zone = creation.fold((_) => null, (z) => z);
+      for (final f in plans) {
+        final depot = await uploaderPlan(
+          chantierId: chantierId!,
+          cheminFichier: f.chemin,
+          nom: f.nom,
+          zoneId: zone?.id,
+        );
+        final rate = depot.fold((e) => e.errorMessage, (_) => null);
+        if (rate != null) return rate;
+      }
+      return null;
     });
   }
+
+  /// Renomme un appartement.
+  Future<void> renommerAppartement({
+    required String batimentId,
+    required String etageId,
+    required String zoneId,
+    required String nom,
+  }) async {
+    if (brouillon) {
+      for (final n in _niveauxEnAttente) {
+        for (final a in n.appartements) {
+          if (a.zoneTempId == zoneId) a.code = nom;
+        }
+      }
+      emit(state.copyWith(batiments: _batimentsAvecZoneRenommee(zoneId, nom), effacerMessages: true));
+      return;
+    }
+
+    await _envoyer(() async {
+      final r = await modifierZone(chantierId!, batimentId, etageId, zoneId, nom: nom);
+      return r.fold((e) => e.errorMessage, (_) => null);
+    });
+  }
+
+  /// Supprime un appartement — et, côté serveur, les plans qui s'y rattachent.
+  ///
+  /// Le serveur REFUSE tant qu'une réserve pointe sur l'appartement ; son
+  /// message remonte tel quel, c'est lui qui explique le blocage.
+  Future<void> supprimerAppartement({
+    required String batimentId,
+    required String etageId,
+    required String zoneId,
+  }) async {
+    if (brouillon) {
+      for (final n in _niveauxEnAttente) {
+        n.appartements.removeWhere((a) => a.zoneTempId == zoneId);
+      }
+      emit(state.copyWith(
+        batiments: _batimentsSansZone(zoneId),
+        plans: state.plans.where((p) => p.zone?.id != zoneId).toList(),
+        effacerMessages: true,
+      ));
+      return;
+    }
+
+    await _envoyer(() async {
+      final r = await supprimerZone(chantierId!, batimentId, etageId, zoneId);
+      return r.fold((e) => e.errorMessage, (_) => null);
+    });
+  }
+
+  /// Ajoute un plan À UN APPARTEMENT — le geste « + Ajouter un plan ».
+  Future<void> ajouterPlanAppartement({
+    required String zoneId,
+    required String cheminFichier,
+    required String nom,
+  }) async {
+    if (brouillon) {
+      final idLocal = _prochainIdTemp();
+      for (final n in _niveauxEnAttente) {
+        for (final a in n.appartements) {
+          if (a.zoneTempId != zoneId) continue;
+          a.plans.add(_FichierPlan(idLocal: idLocal, chemin: cheminFichier, nom: nom));
+        }
+      }
+      emit(state.copyWith(
+        plans: [...state.plans, _planLocal(id: idLocal, nom: nom, zoneId: zoneId)],
+        effacerMessages: true,
+      ));
+      return;
+    }
+
+    await _envoyer(() async {
+      final r = await uploaderPlan(
+        chantierId: chantierId!,
+        cheminFichier: cheminFichier,
+        nom: nom,
+        zoneId: zoneId,
+      );
+      return r.fold((e) => e.errorMessage, (_) => null);
+    });
+  }
+
+  /// REMPLACE le document d'un plan.
+  ///
+  /// Une nouvelle version côté serveur, jamais un second plan : le nom, le
+  /// rattachement et les réserves déjà posées sont conservés.
+  Future<void> remplacerPlan({
+    required String planId,
+    required String cheminFichier,
+    required String nom,
+  }) async {
+    if (brouillon) {
+      // Rien n'est encore parti : on échange simplement le fichier retenu.
+      for (final n in _niveauxEnAttente) {
+        for (final a in n.appartements) {
+          final i = a.plans.indexWhere((f) => f.idLocal == planId);
+          if (i < 0) continue;
+          a.plans[i] = _FichierPlan(idLocal: planId, chemin: cheminFichier, nom: nom);
+        }
+      }
+      emit(state.copyWith(
+        plans: [
+          for (final p in state.plans)
+            if (p.id != planId)
+              p
+            else
+              _planLocal(id: planId, nom: nom, zoneId: p.zone?.id, etageId: p.etage?.id),
+        ],
+        effacerMessages: true,
+      ));
+      return;
+    }
+
+    await _envoyer(() async {
+      final r = await remplacerFichierPlan(planId, cheminFichier: cheminFichier);
+      return r.fold((e) => e.errorMessage, (_) => null);
+    });
+  }
+
+  /// Supprime un plan.
+  Future<void> supprimerPlanFichier(String planId) async {
+    if (brouillon) {
+      for (final n in _niveauxEnAttente) {
+        for (final a in n.appartements) {
+          a.plans.removeWhere((f) => f.idLocal == planId);
+        }
+      }
+      emit(state.copyWith(
+        plans: state.plans.where((p) => p.id != planId).toList(),
+        effacerMessages: true,
+      ));
+      return;
+    }
+
+    await _envoyer(() async {
+      final r = await supprimerPlan(planId);
+      return r.fold((e) => e.errorMessage, (_) => null);
+    });
+  }
+
+  /// Retient un appartement ajouté à un niveau encore en brouillon.
+  void _retenirAppartement({
+    required String batimentId,
+    required String etageId,
+    required String code,
+    required List<SaisieFichierPlan> plans,
+  }) {
+    final zoneTempId = _prochainIdTemp();
+    final fichiers = [
+      for (final f in plans)
+        _FichierPlan(idLocal: _prochainIdTemp(), chemin: f.chemin, nom: f.nom),
+    ];
+
+    for (final n in _niveauxEnAttente) {
+      if (n.niveauTempId != etageId) continue;
+      n.appartements.add(
+        _AppartementEnAttente(zoneTempId: zoneTempId, code: code, plans: fichiers),
+      );
+    }
+
+    emit(state.copyWith(
+      batiments: [
+        for (final b in state.batiments)
+          if (b.id != batimentId)
+            b
+          else
+            BatimentStructure(
+              id: b.id,
+              nom: b.nom,
+              etages: [
+                for (final e in b.etages)
+                  if (e.id != etageId)
+                    e
+                  else
+                    EtageStructure(
+                      id: e.id,
+                      nom: e.nom,
+                      niveau: e.niveau,
+                      typeNiveau: e.typeNiveau,
+                      codeNiveau: e.codeNiveau,
+                      description: e.description,
+                      zones: [...e.zones, ZoneStructure(id: zoneTempId, nom: code)],
+                    ),
+              ],
+            ),
+      ],
+      plans: [
+        ...state.plans,
+        for (final f in fichiers) _planLocal(id: f.idLocal, nom: f.nom, zoneId: zoneTempId),
+      ],
+      effacerMessages: true,
+    ));
+  }
+
+  /// La structure, avec un appartement renommé.
+  List<BatimentStructure> _batimentsAvecZoneRenommee(String zoneId, String nom) => [
+        for (final b in state.batiments)
+          BatimentStructure(
+            id: b.id,
+            nom: b.nom,
+            etages: [
+              for (final e in b.etages)
+                EtageStructure(
+                  id: e.id,
+                  nom: e.nom,
+                  niveau: e.niveau,
+                  typeNiveau: e.typeNiveau,
+                  codeNiveau: e.codeNiveau,
+                  description: e.description,
+                  zones: [
+                    for (final z in e.zones)
+                      if (z.id == zoneId) ZoneStructure(id: z.id, nom: nom) else z,
+                  ],
+                ),
+            ],
+          ),
+      ];
+
+  /// La structure, privée d'un appartement.
+  List<BatimentStructure> _batimentsSansZone(String zoneId) => [
+        for (final b in state.batiments)
+          BatimentStructure(
+            id: b.id,
+            nom: b.nom,
+            etages: [
+              for (final e in b.etages)
+                EtageStructure(
+                  id: e.id,
+                  nom: e.nom,
+                  niveau: e.niveau,
+                  typeNiveau: e.typeNiveau,
+                  codeNiveau: e.codeNiveau,
+                  description: e.description,
+                  zones: e.zones.where((z) => z.id != zoneId).toList(),
+                ),
+            ],
+          ),
+      ];
 
   /// Crée un code absent de la liste, et le rend immédiatement sélectionnable.
   ///
@@ -349,16 +803,22 @@ class DepotPlansCubit extends Cubit<DepotPlansState> {
   /// Un plan LOCAL, le temps du brouillon.
   ///
   /// Il n'existe que pour l'affichage : c'est lui qui coche la pastille d'un
-  /// niveau servi et qui donne son nom au plan global. Son identifiant est
-  /// préfixé « brouillon- » et son URL est vide — rien ici n'ira au serveur,
-  /// seuls les chemins retenus à côté seront téléversés.
-  Plan _planLocal({required String nom, required String? etageId}) => Plan(
-        id: _prochainIdTemp(),
+  /// niveau — ou d'un appartement — servi, et qui donne son nom au plan
+  /// global. Son identifiant est préfixé « brouillon- » et son URL est
+  /// vide — rien ici n'ira au serveur, seuls les chemins retenus à côté
+  /// seront téléversés.
+  ///
+  /// Au plus un des deux rattachements : un plan d'appartement porte [zoneId],
+  /// un plan de niveau porte [etageId], le plan global ne porte ni l'un ni
+  /// l'autre.
+  Plan _planLocal({required String nom, String? id, String? etageId, String? zoneId}) => Plan(
+        id: id ?? _prochainIdTemp(),
         chantierId: '',
         nom: nom,
         fichierUrl: '',
         format: PlanFormat.pdf,
         etage: etageId == null ? null : PlanNiveauRef(id: etageId, nom: nom),
+        zone: zoneId == null ? null : PlanNiveauRef(id: zoneId, nom: nom),
       );
 
   void _retenirNiveau({
@@ -368,8 +828,28 @@ class DepotPlansCubit extends Cubit<DepotPlansState> {
     String? description,
     String? cheminFichier,
     String? nomFichier,
+    List<SaisieAppartement> appartements = const [],
   }) {
     final idNiveau = _prochainIdTemp();
+
+    // Chaque appartement reçoit son identifiant temporaire, retenu pour le
+    // rejeu et pour construire les zones affichées sous le niveau.
+    final appartementsRetenus = [
+      for (final a in appartements)
+        _AppartementEnAttente(
+          zoneTempId: _prochainIdTemp(),
+          code: a.code,
+          plans: [
+            if (a.cheminFichier != null)
+              _FichierPlan(
+                idLocal: _prochainIdTemp(),
+                chemin: a.cheminFichier!,
+                nom: a.nomFichier ?? a.code,
+              ),
+          ],
+        ),
+    ];
+
     _niveauxEnAttente.add(_NiveauEnAttente(
       batimentTempId: batimentId,
       niveauTempId: idNiveau,
@@ -378,10 +858,12 @@ class DepotPlansCubit extends Cubit<DepotPlansState> {
       description: description,
       cheminFichier: cheminFichier,
       nomFichier: nomFichier,
+      appartements: appartementsRetenus,
     ));
 
     // Le niveau est inséré dans SON bâtiment pour que l'écran le montre
-    // aussitôt, exactement comme un rechargement le ferait après un envoi.
+    // aussitôt, exactement comme un rechargement le ferait après un envoi —
+    // avec SES appartements déjà dessous, comme le client l'a demandé.
     final batiments = [
       for (final b in state.batiments)
         if (b.id != batimentId)
@@ -399,6 +881,10 @@ class DepotPlansCubit extends Cubit<DepotPlansState> {
                 typeNiveau: typeNiveau,
                 codeNiveau: codeNiveau,
                 description: description,
+                zones: [
+                  for (final a in appartementsRetenus)
+                    ZoneStructure(id: a.zoneTempId, nom: a.code),
+                ],
               ),
             ],
           ),
@@ -406,9 +892,14 @@ class DepotPlansCubit extends Cubit<DepotPlansState> {
 
     emit(state.copyWith(
       batiments: batiments,
-      plans: cheminFichier == null
-          ? state.plans
-          : [...state.plans, _planLocal(nom: nomFichier ?? codeNiveau, etageId: idNiveau)],
+      plans: [
+        ...state.plans,
+        if (cheminFichier != null)
+          _planLocal(nom: nomFichier ?? codeNiveau, etageId: idNiveau),
+        for (final a in appartementsRetenus)
+          for (final f in a.plans)
+            _planLocal(id: f.idLocal, nom: f.nom, zoneId: a.zoneTempId),
+      ],
       effacerMessages: true,
     ));
   }
@@ -476,19 +967,53 @@ class DepotPlansCubit extends Cubit<DepotPlansState> {
           break;
         }
 
-        if (n.cheminFichier == null) continue;
         final etage = creation.fold((_) => null, (e) => e);
-        final depot = await uploaderPlan(
-          chantierId: nouveauChantierId,
-          cheminFichier: n.cheminFichier!,
-          nom: n.nomFichier ?? n.codeNiveau,
-          etageId: etage?.id,
-        );
-        final rateDepot = depot.fold((e) => e.errorMessage, (_) => null);
-        if (rateDepot != null) {
-          echec = rateDepot;
-          break;
+
+        if (n.cheminFichier != null) {
+          final depot = await uploaderPlan(
+            chantierId: nouveauChantierId,
+            cheminFichier: n.cheminFichier!,
+            nom: n.nomFichier ?? n.codeNiveau,
+            etageId: etage?.id,
+          );
+          final rateDepot = depot.fold((e) => e.errorMessage, (_) => null);
+          if (rateDepot != null) {
+            echec = rateDepot;
+            break;
+          }
         }
+
+        // Les appartements du niveau — chacun a besoin de l'identifiant RÉEL
+        // du niveau, connu seulement maintenant.
+        for (final a in n.appartements) {
+          final creationZone = await creerZone(
+            nouveauChantierId, batimentReel, etage!.id, nom: a.code,
+          );
+          final rateZone = creationZone.fold((e) => e.errorMessage, (_) => null);
+          if (rateZone != null) {
+            echec = rateZone;
+            break;
+          }
+
+          final zone = creationZone.fold((_) => null, (z) => z);
+          // TOUS les plans de l'appartement, pas seulement le premier : le
+          // client en veut plusieurs par logement.
+          for (final f in a.plans) {
+            final depotZone = await uploaderPlan(
+              chantierId: nouveauChantierId,
+              cheminFichier: f.chemin,
+              nom: f.nom,
+              zoneId: zone?.id,
+            );
+            final rateDepotZone = depotZone.fold((e) => e.errorMessage, (_) => null);
+            if (rateDepotZone != null) {
+              echec = rateDepotZone;
+              break;
+            }
+          }
+          if (echec != null) break;
+        }
+        if (echec != null) break;
       }
     }
 

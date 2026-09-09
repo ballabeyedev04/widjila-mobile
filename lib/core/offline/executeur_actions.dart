@@ -42,6 +42,52 @@ class ExecuteurActionsHorsLigne {
     }
   }
 
+  /// Défait l'écriture OPTIMISTE portée par une action définitivement refusée.
+  ///
+  /// Sans cette contrepartie, un refus serveur laissait la base locale sur la
+  /// valeur que l'utilisateur avait demandée : `enregistrerTous` épargne les
+  /// lignes `en_attente = 1`, donc aucune réponse du serveur ne pouvait plus
+  /// la corriger. L'écran montrait un statut que le serveur n'a jamais
+  /// accepté, définitivement.
+  ///
+  /// Ne lève JAMAIS : elle est appelée alors qu'une erreur est déjà en cours
+  /// de traitement, et son propre échec ne doit pas masquer la cause initiale
+  /// ni bloquer la file.
+  Future<void> annuler(ActionEnAttente action) async {
+    try {
+      switch (action.type) {
+        case TypeAction.creerReserve:
+          // Le serveur a refusé la création : la réserve n'existe pas de son
+          // côté. La garder localement afficherait une réserve fantôme, avec
+          // un numéro provisoire, que personne ne pourra jamais ouvrir.
+          await _cache.supprimer(action.charge['id'] as String);
+
+        case TypeAction.changerStatutReserve:
+          // Le statut demandé est refusé. On rétablit la VÉRITÉ du serveur
+          // plutôt que de deviner l'ancienne valeur — la réserve a pu changer
+          // entre-temps, et une valeur inventée serait un second mensonge.
+          final id = action.charge['reserveId'] as String;
+          try {
+            final aJour = await _reserves.getReserveDetail(id);
+            await _cache.enregistrer(aJour, enAttente: false);
+          } catch (_) {
+            // Serveur injoignable ou réserve disparue : on relâche au moins la
+            // ligne, pour que le prochain rafraîchissement puisse l'écraser.
+            await _cache.libererEnAttente(id);
+          }
+
+        case TypeAction.ajouterPhotoReserve:
+          // Rien n'a été écrit dans le cache des réserves : seule la copie
+          // locale du fichier subsiste. On la garde — c'est la seule trace de
+          // la photo, et l'utilisateur peut vouloir la renvoyer.
+          break;
+      }
+    } catch (_) {
+      // Voir la note ci-dessus : l'annulation est un filet, jamais un point
+      // de rupture supplémentaire.
+    }
+  }
+
   Future<void> _creerReserve(ActionEnAttente action) async {
     final c = action.charge;
 

@@ -8,17 +8,119 @@ import 'package:suivie_chantier_mobile/features/reserve/domain/reserve_statut_po
 // deux suites doivent rester synchronisées : un statut ajouté d'un côté sans
 // l'autre est le genre d'écart qu'aucun des deux tests ne détecte seul.
 void main() {
-  group('statutsProposables — rôles de pilotage (inchangé)', () {
-    test('un rôle de pilotage voit tous les statuts, y compris les verdicts', () {
+  group('statutsProposables — matrice de transitions', () {
+    test('depuis « créée », seuls les trois statuts de la matrice sont proposés', () {
+      // `TRANSITIONS.creee = ['affectee', 'en_cours', 'rouverte']`.
+      // L'écran proposait auparavant TOUS les autres statuts : sept d'entre
+      // eux ne pouvaient qu'échouer sur « Transition impossible ».
+      final statuts = statutsProposables(
+        statutActuel: ReserveStatut.creee,
+        role: UserRole.chefProjet,
+        estAssigneAMoi: false,
+        aDesPreuves: true,
+      );
+
+      expect(statuts, unorderedEquals([
+        ReserveStatut.affectee,
+        ReserveStatut.enCours,
+        ReserveStatut.rouverte,
+      ]));
+    });
+
+    test('« clôturée » est un état TERMINAL — rien n’est proposé', () {
+      // `TRANSITIONS.cloturee = []`. L'écran offrait dix choix sur un objet
+      // que le serveur déclare définitivement figé.
+      final statuts = statutsProposables(
+        statutActuel: ReserveStatut.cloturee,
+        role: UserRole.chefProjet,
+        estAssigneAMoi: false,
+        aDesPreuves: true,
+      );
+
+      expect(statuts, isEmpty);
+    });
+
+    test('« en retard » n’est JAMAIS une destination proposable', () {
+      // Il est posé par le traitement automatique des échéances : il
+      // n'apparaît dans aucune liste de destination de la matrice serveur.
+      for (final depart in ReserveStatut.values) {
+        final statuts = statutsProposables(
+          statutActuel: depart,
+          role: UserRole.chefProjet,
+          estAssigneAMoi: true,
+          aDesPreuves: true,
+        );
+        expect(statuts, isNot(contains(ReserveStatut.enRetard)),
+            reason: 'proposé depuis $depart');
+      }
+    });
+
+    test('depuis « en retard », la reprise du cycle normal reste ouverte', () {
+      final statuts = statutsProposables(
+        statutActuel: ReserveStatut.enRetard,
+        role: UserRole.chefProjet,
+        estAssigneAMoi: false,
+        aDesPreuves: true,
+      );
+
+      expect(statuts, contains(ReserveStatut.enCours));
+      expect(statuts, contains(ReserveStatut.validee));
+    });
+
+    test('aucun statut ne se propose lui-même', () {
+      for (final depart in ReserveStatut.values) {
+        final statuts = statutsProposables(
+          statutActuel: depart,
+          role: UserRole.chefProjet,
+          estAssigneAMoi: true,
+          aDesPreuves: true,
+        );
+        expect(statuts, isNot(contains(depart)), reason: 'depuis $depart');
+      }
+    });
+  });
+
+  group('statutsProposables — preuves de correction', () {
+    test('sans média joint, « validée » n’est pas proposée', () {
+      // Le serveur exige au moins une preuve (`Media.count > 0`) et refuse
+      // sinon, APRÈS que l'utilisateur a choisi le statut.
       final statuts = statutsProposables(
         statutActuel: ReserveStatut.corrigee,
         role: UserRole.chefProjet,
         estAssigneAMoi: false,
+        aDesPreuves: false,
+      );
+
+      expect(statuts, isNot(contains(ReserveStatut.validee)));
+      // Le refus, lui, ne demande aucune preuve.
+      expect(statuts, contains(ReserveStatut.refusee));
+    });
+
+    test('avec une preuve, « validée » redevient proposable', () {
+      final statuts = statutsProposables(
+        statutActuel: ReserveStatut.corrigee,
+        role: UserRole.chefProjet,
+        estAssigneAMoi: false,
+        aDesPreuves: true,
+      );
+
+      expect(statuts, contains(ReserveStatut.validee));
+    });
+  });
+
+  group('statutsProposables — rôles de pilotage', () {
+    test('un rôle de pilotage voit les verdicts autorisés par la matrice', () {
+      final statuts = statutsProposables(
+        statutActuel: ReserveStatut.corrigee,
+        role: UserRole.chefProjet,
+        estAssigneAMoi: false,
+        aDesPreuves: true,
       );
 
       expect(statuts, contains(ReserveStatut.validee));
       expect(statuts, contains(ReserveStatut.refusee));
-      expect(statuts, isNot(contains(ReserveStatut.corrigee)), reason: 'le statut actuel ne se propose pas lui-même');
+      expect(statuts, isNot(contains(ReserveStatut.corrigee)),
+          reason: 'le statut actuel ne se propose pas lui-même');
     });
   });
 
@@ -31,13 +133,15 @@ void main() {
         statutActuel: ReserveStatut.corrigee,
         role: UserRole.client,
         estAssigneAMoi: false,
+        aDesPreuves: true,
       );
 
       expect(statuts, isNot(contains(ReserveStatut.validee)));
       expect(statuts, isNot(contains(ReserveStatut.refusee)));
       expect(statuts, isNot(contains(ReserveStatut.cloturee)));
       expect(statuts, isNot(contains(ReserveStatut.rouverte)));
-      expect(statuts, contains(ReserveStatut.aVerifier), reason: 'les statuts non-verdict restent proposés');
+      expect(statuts, contains(ReserveStatut.aVerifier),
+          reason: 'les statuts non-verdict restent proposés');
     });
 
     test('le titulaire, lui, prononce les verdicts sur SON chantier', () {
@@ -45,6 +149,7 @@ void main() {
         statutActuel: ReserveStatut.corrigee,
         role: UserRole.entreprise,
         estAssigneAMoi: false,
+        aDesPreuves: true,
       );
 
       expect(statuts, contains(ReserveStatut.validee));
@@ -58,6 +163,7 @@ void main() {
         statutActuel: ReserveStatut.affectee,
         role: UserRole.sousTraitant,
         estAssigneAMoi: false,
+        aDesPreuves: true,
       );
 
       expect(statuts, isEmpty);
@@ -68,6 +174,7 @@ void main() {
         statutActuel: ReserveStatut.affectee,
         role: UserRole.sousTraitant,
         estAssigneAMoi: true,
+        aDesPreuves: true,
       );
 
       expect(statuts, unorderedEquals([
@@ -82,6 +189,7 @@ void main() {
         statutActuel: ReserveStatut.corrigee,
         role: UserRole.sousTraitant,
         estAssigneAMoi: true,
+        aDesPreuves: true,
       );
 
       expect(statuts, isNot(contains(ReserveStatut.validee)));
@@ -91,16 +199,21 @@ void main() {
   });
 
   group('statutsProposables — Pilote', () {
-    test('comme les autres rôles non-pilotage : tout sauf les verdicts', () {
+    test('depuis « créée » : les transitions de la matrice, sans les verdicts', () {
       final statuts = statutsProposables(
         statutActuel: ReserveStatut.creee,
         role: UserRole.pilote,
         estAssigneAMoi: false,
+        aDesPreuves: true,
       );
 
       expect(statuts, contains(ReserveStatut.affectee));
-      expect(statuts, contains(ReserveStatut.priseEnCharge));
+      expect(statuts, contains(ReserveStatut.enCours));
+      // `rouverte` est un verdict : masqué pour un rôle non-pilotage.
+      expect(statuts, isNot(contains(ReserveStatut.rouverte)));
       expect(statuts, isNot(contains(ReserveStatut.cloturee)));
+      // `prise_en_charge` n'est pas atteignable depuis « créée ».
+      expect(statuts, isNot(contains(ReserveStatut.priseEnCharge)));
     });
   });
 }

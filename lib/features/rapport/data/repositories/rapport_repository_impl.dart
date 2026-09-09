@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 
 import '../../../../core/errors/exception_to_failure.dart';
 import '../../../../core/errors/failure.dart';
+import '../../domain/entities/envoi_rapport.dart';
 import '../../domain/entities/rapport.dart';
 import '../../domain/repositories/rapport_repository.dart';
 import '../datasources/rapport_remote_datasource.dart';
@@ -45,6 +46,27 @@ class RapportRepositoryImpl implements RapportRepository {
     try {
       await remoteDataSource.supprimerRapport(id);
       return const Right(null);
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, EnvoiRapport>> preparerEnvoi(String rapportId) async {
+    try {
+      return Right(await remoteDataSource.preparerEnvoi(rapportId));
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, String>> envoyerRapport(
+    String rapportId, {
+    List<String> exclure = const [],
+  }) async {
+    try {
+      return Right(await remoteDataSource.envoyerRapport(rapportId, exclure: exclure));
     } catch (e) {
       return Left(exceptionToFailure(e));
     }

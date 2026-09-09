@@ -442,6 +442,22 @@ class Reserve extends Equatable {
   /// Nul pour une réserve consignée avant le dépôt des plans du chantier.
   final ReservePlanRef? plan;
 
+  /// CORPS D'ÉTAT (métier) — référentiel administrable qui remplace
+  /// `categorie`, conservée pour les réserves anciennes et l'export Excel.
+  ///
+  /// Servi par les deux listes et par le détail
+  /// (`reserve.service.js:718` et `:846`). Il n'était pas lu : la fiche
+  /// affichait la catégorie héritée, que le serveur documente comme obsolète.
+  final ReserveLocalisationRef? corpsEtat;
+
+  /// PHASE du chantier à laquelle la réserve se rattache.
+  ///
+  /// Obligatoire à la création (`reserve.validation.js:122` — « Veuillez
+  /// sélectionner une phase. »), et servie en retour par le serveur
+  /// (`reserve.service.js:719` et `:847`). Elle n'était pas lue : on imposait
+  /// le choix à la saisie sans jamais le restituer.
+  final ReserveLocalisationRef? phase;
+
   final ReserveUtilisateurRef? assigne;
   final ReserveUtilisateurRef? createur;
   final String? motifRefus;
@@ -477,6 +493,8 @@ class Reserve extends Equatable {
     this.partenaire,
     this.chantier,
     this.plan,
+    this.corpsEtat,
+    this.phase,
     this.assigne,
     this.createur,
     this.motifRefus,
@@ -511,6 +529,20 @@ class Reserve extends Equatable {
   /// été créée hors ligne et n'a pas encore été synchronisée.
   String numeroAffiche(AppLocalizations l10n) => numero == numeroEnAttente ? l10n.reserveNumeroProvisoire : numero;
 
+  /// La réserve a reçu son verdict : elle n'est plus ni modifiable ni
+  /// supprimable.
+  ///
+  /// Miroir de `STATUTS_FIGES` (`backend/src/modules/reserve/service/
+  /// reserve.service.js:64`), appliqué par le serveur à la modification
+  /// (`:907`) comme à la suppression (`:1157`).
+  ///
+  /// Sans ce test, l'écran de détail proposait « Modifier » et « Supprimer »
+  /// sur une réserve validée ou clôturée en ne regardant que le RÔLE : la
+  /// confirmation rouge de suppression s'ouvrait, et le refus n'arrivait
+  /// qu'après. Rouvrir la réserve reste le chemin prévu pour la reprendre.
+  bool get estFige =>
+      statut == ReserveStatut.validee || statut == ReserveStatut.cloturee;
+
   factory Reserve.fromJson(Map<String, dynamic> json) {
     return Reserve(
       id: json['id'] as String,
@@ -532,6 +564,12 @@ class Reserve extends Equatable {
       partenaire: json['partenaire'] != null ? ReserveLocalisationRef.fromJson(json['partenaire'] as Map<String, dynamic>) : null,
       chantier: json['chantier'] != null ? ReserveLocalisationRef.fromJson(json['chantier'] as Map<String, dynamic>) : null,
       plan: json['plan'] != null ? ReservePlanRef.fromJson(json['plan'] as Map<String, dynamic>) : null,
+      corpsEtat: json['corpsEtat'] != null
+          ? ReserveLocalisationRef.fromJson(json['corpsEtat'] as Map<String, dynamic>)
+          : null,
+      phase: json['phase'] != null
+          ? ReserveLocalisationRef.fromJson(json['phase'] as Map<String, dynamic>)
+          : null,
       assigne: json['assigne'] != null ? ReserveUtilisateurRef.fromJson(json['assigne'] as Map<String, dynamic>) : null,
       createur: json['createur'] != null ? ReserveUtilisateurRef.fromJson(json['createur'] as Map<String, dynamic>) : null,
       motifRefus: json['motif_refus'] as String?,
@@ -570,6 +608,8 @@ class Reserve extends Equatable {
         'partenaire': partenaire?.toJson(),
         'chantier': chantier?.toJson(),
         'plan': plan?.toJson(),
+        'corpsEtat': corpsEtat?.toJson(),
+        'phase': phase?.toJson(),
         'assigne': assigne?.toJson(),
         'createur': createur?.toJson(),
         'motif_refus': motifRefus,
@@ -599,6 +639,13 @@ class Reserve extends Equatable {
         entreprise: entreprise,
         partenaire: partenaire,
         chantier: chantier,
+        // `plan`, `corpsEtat` et `phase` recopiés EXPLICITEMENT. `plan`
+        // manquait : une mise à jour optimiste de statut faisait disparaître
+        // de la fiche le plan sur lequel la réserve avait été relevée, alors
+        // que le champ figure bien dans `props`.
+        plan: plan,
+        corpsEtat: corpsEtat,
+        phase: phase,
         assigne: assigne,
         createur: createur,
         motifRefus: motifRefus,
@@ -610,7 +657,8 @@ class Reserve extends Equatable {
   @override
   List<Object?> get props => [
         id, numero, chantierId, titre, description, severite, priorite, categorie, statut, dateLimite, createdAt,
-        batiment, etage, zone, lot, entreprise, partenaire, chantier, plan, assigne, createur,
+        batiment, etage, zone, lot, entreprise, partenaire, chantier, plan,
+        corpsEtat, phase, assigne, createur,
         motifRefus, photoApercu, medias, historiques,
       ];
 }

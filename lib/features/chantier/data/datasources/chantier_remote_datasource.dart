@@ -41,6 +41,38 @@ abstract class ChantierRemoteDataSource {
     String? description,
     int? niveau,
   });
+
+  /// Ajoute un appartement (zone) à un niveau.
+  Future<ZoneStructure> creerZone(
+    String chantierId,
+    String batimentId,
+    String etageId, {
+    required String nom,
+    String? type,
+  });
+
+  /// `PUT /chantiers/:id/batiments/:b/etages/:e/zones/:z` — renomme un
+  /// appartement. Le serveur exige au moins un champ (`modifierZoneSchema`).
+  Future<ZoneStructure> modifierZone(
+    String chantierId,
+    String batimentId,
+    String etageId,
+    String zoneId, {
+    required String nom,
+  });
+
+  /// `DELETE /chantiers/:id/batiments/:b/etages/:e/zones/:z`.
+  ///
+  /// Le serveur REFUSE tant qu'une réserve pointe sur l'appartement : la
+  /// garde qui compte n'est pas le rôle mais l'état (voir
+  /// `chantier.service.js#supprimerZone`). Le message de refus remonte tel
+  /// quel à l'écran.
+  Future<void> supprimerZone(
+    String chantierId,
+    String batimentId,
+    String etageId,
+    String zoneId,
+  );
 }
 
 class ChantierRemoteDataSourceImpl implements ChantierRemoteDataSource {
@@ -160,6 +192,65 @@ class ChantierRemoteDataSourceImpl implements ChantierRemoteDataSource {
       );
       final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
       return EtageStructure.fromJson(data['etage'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<ZoneStructure> creerZone(
+    String chantierId,
+    String batimentId,
+    String etageId, {
+    required String nom,
+    String? type,
+  }) async {
+    try {
+      final response = await dio.post(
+        '/chantiers/$chantierId/batiments/$batimentId/etages/$etageId/zones',
+        data: {
+          'nom': nom,
+          if (type != null && type.isNotEmpty) 'type': type,
+        },
+      );
+      final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+      return ZoneStructure.fromJson(data['zone'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<ZoneStructure> modifierZone(
+    String chantierId,
+    String batimentId,
+    String etageId,
+    String zoneId, {
+    required String nom,
+  }) async {
+    try {
+      final response = await dio.put(
+        '/chantiers/$chantierId/batiments/$batimentId/etages/$etageId/zones/$zoneId',
+        data: {'nom': nom},
+      );
+      final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+      return ZoneStructure.fromJson(data['zone'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<void> supprimerZone(
+    String chantierId,
+    String batimentId,
+    String etageId,
+    String zoneId,
+  ) async {
+    try {
+      await dio.delete(
+        '/chantiers/$chantierId/batiments/$batimentId/etages/$etageId/zones/$zoneId',
+      );
     } on DioException catch (e) {
       throw mapDioException(e);
     }

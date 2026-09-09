@@ -53,6 +53,7 @@ import 'features/chantier/domain/usecases/get_chantiers.dart';
 import 'features/chantier/presentation/cubit/chantier_detail_cubit.dart';
 import 'features/chantier/presentation/cubit/chantiers_list_cubit.dart';
 import 'features/chantier/domain/usecases/creer_chantier.dart';
+import 'features/referentiel/domain/usecases/codes_appartement.dart';
 import 'features/referentiel/domain/usecases/creer_code_niveau.dart';
 import 'features/referentiel/domain/usecases/get_codes_niveau.dart';
 import 'features/chantier/domain/usecases/creer_structure.dart';
@@ -120,6 +121,7 @@ import 'features/plan/domain/usecases/get_plans_chantier.dart';
 import 'features/plan/domain/usecases/get_plans_racines.dart';
 import 'features/plan/domain/usecases/get_sous_plans.dart';
 import 'features/plan/domain/usecases/get_tous_plans.dart';
+import 'features/plan/domain/usecases/gerer_plan.dart';
 import 'features/plan/domain/usecases/uploader_plan.dart';
 import 'features/plan/presentation/cubit/plan_detail_cubit.dart';
 import 'features/plan/presentation/cubit/plans_list_cubit.dart';
@@ -233,6 +235,9 @@ Future<void> init() async {
         detecteur: sl(),
         base: sl(),
         executer: (action) => sl<ExecuteurActionsHorsLigne>().executer(action),
+        // Contrepartie de `executer` : défait l'écriture locale d'une action
+        // que le serveur a définitivement refusée.
+        annuler: (action) => sl<ExecuteurActionsHorsLigne>().annuler(action),
       ));
 
   //================================================
@@ -286,6 +291,9 @@ Future<void> init() async {
   sl.registerLazySingleton(() => CreerChantier(sl()));
   sl.registerLazySingleton(() => CreerBatiment(sl()));
   sl.registerLazySingleton(() => CreerEtage(sl()));
+  sl.registerLazySingleton(() => CreerZone(sl()));
+  sl.registerLazySingleton(() => ModifierZone(sl()));
+  sl.registerLazySingleton(() => SupprimerZone(sl()));
   sl.registerFactory(() => DemandesChantierCubit(getChantiers: sl()));
   // `GetMembres` appartient au module Organisation, enregistre plus bas :
   // `sl()` le resout a la CONSTRUCTION du cubit, donc apres l'initialisation.
@@ -370,6 +378,8 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetSousPlans(sl()));
   sl.registerLazySingleton(() => GetPlanDetail(sl()));
   sl.registerLazySingleton(() => UploaderPlan(sl()));
+  sl.registerLazySingleton(() => SupprimerPlan(sl()));
+  sl.registerLazySingleton(() => RemplacerFichierPlan(sl()));
   sl.registerFactory(() => PlansListCubit(getTousPlans: sl(), getPlansChantier: sl(), uploaderPlan: sl()));
   sl.registerFactory(() => PlanDetailCubit(getPlanDetail: sl()));
 
@@ -427,6 +437,8 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetPays(sl()));
   sl.registerLazySingleton(() => GetCodesNiveau(sl()));
   sl.registerLazySingleton(() => CreerCodeNiveau(sl()));
+  sl.registerLazySingleton(() => GetCodesAppartement(sl()));
+  sl.registerLazySingleton(() => CreerCodeAppartement(sl()));
   // Catalogue des pays du formulaire d'inscription — voir PaysCubit.
   sl.registerFactory(() => PaysCubit(getPays: sl()));
 
@@ -481,6 +493,8 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetRapports(sl()));
   sl.registerLazySingleton(() => GenererRapport(sl()));
   sl.registerLazySingleton(() => SupprimerRapport(sl()));
+  sl.registerLazySingleton(() => PreparerEnvoiRapport(sl()));
+  sl.registerLazySingleton(() => EnvoyerRapport(sl()));
 
   sl.registerLazySingleton<DocumentRemoteDataSource>(() => DocumentRemoteDataSourceImpl(dio: sl()));
   sl.registerLazySingleton<DocumentRepository>(() => DocumentRepositoryImpl(sl()));

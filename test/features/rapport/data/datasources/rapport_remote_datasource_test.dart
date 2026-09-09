@@ -152,4 +152,59 @@ void main() {
 
     expect(espion.appel, 'DELETE /rapports/r1');
   });
+
+  group('envoi par e-mail', () {
+    /// Deux routes sur le même chemin, distinguées par le verbe : GET
+    /// PRÉPARE (et n'envoie rien), POST envoie. Les confondre enverrait le
+    /// rapport à la simple ouverture de l'écran de vérification.
+    test('PRÉPARER est un GET — il ne doit rien envoyer', () async {
+      espion.repond({
+        'success': true,
+        'data': {
+          'envoi': {
+            'rapportId': 'r1',
+            'chantierNom': 'Résidence Horizon',
+            'objet': 'Rapport de chantier – Résidence Horizon – 09/09/2026',
+            'message': 'Bonjour,',
+            'expediteur': 'Balla Beye',
+            'nbReserves': 12,
+            'destinataires': [
+              {'id': 'p1', 'nom': 'SARL Toiture', 'email': 'toiture@ex.fr'},
+              {'id': 'p2', 'nom': 'Sans adresse', 'email': '   '},
+            ],
+            'copies': [
+              {'id': 'c1', 'nom': 'MOA', 'email': 'moa@ex.fr'},
+            ],
+            'sansEmail': ['Sans adresse'],
+            'pieceJointe': {'nom': 'rapport-RH.pdf', 'url': '/uploads/rapports/x.pdf'},
+          },
+        },
+      });
+
+      final envoi = await source.preparerEnvoi('r1');
+
+      expect(espion.appel, 'GET /rapports/r1/envoi');
+      expect(envoi.objet, 'Rapport de chantier – Résidence Horizon – 09/09/2026');
+      expect(envoi.pieceJointeNom, 'rapport-RH.pdf');
+      // Une adresse vide n'est PAS une adresse : le partenaire est listé,
+      // mais ne compte pas parmi les joignables.
+      expect(envoi.destinataires, hasLength(2));
+      expect(envoi.destinatairesJoignables, hasLength(1));
+      expect(envoi.copiesJoignables.single.email, 'moa@ex.fr');
+      expect(envoi.sansEmail, ['Sans adresse']);
+    });
+
+    test('ENVOYER poste les seuls RETRAITS, jamais des adresses ajoutées', () async {
+      espion.repond({'success': true, 'message': 'Rapport envoyé à 1 entreprise(s).'});
+
+      final message = await source.envoyerRapport('r1', exclure: ['plomberie@ex.fr']);
+
+      expect(espion.appel, 'POST /rapports/r1/envoi');
+      final corps = espion.requete.data as Map<String, dynamic>;
+      // `exclure` est le SEUL champ : le serveur recalcule les destinataires.
+      expect(corps.keys.toList(), ['exclure']);
+      expect(corps['exclure'], ['plomberie@ex.fr']);
+      expect(message, 'Rapport envoyé à 1 entreprise(s).');
+    });
+  });
 }

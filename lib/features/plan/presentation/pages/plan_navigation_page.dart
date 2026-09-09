@@ -987,6 +987,21 @@ class _VuePlanState extends State<_VuePlan> {
   /// « est-ce bien là que j'ai visé ? »
   ({double x, double y})? _pointProvisoire;
 
+  /// Peut-on poser une réserve sur CE plan ?
+  ///
+  /// Deux conditions, et non une seule : le rôle ([_VuePlan.pointageAutorise])
+  /// ET un plan qui n'attend pas sa validation.
+  ///
+  /// Un plan joint à une demande de chantier encore en attente appartient à un
+  /// chantier qui n'existe pas encore : le serveur refuse toute réserve posée
+  /// dessus (`reserve.service.js:189` — « Ce plan attend une validation :
+  /// aucune réserve ne peut y être posée »). Cet écran était le seul des trois
+  /// à ignorer la condition — la visionneuse et l'explorateur la portaient
+  /// déjà. On pouvait donc remplir tout le formulaire depuis la fiche
+  /// chantier, pour un envoi refusé à l'arrivée.
+  bool get _peutPointer =>
+      widget.pointageAutorise && !widget.plan.enAttenteValidation;
+
   @override
   void initState() {
     super.initState();
@@ -1143,7 +1158,7 @@ class _VuePlanState extends State<_VuePlan> {
               // rend le plan inerte pour un lecteur, sans lui cacher les
               // repères déjà posés. Pour les autres, un appui sur une zone
               // libre ouvre le formulaire — sans mode à armer au préalable.
-              onPointAppuye: widget.pointageAutorise ? _ouvrirFormulaire : null,
+              onPointAppuye: _peutPointer ? _ouvrirFormulaire : null,
               // Un appui sur un repère CONSULTE, il ne crée pas. Les deux
               // gestes ne doivent jamais se confondre.
               //
@@ -1165,7 +1180,7 @@ class _VuePlanState extends State<_VuePlan> {
         _PanneauBas(
           reserves: reserves,
           modePointage: _modePointage,
-          pointageAutorise: widget.pointageAutorise,
+          pointageAutorise: _peutPointer,
           onBasculerPointage: () => setState(() => _modePointage = !_modePointage),
         ),
       ],

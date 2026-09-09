@@ -47,6 +47,25 @@ class PlanRepositoryImpl implements PlanRepository {
   }
 
   @override
+  Future<Either<Failure, void>> supprimerPlan(String id) async {
+    try {
+      await remoteDataSource.supprimerPlan(id);
+      return const Right(null);
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Plan>> remplacerFichier(String id, {required String cheminFichier}) async {
+    try {
+      return Right(await remoteDataSource.remplacerFichier(id, cheminFichier: cheminFichier));
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
   Future<Either<Failure, Plan>> getPlanDetail(String id) async {
     try {
       return Right(await remoteDataSource.getPlanDetail(id));

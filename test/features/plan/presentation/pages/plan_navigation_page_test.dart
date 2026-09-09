@@ -462,4 +462,67 @@ void main() {
 
     expect(find.byTooltip('Ajouter un plan de détail'), findsNothing);
   });
+
+  group('plan EN ATTENTE de validation', () {
+    // Un plan joint a une demande de chantier encore en attente appartient a
+    // un chantier qui n'existe pas encore : le serveur refuse toute reserve
+    // posee dessus (`reserve.service.js:189`). Cet ecran etait le SEUL des
+    // trois a ignorer la condition — on pouvait donc remplir tout le
+    // formulaire pour un envoi refuse a l'arrivee.
+    Plan enAttente(String id) => Plan(
+          id: id,
+          chantierId: 'c1',
+          nom: 'Plan $id',
+          fichierUrl: 'https://exemple.test/$id.pdf',
+          statut: 'en_attente_validation',
+        );
+
+    testWidgets('le plan reste consultable', (tester) async {
+      repondre(structure: const ChantierStructure(), plans: [enAttente('global')]);
+      dioQuiRendUnPlan();
+
+      await pomperPage(tester, page);
+      await pomperAvecReseau(tester);
+
+      // On ne cache rien : le plan se regarde, seule la POSE est fermee.
+      expect(find.byType(PlanInteractif), findsOneWidget);
+    });
+
+    testWidgets('aucun appui sur le plan n ouvre le formulaire', (tester) async {
+      repondre(structure: const ChantierStructure(), plans: [enAttente('global')]);
+      dioQuiRendUnPlan();
+
+      await pomperPage(tester, page);
+      await pomperAvecReseau(tester);
+
+      // `onPointAppuye` nul : la visionneuse ne peut plus declencher la
+      // creation, quel que soit l'endroit touche.
+      final vue = tester.widget<PlanInteractif>(find.byType(PlanInteractif));
+      expect(vue.onPointAppuye, isNull);
+    });
+
+    testWidgets('le bouton « Nouvelle reserve » n est pas propose', (tester) async {
+      repondre(structure: const ChantierStructure(), plans: [enAttente('global')]);
+      dioQuiRendUnPlan();
+
+      await pomperPage(tester, page);
+      await pomperAvecReseau(tester);
+
+      expect(find.text('Nouvelle réserve'), findsNothing);
+    });
+
+    testWidgets('un plan ACTIF, lui, reste posable', (tester) async {
+      // Controle symetrique : sans lui, une regression qui fermerait la pose
+      // partout passerait pour un succes.
+      repondre(structure: const ChantierStructure(), plans: [plan('global')]);
+      dioQuiRendUnPlan();
+
+      await pomperPage(tester, page);
+      await pomperAvecReseau(tester);
+
+      final vue = tester.widget<PlanInteractif>(find.byType(PlanInteractif));
+      expect(vue.onPointAppuye, isNotNull);
+      expect(find.text('Nouvelle réserve'), findsOneWidget);
+    });
+  });
 }

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../../core/network/dio_exception_mapper.dart';
+import '../../domain/entities/envoi_rapport.dart';
 import '../../domain/entities/rapport.dart';
 
 abstract class RapportRemoteDataSource {
@@ -13,6 +14,14 @@ abstract class RapportRemoteDataSource {
     String? batimentId,
   });
   Future<void> supprimerRapport(String id);
+
+  /// Compose l'e-mail SANS l'envoyer — l'écran de vérification.
+  Future<EnvoiRapport> preparerEnvoi(String rapportId);
+
+  /// Envoie réellement, sur confirmation. [exclure] ne porte que des
+  /// RETRAITS : le serveur recalcule les destinataires et refuse toute
+  /// adresse ajoutée par le client.
+  Future<String> envoyerRapport(String rapportId, {List<String> exclure});
 }
 
 class RapportRemoteDataSourceImpl implements RapportRemoteDataSource {
@@ -60,6 +69,28 @@ class RapportRemoteDataSourceImpl implements RapportRemoteDataSource {
   Future<void> supprimerRapport(String id) async {
     try {
       await dio.delete('/rapports/$id');
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<EnvoiRapport> preparerEnvoi(String rapportId) async {
+    try {
+      final response = await dio.get('/rapports/$rapportId/envoi');
+      return EnvoiRapport.fromJson(_data(response)['envoi'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<String> envoyerRapport(String rapportId, {List<String> exclure = const []}) async {
+    try {
+      final response = await dio.post('/rapports/$rapportId/envoi', data: {'exclure': exclure});
+      // Le message du serveur dit qui a reçu quoi — le reprendre tel quel
+      // vaut mieux qu'un « Envoyé » qui n'apprend rien.
+      return (response.data as Map<String, dynamic>)['message']?.toString() ?? '';
     } on DioException catch (e) {
       throw mapDioException(e);
     }

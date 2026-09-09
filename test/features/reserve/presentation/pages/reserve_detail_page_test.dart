@@ -47,10 +47,12 @@ void main() {
     if (sl.isRegistered<ReserveDetailCubit>()) sl.unregister<ReserveDetailCubit>();
   }
 
+  late _MockRepo repo;
+
   setUp(() {
     getDetail = _MockDetail();
 
-    final repo = _MockRepo();
+    repo = _MockRepo();
     when(() => repo.getCommentaires(any())).thenAnswer(
       (_) async => const Right<Failure, List<CommentaireReserve>>([]),
     );
@@ -184,5 +186,52 @@ void main() {
             reason: 'debordement de mise en page sur $format');
       });
     }
+  });
+
+  group('sous-traitant assigné en SECONDAIRE', () {
+    // Le serveur accepte les DEUX voies d'affectation : `assigneA` ou une ligne
+    // dans `reserve_affectations` (`reserve.service.js:1021-1023`). L'écran ne
+    // regardait que la première : un sous-traitant affecté par
+    // `POST /reserves/:id/affectations` n'avait plus AUCUNE action — la barre
+    // du bas disparaissait entièrement, alors que le serveur aurait accepté
+    // ses transitions.
+    const reserveAffectee = Reserve(
+      id: 'r1',
+      numero: 'R-001',
+      chantierId: 'c1',
+      titre: 'Fissure',
+      statut: ReserveStatut.affectee,
+    );
+
+    testWidgets('sans aucune affectation : aucune action, comme avant',
+        (tester) async {
+      when(() => getDetail(any()))
+          .thenAnswer((_) async => const Right<Failure, Reserve>(reserveAffectee));
+
+      await pomperPage(tester, page, role: UserRole.sousTraitant);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Changer le statut'), findsNothing);
+    });
+
+    testWidgets('affecté en secondaire : les actions lui sont rendues',
+        (tester) async {
+      when(() => getDetail(any()))
+          .thenAnswer((_) async => const Right<Failure, Reserve>(reserveAffectee));
+      // `u-test` est l'utilisateur injecté par `pomperPage`.
+      when(() => repo.getAffectations(any())).thenAnswer(
+        (_) async => const Right<Failure, List<AffectationReserve>>([
+          AffectationReserve(
+            id: 'a1',
+            utilisateur: PersonneReserve(id: 'u-test', nom: 'Ba', prenom: 'Ibrahima'),
+          ),
+        ]),
+      );
+
+      await pomperPage(tester, page, role: UserRole.sousTraitant);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Changer le statut'), findsOneWidget);
+    });
   });
 }

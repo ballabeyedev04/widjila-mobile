@@ -525,7 +525,14 @@ class _TuilePlan extends StatelessWidget {
                         fontSize: 14.5,
                         color: AppColors.textPrimary,
                       ),
-                      maxLines: 2,
+                      // UNE ligne quand la mention « en attente de validation »
+                      // s'ajoute dessous : la tuile a une hauteur fixe
+                      // (`_hauteurTuile`, calée sur la vignette de 64), et le
+                      // titre sur deux lignes plus la mention la faisaient
+                      // déborder de 12 points. Le nom d'un plan tient
+                      // largement sur une ligne ; la mention, elle, ne peut
+                      // pas être coupée sans perdre son sens.
+                      maxLines: plan.enAttenteValidation ? 1 : 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 3),
@@ -537,15 +544,17 @@ class _TuilePlan extends StatelessWidget {
                     ),
                     if (plan.enAttenteValidation) ...[
                       const SizedBox(height: 4),
-                      Text(
-                        l10n.planExplorerEnAttenteValidation,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.warning,
+                      Flexible(
+                        child: Text(
+                          l10n.planExplorerEnAttenteValidation,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.warning,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ],
@@ -645,6 +654,20 @@ class _VuePlanOuvertState extends State<_VuePlanOuvert> {
   /// Plein écran : le bandeau d'aide et le panneau bas se replient, le plan
   /// prend toute la place.
   bool _pleinEcran = false;
+
+  /// Peut-on poser une réserve sur CE plan ?
+  ///
+  /// Le rôle ET un plan qui n'attend pas sa validation — le serveur refuse
+  /// toute réserve sur un plan en attente (`reserve.service.js:189`).
+  ///
+  /// Un ACCESSEUR et non une variable locale de `build` : la condition était
+  /// calculée dans `build`, mais le gestionnaire d'appui sur l'image vit dans
+  /// `_image()`, une autre méthode, où seul `widget.pointageAutorise` était à
+  /// portée. Le bouton « Créer une réserve » était donc bien masqué sur un plan
+  /// en attente, pendant qu'un appui n'importe où sur le plan ouvrait quand
+  /// même le formulaire. Un seul point de vérité supprime l'écart.
+  bool get _peutPointer =>
+      widget.pointageAutorise && !widget.plan.enAttenteValidation;
 
   @override
   void initState() {
@@ -774,13 +797,11 @@ class _VuePlanOuvertState extends State<_VuePlanOuvert> {
         ),
     ];
 
-    final peutPointer = widget.pointageAutorise && !widget.plan.enAttenteValidation;
-
     return Column(
       children: [
         // En PLEIN ÉCRAN, tout ce qui n'est pas le plan se replie. La sortie
         // reste à un appui, par le bouton qui y a fait entrer.
-        if (peutPointer && !_pleinEcran)
+        if (_peutPointer && !_pleinEcran)
           _BandeauAide(texte: l10n.planPointerAide, insiste: _pointageAnnonce),
         Expanded(child: Container(color: AppColors.surface, child: _image(marqueurs))),
         if (!_pleinEcran)
@@ -795,7 +816,7 @@ class _VuePlanOuvertState extends State<_VuePlanOuvert> {
           // Il est simplement mis en avant quand le plan n'a PAS de sous-plan :
           // il n'y a alors plus rien vers quoi descendre, et c'est la seule
           // action qui reste.
-            onCreerReserve: peutPointer ? () => setState(() => _pointageAnnonce = true) : null,
+            onCreerReserve: _peutPointer ? () => setState(() => _pointageAnnonce = true) : null,
             creationMiseEnAvant: widget.sousPlans.isEmpty,
             onOuvrirSousPlan: widget.onOuvrirSousPlan,
             onOuvrirReserve: _ouvrirFiche,
@@ -845,7 +866,7 @@ class _VuePlanOuvertState extends State<_VuePlanOuvert> {
       pleinEcran: _pleinEcran,
       // Nul quand le rôle ne peut pas poser de réserve : le plan reste alors
       // inerte pour un lecteur, sans lui cacher les repères déjà posés.
-      onPointAppuye: widget.pointageAutorise ? _ouvrirFormulaire : null,
+      onPointAppuye: _peutPointer ? _ouvrirFormulaire : null,
       // Un appui sur un repère CONSULTE, il ne crée pas. Les deux gestes ne
       // doivent jamais se confondre.
       onMarqueurAppuye: (m) {

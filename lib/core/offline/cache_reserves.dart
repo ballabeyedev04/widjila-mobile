@@ -77,6 +77,24 @@ class CacheReserves {
     await lot.commit(noResult: true);
   }
 
+  /// Relâche une ligne restée « en attente » : elle redevient écrasable par
+  /// la version du serveur.
+  ///
+  /// Contrepartie indispensable de la protection d'[enregistrerTous], qui
+  /// épargne les lignes `en_attente = 1`. Cette protection garde le travail
+  /// non synchronisé — mais si l'action correspondante est DÉFINITIVEMENT
+  /// refusée, plus rien ne viendrait jamais la lever : la ligne restait
+  /// éternellement figée sur une valeur que le serveur n'a pas acceptée.
+  Future<void> libererEnAttente(String id) async {
+    final db = await _base.base;
+    await db.update(
+      BaseLocale.tableReserves,
+      {'en_attente': 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   /// Retire une réserve du miroir local.
   ///
   /// Sans elle, une réserve supprimée sur le serveur restait indéfiniment en

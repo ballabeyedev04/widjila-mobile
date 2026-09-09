@@ -7,8 +7,11 @@ import 'package:suivie_chantier_mobile/features/chantier/domain/usecases/creer_s
 import 'package:suivie_chantier_mobile/features/chantier/presentation/cubit/depot_plans_cubit.dart';
 import 'package:suivie_chantier_mobile/features/plan/domain/entities/plan.dart';
 import 'package:suivie_chantier_mobile/features/plan/domain/usecases/get_plans_chantier.dart';
+import 'package:suivie_chantier_mobile/features/plan/domain/usecases/gerer_plan.dart';
 import 'package:suivie_chantier_mobile/features/plan/domain/usecases/uploader_plan.dart';
 import 'package:suivie_chantier_mobile/features/referentiel/domain/entities/code_niveau.dart';
+import 'package:suivie_chantier_mobile/features/referentiel/domain/entities/code_appartement.dart';
+import 'package:suivie_chantier_mobile/features/referentiel/domain/usecases/codes_appartement.dart';
 import 'package:suivie_chantier_mobile/features/referentiel/domain/usecases/creer_code_niveau.dart';
 import 'package:suivie_chantier_mobile/features/referentiel/domain/usecases/get_codes_niveau.dart';
 import 'package:suivie_chantier_mobile/features/reserve/domain/entities/chantier_structure.dart';
@@ -46,20 +49,40 @@ class _MockCodes extends Mock implements GetCodesNiveau {}
 
 class _MockCreerCode extends Mock implements CreerCodeNiveau {}
 
+class _MockCodesAppartement extends Mock implements GetCodesAppartement {}
+
+class _MockCreerCodeAppartement extends Mock implements CreerCodeAppartement {}
+
 class _MockCreerBatiment extends Mock implements CreerBatiment {}
 
 class _MockCreerEtage extends Mock implements CreerEtage {}
 
+class _MockCreerZone extends Mock implements CreerZone {}
+
 class _MockUploader extends Mock implements UploaderPlan {}
+
+class _MockModifierZone extends Mock implements ModifierZone {}
+
+class _MockSupprimerZone extends Mock implements SupprimerZone {}
+
+class _MockSupprimerPlan extends Mock implements SupprimerPlan {}
+
+class _MockRemplacerFichier extends Mock implements RemplacerFichierPlan {}
 
 void main() {
   late _MockStructure structure;
   late _MockPlans plans;
   late _MockCodes codes;
   late _MockCreerCode creerCode;
+  late _MockCodesAppartement getCodesAppartement;
   late _MockCreerBatiment creerBatiment;
   late _MockCreerEtage creerEtage;
+  late _MockCreerZone creerZone;
   late _MockUploader uploader;
+  late _MockModifierZone modifierZone;
+  late _MockSupprimerZone supprimerZone;
+  late _MockSupprimerPlan supprimerPlan;
+  late _MockRemplacerFichier remplacerFichier;
 
   // `any(named: 'typeNiveau')` porte sur un type non primitif : mocktail exige
   // une valeur de repli pour construire son matcher.
@@ -70,9 +93,17 @@ void main() {
     plans = _MockPlans();
     codes = _MockCodes();
     creerCode = _MockCreerCode();
+    getCodesAppartement = _MockCodesAppartement();
+    when(() => getCodesAppartement())
+        .thenAnswer((_) async => const Right(<CodeAppartement>[]));
     creerBatiment = _MockCreerBatiment();
     creerEtage = _MockCreerEtage();
+    creerZone = _MockCreerZone();
     uploader = _MockUploader();
+    modifierZone = _MockModifierZone();
+    supprimerZone = _MockSupprimerZone();
+    supprimerPlan = _MockSupprimerPlan();
+    remplacerFichier = _MockRemplacerFichier();
 
     when(() => codes()).thenAnswer((_) async => Right([
           CodeNiveau(id: 'c1', typeNiveau: TypeNiveau.sousSol, code: 'SS1', standard: true),
@@ -88,8 +119,15 @@ void main() {
         getPlans: plans,
         getCodes: codes,
         creerCode: creerCode,
+        getCodesAppartement: getCodesAppartement,
+        creerCodeAppartement: _MockCreerCodeAppartement(),
         creerBatiment: creerBatiment,
         creerEtage: creerEtage,
+        creerZone: creerZone,
+        modifierZone: modifierZone,
+        supprimerZone: supprimerZone,
+        supprimerPlan: supprimerPlan,
+        remplacerFichierPlan: remplacerFichier,
         uploaderPlan: uploader,
       );
 
@@ -311,6 +349,218 @@ void main() {
 
       expect(echec, 'Fichier refusé');
       verifyNever(() => creerBatiment(any(), nom: any(named: 'nom'), code: any(named: 'code')));
+    });
+  });
+
+  group('les appartements d’un niveau — demande du client', () {
+    // « Pouvoir ajouter plusieurs appartements à un étage, un plan pour
+    // chacun, les prévisualiser, et ne sauvegarder le niveau qu'une fois que
+    // l'utilisateur a terminé. »
+
+    test('en mode direct, chaque appartement crée sa zone puis dépose son plan', () async {
+      when(() => creerEtage(any(), any(),
+              nom: any(named: 'nom'),
+              typeNiveau: any(named: 'typeNiveau'),
+              codeNiveau: any(named: 'codeNiveau'),
+              description: any(named: 'description')))
+          .thenAnswer((_) async => const Right(EtageStructure(id: 'etage-1', nom: 'R+1')));
+      when(() => creerZone(any(), any(), any(), nom: any(named: 'nom')))
+          .thenAnswer((_) async => const Right(ZoneStructure(id: 'zone-1', nom: 'A001')));
+      when(() => uploader(
+            chantierId: any(named: 'chantierId'),
+            cheminFichier: any(named: 'cheminFichier'),
+            nom: any(named: 'nom'),
+            zoneId: any(named: 'zoneId'),
+          )).thenAnswer((_) async => const Right(Plan(
+            id: 'p1', chantierId: 'chantier-7', nom: 'plan', fichierUrl: '/x', format: PlanFormat.pdf,
+          )));
+
+      final cubit = creer(chantierId: 'chantier-7');
+      await cubit.charger();
+
+      await cubit.ajouterNiveau(
+        batimentId: 'bat-1',
+        typeNiveau: TypeNiveau.etage,
+        codeNiveau: 'R+1',
+        appartements: const [
+          SaisieAppartement(code: 'A001', cheminFichier: '/tmp/a001.jpg', nomFichier: 'a001.jpg'),
+        ],
+      );
+
+      // La zone est créée sur l'identifiant RÉEL du niveau qui vient d'être
+      // enregistré — pas un identifiant deviné.
+      verify(() => creerZone('chantier-7', 'bat-1', 'etage-1', nom: 'A001')).called(1);
+      // Le plan de l'appartement porte le ZONE id, et AUCUN etageId : c'est
+      // un plan d'appartement, pas un plan de niveau.
+      verify(() => uploader(
+            chantierId: 'chantier-7',
+            cheminFichier: '/tmp/a001.jpg',
+            nom: 'a001.jpg',
+            zoneId: 'zone-1',
+          )).called(1);
+    });
+
+    test('un appartement SANS fichier crée quand même sa zone', () async {
+      // Le client n'exige pas un plan par appartement — seulement la
+      // POSSIBILITÉ d'en joindre un.
+      when(() => creerEtage(any(), any(),
+              nom: any(named: 'nom'),
+              typeNiveau: any(named: 'typeNiveau'),
+              codeNiveau: any(named: 'codeNiveau'),
+              description: any(named: 'description')))
+          .thenAnswer((_) async => const Right(EtageStructure(id: 'etage-1', nom: 'R+1')));
+      when(() => creerZone(any(), any(), any(), nom: any(named: 'nom')))
+          .thenAnswer((_) async => const Right(ZoneStructure(id: 'zone-1', nom: 'A002')));
+
+      final cubit = creer(chantierId: 'chantier-7');
+      await cubit.charger();
+
+      await cubit.ajouterNiveau(
+        batimentId: 'bat-1',
+        typeNiveau: TypeNiveau.etage,
+        codeNiveau: 'R+1',
+        appartements: const [SaisieAppartement(code: 'A002')],
+      );
+
+      verify(() => creerZone('chantier-7', 'bat-1', 'etage-1', nom: 'A002')).called(1);
+      verifyZeroInteractions(uploader);
+    });
+
+    test('plusieurs appartements sont créés DANS L’ORDRE de la saisie', () async {
+      when(() => creerEtage(any(), any(),
+              nom: any(named: 'nom'),
+              typeNiveau: any(named: 'typeNiveau'),
+              codeNiveau: any(named: 'codeNiveau'),
+              description: any(named: 'description')))
+          .thenAnswer((_) async => const Right(EtageStructure(id: 'etage-1', nom: 'R+1')));
+      when(() => creerZone(any(), any(), any(), nom: any(named: 'nom')))
+          .thenAnswer((_) async => const Right(ZoneStructure(id: 'zone-x', nom: 'x')));
+
+      final cubit = creer(chantierId: 'chantier-7');
+      await cubit.charger();
+
+      await cubit.ajouterNiveau(
+        batimentId: 'bat-1',
+        typeNiveau: TypeNiveau.etage,
+        codeNiveau: 'R+1',
+        appartements: const [
+          SaisieAppartement(code: 'A001'),
+          SaisieAppartement(code: 'A002'),
+          SaisieAppartement(code: 'A003'),
+        ],
+      );
+
+      final noms = verify(() => creerZone(any(), any(), any(), nom: captureAny(named: 'nom')))
+          .captured;
+      expect(noms, ['A001', 'A002', 'A003']);
+    });
+
+    test('un échec sur un appartement arrête la suite, sans défaire les précédents', () async {
+      when(() => creerEtage(any(), any(),
+              nom: any(named: 'nom'),
+              typeNiveau: any(named: 'typeNiveau'),
+              codeNiveau: any(named: 'codeNiveau'),
+              description: any(named: 'description')))
+          .thenAnswer((_) async => const Right(EtageStructure(id: 'etage-1', nom: 'R+1')));
+
+      var appel = 0;
+      when(() => creerZone(any(), any(), any(), nom: any(named: 'nom'))).thenAnswer((_) async {
+        appel++;
+        if (appel == 1) return const Right(ZoneStructure(id: 'zone-1', nom: 'A001'));
+        return const Left(ServerFailure(errorMessage: 'A002 déjà utilisé'));
+      });
+
+      final cubit = creer(chantierId: 'chantier-7');
+      await cubit.charger();
+
+      await cubit.ajouterNiveau(
+        batimentId: 'bat-1',
+        typeNiveau: TypeNiveau.etage,
+        codeNiveau: 'R+1',
+        appartements: const [
+          SaisieAppartement(code: 'A001'),
+          SaisieAppartement(code: 'A002'),
+          SaisieAppartement(code: 'A003'),
+        ],
+      );
+
+      // Le premier est bien passé ; le troisième n'a jamais été tenté.
+      expect(cubit.state.erreur, 'A002 déjà utilisé');
+      verify(() => creerZone(any(), any(), any(), nom: 'A001')).called(1);
+      verify(() => creerZone(any(), any(), any(), nom: 'A002')).called(1);
+      verifyNever(() => creerZone(any(), any(), any(), nom: 'A003'));
+    });
+
+    test('en BROUILLON, les appartements apparaissent sous leur niveau', () async {
+      final cubit = creer();
+      await cubit.charger();
+      await cubit.ajouterBatiment(nom: 'Bâtiment A');
+
+      await cubit.ajouterNiveau(
+        batimentId: cubit.state.batiments.single.id,
+        typeNiveau: TypeNiveau.etage,
+        codeNiveau: 'R+1',
+        appartements: const [
+          SaisieAppartement(code: 'A001', cheminFichier: '/tmp/a001.jpg', nomFichier: 'a001.jpg'),
+          SaisieAppartement(code: 'A002'),
+        ],
+      );
+
+      // Rien n'est parti au serveur.
+      verifyZeroInteractions(creerZone);
+
+      final niveau = cubit.state.batiments.single.etages.single;
+      expect(niveau.zones.map((z) => z.nom), ['A001', 'A002']);
+
+      // Le plan de A001 est reconnaissable par sa ZONE, pas par le niveau.
+      final zoneA001 = niveau.zones.first.id;
+      expect(cubit.state.plans.any((p) => p.zone?.id == zoneA001), isTrue);
+    });
+
+    test('le rejeu crée les zones sur l’identifiant RÉEL du niveau', () async {
+      when(() => creerBatiment(any(), nom: any(named: 'nom'), code: any(named: 'code')))
+          .thenAnswer((_) async => const Right(BatimentStructure(id: 'bat-reel', nom: 'Bâtiment A')));
+      when(() => creerEtage(any(), any(),
+              nom: any(named: 'nom'),
+              typeNiveau: any(named: 'typeNiveau'),
+              codeNiveau: any(named: 'codeNiveau'),
+              description: any(named: 'description')))
+          .thenAnswer((_) async => const Right(EtageStructure(id: 'etage-reel', nom: 'R+1')));
+      when(() => creerZone(any(), any(), any(), nom: any(named: 'nom')))
+          .thenAnswer((_) async => const Right(ZoneStructure(id: 'zone-reel', nom: 'A001')));
+      when(() => uploader(
+            chantierId: any(named: 'chantierId'),
+            cheminFichier: any(named: 'cheminFichier'),
+            nom: any(named: 'nom'),
+            zoneId: any(named: 'zoneId'),
+          )).thenAnswer((_) async => const Right(Plan(
+            id: 'p1', chantierId: 'chantier-42', nom: 'plan', fichierUrl: '/x', format: PlanFormat.pdf,
+          )));
+
+      final cubit = creer();
+      await cubit.charger();
+      await cubit.ajouterBatiment(nom: 'Bâtiment A');
+      await cubit.ajouterNiveau(
+        batimentId: cubit.state.batiments.single.id,
+        typeNiveau: TypeNiveau.etage,
+        codeNiveau: 'R+1',
+        appartements: const [
+          SaisieAppartement(code: 'A001', cheminFichier: '/tmp/a001.jpg', nomFichier: 'a001.jpg'),
+        ],
+      );
+
+      final echec = await cubit.envoyerVers('chantier-42');
+
+      expect(echec, isNull);
+      // La zone part sur l'identifiant réel du bâtiment ET du niveau, jamais
+      // sur les identifiants temporaires générés pendant le brouillon.
+      verify(() => creerZone('chantier-42', 'bat-reel', 'etage-reel', nom: 'A001')).called(1);
+      verify(() => uploader(
+            chantierId: 'chantier-42',
+            cheminFichier: '/tmp/a001.jpg',
+            nom: 'a001.jpg',
+            zoneId: 'zone-reel',
+          )).called(1);
     });
   });
 

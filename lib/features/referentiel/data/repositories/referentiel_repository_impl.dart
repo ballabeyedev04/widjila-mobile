@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 
 import '../../../../core/errors/exception_to_failure.dart';
 import '../../../../core/errors/failure.dart';
+import '../../domain/entities/code_appartement.dart';
 import '../../domain/entities/code_niveau.dart';
 import '../../domain/entities/pays.dart';
 import '../../domain/entities/type_referentiel.dart';
@@ -35,6 +36,11 @@ class ReferentielRepositoryImpl implements ReferentielRepository {
   /// liste, faute de quoi il le ressaisirait en croyant l'avoir manqué.
   List<CodeNiveau>? _cacheCodes;
 
+  /// Même rôle pour les codes d'APPARTEMENT : la feuille de niveau les
+  /// demande à chaque ouverture, et un réseau de chantier ne doit pas priver
+  /// l'utilisateur de sa liste.
+  List<CodeAppartement>? _cacheCodesAppartement;
+
   ReferentielRepositoryImpl(this.remoteDataSource);
 
   @override
@@ -61,6 +67,38 @@ class ReferentielRepositoryImpl implements ReferentielRepository {
     } catch (e) {
       final cache = _cacheCodes;
       if (cache != null) return Right(cache);
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<CodeAppartement>>> getCodesAppartement() async {
+    try {
+      final liste = await remoteDataSource.getCodesAppartement();
+      _cacheCodesAppartement = liste;
+      return Right(liste);
+    } catch (e) {
+      final cache = _cacheCodesAppartement;
+      if (cache != null) return Right(cache);
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, CodeAppartement>> creerCodeAppartement({
+    required String code,
+    String? nom,
+  }) async {
+    try {
+      final cree = await remoteDataSource.creerCodeAppartement(code: code, nom: nom);
+      // Le nouveau code rejoint le cache plutôt que de l'invalider : recharger
+      // la liste entière ferait un aller-retour de plus au moment précis où
+      // l'utilisateur attend de voir son code apparaître.
+      final courant = _cacheCodesAppartement;
+      if (courant != null) _cacheCodesAppartement = [...courant, cree];
+      return Right(cree);
+    } catch (e) {
+      // AUCUN repli sur le cache : une création qui a échoué n'a rien créé.
       return Left(exceptionToFailure(e));
     }
   }

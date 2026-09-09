@@ -70,12 +70,28 @@ class _ReserveDetailView extends StatelessWidget {
         // reserve_statut_policy.dart, miroir de ReserveService.changerStatut).
         final (role, userId) =
             context.select((AuthBloc b) => (b.state.utilisateur?.role, b.state.utilisateur?.id));
+        // Assignation PRINCIPALE **ou** secondaire : le serveur accepte les
+        // deux (`reserve.service.js:1021-1023` — `assigneA` ou une ligne dans
+        // `reserve_affectations`). Ne regarder que `assigne` privait de TOUTE
+        // action un sous-traitant affecté par
+        // `POST /reserves/:id/affectations` : la barre du bas disparaissait
+        // entièrement alors que le serveur aurait accepté ses transitions.
+        final estAssigneAMoi = userId != null &&
+            (reserve?.assigne?.id == userId ||
+                state.affectations.any((a) => a.utilisateur?.id == userId));
+
+        // `validee` exige des preuves de correction côté serveur
+        // (`reserve.service.js:1041-1046`). Sans média joint, le proposer
+        // revenait à promettre une validation qui échouait après coup.
+        final aDesPreuves = reserve != null && reserve.medias.isNotEmpty;
+
         final statutsDisponibles = reserve == null || role == null
             ? const <ReserveStatut>[]
             : statutsProposables(
                 statutActuel: reserve.statut,
                 role: role,
-                estAssigneAMoi: reserve.assigne?.id != null && reserve.assigne?.id == userId,
+                estAssigneAMoi: estAssigneAMoi,
+                aDesPreuves: aDesPreuves,
               );
 
         final l10n = context.l10n;
@@ -324,6 +340,15 @@ class _DetailBody extends StatelessWidget {
                   _InfoRow(icon: Icons.person_outline, label: l10n.reserveDetailSignaleePar, valeur: reserve.createur!.nomComplet),
                 _InfoRow(icon: Icons.flag_outlined, label: l10n.reserveDetailPriorite, valeur: reserve.priorite.label(l10n)),
                 _InfoRow(icon: Icons.category_outlined, label: l10n.reserveDetailCategorie, valeur: reserve.categorie.label(l10n)),
+                // CORPS D'ÉTAT et PHASE : servis par le serveur sur les deux
+                // listes et sur le détail (`reserve.service.js:718-719`,
+                // `:846-847`), ils n'étaient lus par personne. La phase est
+                // pourtant OBLIGATOIRE à la création — on la faisait choisir
+                // sans jamais la restituer.
+                if (reserve.corpsEtat != null)
+                  _InfoRow(icon: Icons.handyman_outlined, label: l10n.corpsEtatLabel, valeur: reserve.corpsEtat!.nom),
+                if (reserve.phase != null)
+                  _InfoRow(icon: Icons.timeline_outlined, label: l10n.phaseLabel, valeur: reserve.phase!.nom),
                 if (reserve.dateLimite != null)
                   _InfoRow(icon: Icons.event_outlined, label: l10n.reserveDetailEcheance, valeur: df.format(reserve.dateLimite!)),
                 if (reserve.partenaire != null || reserve.entreprise != null)
@@ -596,8 +621,14 @@ class _MenuActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final peutModifier = role?.estOperationnelOuControle ?? false;
-    final peutSupprimer = role?.estOperationnel ?? false;
+    // Le rôle NE SUFFIT PAS : une réserve validée ou clôturée n'est plus ni
+    // modifiable ni supprimable, quel que soit le rôle (`STATUTS_FIGES`,
+    // `reserve.service.js:64` — refus en `:907` et `:1157`). Proposer ces deux
+    // gestes sur un objet figé faisait ouvrir une confirmation de suppression
+    // rouge pour une action vouée au refus.
+    final estFige = reserve.estFige;
+    final peutModifier = (role?.estOperationnelOuControle ?? false) && !estFige;
+    final peutSupprimer = (role?.estOperationnel ?? false) && !estFige;
 
     // Le menu reste TOUJOURS présent : le QR code n'est gardé par aucun rôle,
     // il y a donc au minimum une entrée à proposer.

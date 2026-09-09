@@ -139,6 +139,59 @@ class ChantierRepositoryImpl implements ChantierRepository {
   }
 
   @override
+  Future<Either<Failure, ZoneStructure>> modifierZone(
+    String chantierId,
+    String batimentId,
+    String etageId,
+    String zoneId, {
+    required String nom,
+  }) async {
+    try {
+      return Right(await remoteDataSource.modifierZone(
+        chantierId, batimentId, etageId, zoneId, nom: nom,
+      ));
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> supprimerZone(
+    String chantierId,
+    String batimentId,
+    String etageId,
+    String zoneId,
+  ) async {
+    try {
+      await remoteDataSource.supprimerZone(chantierId, batimentId, etageId, zoneId);
+      return const Right(null);
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, ZoneStructure>> creerZone(
+    String chantierId,
+    String batimentId,
+    String etageId, {
+    required String nom,
+    String? type,
+  }) async {
+    try {
+      return Right(await remoteDataSource.creerZone(
+        chantierId,
+        batimentId,
+        etageId,
+        nom: nom,
+        type: type,
+      ));
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
   Future<Either<Failure, Chantier>> getChantierDetail(String id) async {
     try {
       final result = await remoteDataSource.getChantierDetail(id);

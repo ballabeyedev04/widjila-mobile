@@ -1,6 +1,7 @@
 import 'package:dartz/dartz.dart';
 
 import '../../../../core/errors/failure.dart';
+import '../entities/envoi_rapport.dart';
 import '../entities/rapport.dart';
 
 /// Rapports PDF d'un chantier.
@@ -19,4 +20,8 @@ abstract class RapportRepository {
   });
 
   Future<Either<Failure, void>> supprimerRapport(String id);
+
+  Future<Either<Failure, EnvoiRapport>> preparerEnvoi(String rapportId);
+
+  Future<Either<Failure, String>> envoyerRapport(String rapportId, {List<String> exclure});
 }

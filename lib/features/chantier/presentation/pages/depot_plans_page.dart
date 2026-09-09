@@ -1,6 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/empty_state.dart';
@@ -9,6 +10,7 @@ import '../../../../core/widgets/loading_list.dart';
 import '../../../../injection_container.dart';
 import '../../../../l10n/l10n_extension.dart';
 import '../../../plan/domain/entities/plan.dart';
+import '../../../plan/presentation/widgets/plan_vignette.dart';
 import '../../../referentiel/domain/entities/code_niveau.dart';
 import '../../../reserve/domain/entities/chantier_structure.dart';
 import '../cubit/depot_plans_cubit.dart';
@@ -47,8 +49,24 @@ class DepotPlansPage extends StatelessWidget {
         getPlans: sl(),
         getCodes: sl(),
         creerCode: sl(),
+        // Le référentiel des codes d'APPARTEMENT — « A001 » à « A015 » servis
+        // par le serveur, et le « + » qui en ajoute pour toute l'organisation.
+        getCodesAppartement: sl(),
+        creerCodeAppartement: sl(),
         creerBatiment: sl(),
         creerEtage: sl(),
+        // Manquait à l'appel alors que le cubit l'exige : l'application ne
+        // compilait plus. `CreerZone` est enregistré dans le conteneur
+        // (`injection_container.dart:292`) et le cubit s'en sert pour les
+        // zones d'un niveau (`depot_plans_cubit.dart:375` et `:607`).
+        creerZone: sl(),
+        // Les trois gestes que le client demande sur un appartement déjà créé
+        // — renommer, supprimer, et gérer ses plans — passent par le serveur
+        // comme les ajouts : `POST/PUT/DELETE .../zones` et `DELETE /plans/:id`.
+        modifierZone: sl(),
+        supprimerZone: sl(),
+        supprimerPlan: sl(),
+        remplacerFichierPlan: sl(),
         uploaderPlan: sl(),
       )..charger(),
       child: _Vue(chantierNom: chantierNom),
@@ -378,6 +396,7 @@ class _Section extends StatelessWidget {
       description: saisie.description,
       cheminFichier: saisie.cheminFichier,
       nomFichier: saisie.nomFichier,
+      appartements: saisie.appartements,
     );
   }
 
@@ -431,48 +450,616 @@ class _Section extends StatelessWidget {
               ),
             )
           else
-            for (final n in niveaux) _LigneNiveau(niveau: n, plans: plans),
+            for (final n in niveaux)
+              _LigneNiveau(batiment: batiment, niveau: n, plans: plans),
         ],
       ),
     );
   }
 }
 
+/// Un niveau, DÉPLIABLE sur ses appartements.
+///
+/// Le client : « il faut qu'on puisse voir du R+1 avec tous les plans des
+/// appartements à l'intérieur ». La ligne ne se contente donc plus d'annoncer
+/// le niveau : elle l'ouvre.
+///
+/// Les appartements VIENNENT DU SERVEUR — `EtageStructure.zones`, servi par la
+/// structure du chantier. L'écran ne les invente pas : il montre ceux qui
+/// existent et permet d'ajouter ceux qui manquent.
 class _LigneNiveau extends StatelessWidget {
+  final BatimentStructure batiment;
   final EtageStructure niveau;
   final List<Plan> plans;
 
-  const _LigneNiveau({required this.niveau, required this.plans});
+  const _LigneNiveau({
+    required this.batiment,
+    required this.niveau,
+    required this.plans,
+  });
 
   /// Ce niveau a-t-il déjà son plan ?
   bool get _aUnPlan => plans.any((p) => p.etage?.id == niveau.id);
 
+  Future<void> _ajouterAppartement(BuildContext context) async {
+    final cubit = context.read<DepotPlansCubit>();
+    final saisie = await _demanderAppartement(context);
+    if (saisie == null) return;
+
+    await cubit.ajouterAppartement(
+      batimentId: batiment.id,
+      etageId: niveau.id,
+      code: saisie.code,
+      plans: saisie.fichier == null
+          ? const []
+          : [SaisieFichierPlan(chemin: saisie.fichier!.chemin, nom: saisie.fichier!.nom)],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
+    final l10n = context.l10n;
+
+    return Theme(
+      // Le trait de séparation par défaut d'`ExpansionTile` couperait la carte
+      // du bâtiment en deux à chaque niveau.
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: const EdgeInsets.only(left: 4, bottom: 8),
+        shape: const Border(),
+        collapsedShape: const Border(),
+        leading: Icon(
+          _aUnPlan ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+          size: 17,
+          // La pastille dit d'un coup d'œil ce qui reste à fournir : un
+          // niveau créé sans son plan est le cas qu'on veut voir.
+          color: _aUnPlan ? AppColors.success : AppColors.textMuted,
+        ),
+        title: Text(
+          niveau.nom,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 13.5, color: AppColors.textPrimary),
+        ),
+        subtitle: Text(
+          l10n.depotAppartementsCompte(niveau.zones.length),
+          style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+        ),
         children: [
-          Icon(
-            _aUnPlan ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-            size: 17,
-            // La pastille dit d'un coup d'œil ce qui reste à fournir : un
-            // niveau créé sans son plan est le cas qu'on veut voir.
-            color: _aUnPlan ? AppColors.success : AppColors.textMuted,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l10n.depotAppartementsTitre.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              Flexible(
+                child: TextButton.icon(
+                  onPressed: () => _ajouterAppartement(context),
+                  icon: const Icon(Icons.add_rounded, size: 16),
+                  label: Text(
+                    l10n.depotAppartementAjouter,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              niveau.nom,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 13.5, color: AppColors.textPrimary),
+          if (niveau.zones.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  l10n.depotAppartementAucun,
+                  style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted),
+                ),
+              ),
+            )
+          else
+            for (final z in niveau.zones)
+              _CarteAppartement(
+                batiment: batiment,
+                niveau: niveau,
+                zone: z,
+                // Les plans de CET appartement, et d'aucun autre.
+                plans: plans.where((p) => p.zone?.id == z.id).toList(),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Un appartement et ses plans.
+class _CarteAppartement extends StatelessWidget {
+  final BatimentStructure batiment;
+  final EtageStructure niveau;
+  final ZoneStructure zone;
+  final List<Plan> plans;
+
+  const _CarteAppartement({
+    required this.batiment,
+    required this.niveau,
+    required this.zone,
+    required this.plans,
+  });
+
+  Future<void> _renommer(BuildContext context) async {
+    final cubit = context.read<DepotPlansCubit>();
+    final l10n = context.l10n;
+    final nom = await _demanderTexte(
+      context,
+      titre: l10n.depotAppartementRenommer,
+      libelle: l10n.depotAppartementNouveauNom,
+      valeurInitiale: zone.nom,
+    );
+    if (nom == null) return;
+
+    await cubit.renommerAppartement(
+      batimentId: batiment.id,
+      etageId: niveau.id,
+      zoneId: zone.id,
+      nom: nom,
+    );
+  }
+
+  Future<void> _supprimer(BuildContext context) async {
+    final cubit = context.read<DepotPlansCubit>();
+    final l10n = context.l10n;
+    // Un appartement emporte ses plans : la confirmation le dit, plutôt que de
+    // le laisser découvrir après coup.
+    final ok = await _confirmer(context, l10n.depotAppartementSupprimerConfirme(zone.nom));
+    if (!ok) return;
+
+    await cubit.supprimerAppartement(
+      batimentId: batiment.id,
+      etageId: niveau.id,
+      zoneId: zone.id,
+    );
+  }
+
+  Future<void> _ajouterPlan(BuildContext context) async {
+    final cubit = context.read<DepotPlansCubit>();
+    final fichier = await _choisirFichier();
+    if (fichier == null) return;
+    await cubit.ajouterPlanAppartement(
+      zoneId: zone.id,
+      cheminFichier: fichier.chemin,
+      nom: fichier.nom,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10, right: 4),
+      padding: const EdgeInsets.fromLTRB(12, 10, 6, 8),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.meeting_room_outlined, size: 17, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  zone.nom,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => _renommer(context),
+                icon: const Icon(Icons.edit_outlined, size: 17),
+                tooltip: l10n.depotAppartementRenommer,
+                visualDensity: VisualDensity.compact,
+                color: AppColors.textSecondary,
+              ),
+              IconButton(
+                onPressed: () => _supprimer(context),
+                icon: const Icon(Icons.delete_outline_rounded, size: 17),
+                tooltip: l10n.commonDelete,
+                visualDensity: VisualDensity.compact,
+                color: AppColors.danger,
+              ),
+            ],
+          ),
+          if (plans.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 25, top: 2, bottom: 4),
+              child: Text(
+                l10n.depotPlanAucun,
+                style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+              ),
+            )
+          else
+            for (final plan in plans) _LignePlanAppartement(plan: plan),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => _ajouterPlan(context),
+              icon: const Icon(Icons.add_photo_alternate_outlined, size: 16),
+              label: Text(l10n.depotPlanAjouter, maxLines: 1, overflow: TextOverflow.ellipsis),
+              style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
             ),
           ),
         ],
       ),
     );
   }
+}
+
+/// Un plan d'appartement : sa VIGNETTE, son nom, et ce qu'on peut en faire.
+class _LignePlanAppartement extends StatelessWidget {
+  final Plan plan;
+
+  const _LignePlanAppartement({required this.plan});
+
+  /// Un plan encore en brouillon n'existe pas côté serveur : il n'a ni page de
+  /// consultation ni version à remplacer. On ne propose donc que de le retirer.
+  bool get _envoye => !plan.id.startsWith('brouillon-');
+
+  Future<void> _remplacer(BuildContext context) async {
+    final cubit = context.read<DepotPlansCubit>();
+    final fichier = await _choisirFichier();
+    if (fichier == null) return;
+    await cubit.remplacerPlan(
+      planId: plan.id,
+      cheminFichier: fichier.chemin,
+      nom: fichier.nom,
+    );
+  }
+
+  Future<void> _supprimer(BuildContext context) async {
+    final cubit = context.read<DepotPlansCubit>();
+    final l10n = context.l10n;
+    final ok = await _confirmer(context, l10n.depotPlanSupprimerConfirme(plan.nom));
+    if (!ok) return;
+    await cubit.supprimerPlanFichier(plan.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 25, top: 4, bottom: 4, right: 2),
+      child: Row(
+        children: [
+          // La vignette montre la PREMIÈRE PAGE du document : c'est ce qui
+          // permet de reconnaître un plan sans l'ouvrir.
+          PlanVignette(
+            plan: plan,
+            icone: Icons.description_outlined,
+            couleur: AppColors.primary,
+            taille: 44,
+            rayon: 10,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  plan.nom,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
+                ),
+                if (!_envoye)
+                  Text(
+                    l10n.depotPlanLocalNonEnvoye,
+                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  ),
+              ],
+            ),
+          ),
+          if (_envoye)
+            IconButton(
+              onPressed: () => context.push('/plans/${plan.id}'),
+              icon: const Icon(Icons.visibility_outlined, size: 17),
+              tooltip: l10n.depotPlanPrevisualiser,
+              visualDensity: VisualDensity.compact,
+              color: AppColors.textSecondary,
+            ),
+          IconButton(
+            onPressed: () => _remplacer(context),
+            icon: const Icon(Icons.swap_horiz_rounded, size: 17),
+            tooltip: l10n.depotFichierRemplacer,
+            visualDensity: VisualDensity.compact,
+            color: AppColors.textSecondary,
+          ),
+          IconButton(
+            onPressed: () => _supprimer(context),
+            icon: const Icon(Icons.delete_outline_rounded, size: 17),
+            tooltip: l10n.commonDelete,
+            visualDensity: VisualDensity.compact,
+            color: AppColors.danger,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ce qu'un appartement ajouté depuis le niveau porte : son code, et un
+/// premier plan facultatif.
+class _SaisieAppartementRapide {
+  final String code;
+  final _FichierChoisi? fichier;
+  const _SaisieAppartementRapide({required this.code, this.fichier});
+}
+
+/// Formulaire d'ajout d'un appartement — nom, puis plan avec APERÇU.
+///
+/// Le client demande de ne pas enregistrer l'image sans qu'on ait pu la
+/// vérifier : le fichier choisi s'affiche donc dans la boîte, avec de quoi en
+/// choisir un autre ou le retirer, avant toute validation.
+Future<_SaisieAppartementRapide?> _demanderAppartement(BuildContext context) {
+  final l10n = context.l10n;
+  final cubit = context.read<DepotPlansCubit>();
+  final ctrl = TextEditingController();
+
+  return showDialog<_SaisieAppartementRapide>(
+    context: context,
+    builder: (dialogContext) {
+      _FichierChoisi? fichier;
+      String? codeChoisi;
+      var creationOuverte = false;
+      var creationEnCours = false;
+
+      return StatefulBuilder(
+        builder: (builderContext, setEtat) {
+          // Le référentiel servi par le serveur — « A001 » à « A015 », plus ce
+          // que l'organisation a ajouté. La MÊME liste que la feuille de
+          // niveau : deux saisies divergentes du même logement ne se
+          // rapprocheraient plus.
+          final codes = cubit.state.codesAppartement;
+
+          Future<void> creerCode() async {
+            final saisi = ctrl.text.trim();
+            if (saisi.isEmpty) return;
+            setEtat(() => creationEnCours = true);
+            final cree = await cubit.ajouterCodeAppartement(saisi);
+            setEtat(() {
+              creationEnCours = false;
+              if (cree != null) {
+                codeChoisi = cree.code;
+                creationOuverte = false;
+                ctrl.clear();
+              }
+            });
+          }
+
+          return AlertDialog(
+          title: Text(l10n.depotAppartementAjouter),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: codeChoisi,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        labelText: l10n.depotAppartementCode,
+                        isDense: true,
+                        prefixIcon: const Icon(Icons.meeting_room_outlined, size: 20),
+                      ),
+                      items: [
+                        for (final c in codes)
+                          DropdownMenuItem(
+                            value: c.code,
+                            child: Text(c.libelle, overflow: TextOverflow.ellipsis),
+                          ),
+                      ],
+                      onChanged: (v) => setEtat(() => codeChoisi = v),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  // Le « + » : créer un code absent, comme pour les niveaux.
+                  IconButton.filledTonal(
+                    tooltip: l10n.depotAppartementNouveauCode,
+                    icon: Icon(creationOuverte ? Icons.close_rounded : Icons.add_rounded),
+                    onPressed: () => setEtat(() {
+                      creationOuverte = !creationOuverte;
+                      ctrl.clear();
+                    }),
+                  ),
+                ],
+              ),
+              if (creationOuverte) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: ctrl,
+                        autofocus: true,
+                        textCapitalization: TextCapitalization.characters,
+                        decoration: InputDecoration(
+                          labelText: l10n.depotAppartementNouveauCode,
+                          isDense: true,
+                          prefixIcon: const Icon(Icons.tag_rounded, size: 20),
+                        ),
+                        onSubmitted: (_) => creerCode(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: creationEnCours ? null : creerCode,
+                      style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                      child: creationEnCours
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : Text(l10n.depotNiveauCreerCode),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 14),
+              Text(
+                l10n.depotAppartementPlan,
+                style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 6),
+              if (fichier == null)
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final choisi = await _choisirFichier();
+                    if (choisi != null) setEtat(() => fichier = choisi);
+                  },
+                  icon: const Icon(Icons.upload_file_rounded, size: 17),
+                  label: Text(l10n.depotNiveauChoisirFichier),
+                )
+              else
+                Row(
+                  children: [
+                    const Icon(Icons.description_outlined, size: 18, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        fichier!.nom,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12.5),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () async {
+                        final choisi = await _choisirFichier();
+                        if (choisi != null) setEtat(() => fichier = choisi);
+                      },
+                      icon: const Icon(Icons.swap_horiz_rounded, size: 17),
+                      tooltip: l10n.depotFichierRemplacer,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    IconButton(
+                      onPressed: () => setEtat(() => fichier = null),
+                      icon: const Icon(Icons.close_rounded, size: 17),
+                      tooltip: l10n.depotFichierRetirer,
+                      visualDensity: VisualDensity.compact,
+                      color: AppColors.danger,
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(l10n.commonCancel),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+              onPressed: () {
+                // Un code CHOISI dans la liste, jamais une saisie libre : le
+                // champ de création sert à alimenter le référentiel, pas à le
+                // contourner.
+                final code = codeChoisi;
+                if (code == null || code.isEmpty) return;
+                Navigator.of(dialogContext).pop(
+                  _SaisieAppartementRapide(code: code, fichier: fichier),
+                );
+              },
+              child: Text(l10n.commonConfirm),
+            ),
+          ],
+        );
+        },
+      );
+    },
+  ).whenComplete(ctrl.dispose);
+}
+
+/// Petite boîte de saisie d'un texte — le renommage d'un appartement.
+Future<String?> _demanderTexte(
+  BuildContext context, {
+  required String titre,
+  required String libelle,
+  String? valeurInitiale,
+}) {
+  final l10n = context.l10n;
+  final ctrl = TextEditingController(text: valeurInitiale);
+
+  return showDialog<String>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(titre),
+      content: TextField(
+        controller: ctrl,
+        autofocus: true,
+        decoration: InputDecoration(labelText: libelle),
+        onSubmitted: (v) =>
+            Navigator.of(dialogContext).pop(v.trim().isEmpty ? null : v.trim()),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: Text(l10n.commonCancel),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+          onPressed: () {
+            final v = ctrl.text.trim();
+            Navigator.of(dialogContext).pop(v.isEmpty ? null : v);
+          },
+          child: Text(l10n.commonConfirm),
+        ),
+      ],
+    ),
+  ).whenComplete(ctrl.dispose);
+}
+
+/// Confirmation d'un geste destructeur.
+Future<bool> _confirmer(BuildContext context, String question) async {
+  final l10n = context.l10n;
+  final reponse = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      content: Text(question),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: Text(l10n.commonCancel),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: Text(l10n.commonDelete),
+        ),
+      ],
+    ),
+  );
+  return reponse ?? false;
 }
 
 class _TitreSection extends StatelessWidget {

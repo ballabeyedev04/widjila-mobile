@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../../core/network/dio_exception_mapper.dart';
+import '../../domain/entities/code_appartement.dart';
 import '../../domain/entities/code_niveau.dart';
 import '../../domain/entities/pays.dart';
 import '../../domain/entities/type_referentiel.dart';
@@ -21,6 +22,14 @@ abstract class ReferentielRemoteDataSource {
     required String code,
     String? nom,
   });
+
+  /// `GET /referentiels/codes-appartement` — le catalogue standard (A001 à
+  /// A015) et les codes propres à l'organisation.
+  Future<List<CodeAppartement>> getCodesAppartement();
+
+  /// `POST /referentiels/codes-appartement` — le « + » de la feuille de
+  /// niveau. Le code créé appartient à l'organisation de l'appelant.
+  Future<CodeAppartement> creerCodeAppartement({required String code, String? nom});
 }
 
 class ReferentielRemoteDataSourceImpl implements ReferentielRemoteDataSource {
@@ -72,6 +81,33 @@ class ReferentielRemoteDataSourceImpl implements ReferentielRemoteDataSource {
       });
       final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
       return CodeNiveau.fromJson(data['code'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<List<CodeAppartement>> getCodesAppartement() async {
+    try {
+      final response = await dio.get('/referentiels/codes-appartement');
+      final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+      return (data['codes'] as List)
+          .map((e) => CodeAppartement.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<CodeAppartement> creerCodeAppartement({required String code, String? nom}) async {
+    try {
+      final response = await dio.post('/referentiels/codes-appartement', data: {
+        'code': code,
+        if (nom != null && nom.isNotEmpty) 'nom': nom,
+      });
+      final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+      return CodeAppartement.fromJson(data['code'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw mapDioException(e);
     }

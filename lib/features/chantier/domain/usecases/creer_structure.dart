@@ -50,3 +50,53 @@ class CreerEtage {
         niveau: niveau,
       );
 }
+
+/// Ajoute un appartement (zone) à un niveau.
+///
+/// C'est le dernier cran de la structure : un plan déposé sur une zone est
+/// celui d'un logement précis, et non plus d'un étage entier.
+class CreerZone {
+  final ChantierRepository repository;
+  CreerZone(this.repository);
+
+  Future<Either<Failure, ZoneStructure>> call(
+    String chantierId,
+    String batimentId,
+    String etageId, {
+    required String nom,
+    String? type,
+  }) =>
+      repository.creerZone(chantierId, batimentId, etageId, nom: nom, type: type);
+}
+
+/// Renomme un appartement d'un niveau.
+class ModifierZone {
+  final ChantierRepository repository;
+  ModifierZone(this.repository);
+
+  Future<Either<Failure, ZoneStructure>> call(
+    String chantierId,
+    String batimentId,
+    String etageId,
+    String zoneId, {
+    required String nom,
+  }) =>
+      repository.modifierZone(chantierId, batimentId, etageId, zoneId, nom: nom);
+}
+
+/// Supprime un appartement.
+///
+/// Le serveur refuse tant qu'une réserve y pointe — son message remonte tel
+/// quel : c'est lui qui dit à l'utilisateur pourquoi il ne peut pas.
+class SupprimerZone {
+  final ChantierRepository repository;
+  SupprimerZone(this.repository);
+
+  Future<Either<Failure, void>> call(
+    String chantierId,
+    String batimentId,
+    String etageId,
+    String zoneId,
+  ) =>
+      repository.supprimerZone(chantierId, batimentId, etageId, zoneId);
+}

@@ -22,6 +22,13 @@ abstract class PlanRepository {
   /// Détail d'un plan, réserves positionnées incluses.
   Future<Either<Failure, Plan>> getPlanDetail(String id);
 
+  /// Supprime un plan et ses versions.
+  Future<Either<Failure, void>> supprimerPlan(String id);
+
+  /// Remplace le DOCUMENT d'un plan par une nouvelle version — le nom, le
+  /// rattachement et les réserves posées dessus sont conservés.
+  Future<Either<Failure, Plan>> remplacerFichier(String id, {required String cheminFichier});
+
   /// Dépose un nouveau plan sur un chantier.
   ///
   /// [format] est facultatif côté back (`uploadPlanSchema`) : il décrit la

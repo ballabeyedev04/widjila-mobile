@@ -378,4 +378,48 @@ void main() {
       });
     }
   });
+
+  group('plan EN ATTENTE de validation', () {
+    // Le bouton « Creer une reserve » etait bien masque sur un plan en
+    // attente, mais le gestionnaire d'appui sur l'IMAGE utilisait la variable
+    // brute `pointageAutorise` au lieu du garde calcule trois lignes plus
+    // haut : un appui n'importe ou sur le plan ouvrait quand meme le
+    // formulaire, que le serveur refuse (`reserve.service.js:189`).
+    Plan enAttente(String nom) => Plan(
+          id: nom,
+          chantierId: 'c1',
+          nom: nom,
+          fichierUrl: 'https://exemple.test/$nom.png',
+          statut: 'en_attente_validation',
+        );
+
+    testWidgets('l appui sur l image n ouvre PAS le formulaire', (tester) async {
+      final plan = enAttente('Plan en attente');
+      racines([plan]);
+      detailRend({'Plan en attente': plan});
+
+      await pomperPage(tester, page, role: UserRole.chefProjet);
+      await pomperAvecReseau(tester);
+      await tester.tap(find.text('Plan en attente'));
+      await pomperAvecReseau(tester);
+
+      final vue = tester.widget<PlanInteractif>(find.byType(PlanInteractif));
+      expect(vue.onPointAppuye, isNull);
+    });
+
+    testWidgets('un plan ACTIF garde l appui createur', (tester) async {
+      // Controle symetrique : le garde ne doit pas fermer la pose partout.
+      final plan = planDe('Plan actif');
+      racines([plan]);
+      detailRend({'Plan actif': plan});
+
+      await pomperPage(tester, page, role: UserRole.chefProjet);
+      await pomperAvecReseau(tester);
+      await tester.tap(find.text('Plan actif'));
+      await pomperAvecReseau(tester);
+
+      final vue = tester.widget<PlanInteractif>(find.byType(PlanInteractif));
+      expect(vue.onPointAppuye, isNotNull);
+    });
+  });
 }

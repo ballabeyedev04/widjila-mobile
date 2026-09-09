@@ -74,4 +74,30 @@ abstract class ChantierRepository {
     String? description,
     int? niveau,
   });
+
+  /// Ajoute un appartement (zone) à un niveau.
+  Future<Either<Failure, ZoneStructure>> creerZone(
+    String chantierId,
+    String batimentId,
+    String etageId, {
+    required String nom,
+    String? type,
+  });
+
+  /// Renomme un appartement.
+  Future<Either<Failure, ZoneStructure>> modifierZone(
+    String chantierId,
+    String batimentId,
+    String etageId,
+    String zoneId, {
+    required String nom,
+  });
+
+  /// Supprime un appartement. Le serveur refuse tant qu'une réserve y pointe.
+  Future<Either<Failure, void>> supprimerZone(
+    String chantierId,
+    String batimentId,
+    String etageId,
+    String zoneId,
+  );
 }
