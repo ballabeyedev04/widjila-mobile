@@ -66,7 +66,7 @@ class AppAlert {
       context,
       type: _AppAlertType.erreur,
       title: title ?? l10n.alertErrorTitle,
-      message: _resoudreMarqueur(l10n, message),
+      message: messageLisible(l10n, message),
       bouton: bouton ?? l10n.commonOk,
     );
   }
@@ -77,7 +77,14 @@ class AppAlert {
   /// connu (message backend déjà exploitable, texte déjà composé par
   /// l'appelant…) passe inchangé : ce mécanisme est un point de traduction
   /// additionnel, pas un filtre.
-  static String _resoudreMarqueur(AppLocalizations l10n, String message) {
+  ///
+  /// PUBLIC : seul `AppAlert.error` le faisait. `ErrorView` et les bandeaux
+  /// (`SnackBar`) affichaient le marqueur BRUT — « __ERR_SERVICE_UNAVAILABLE__ »
+  /// en toutes lettres à l'écran quand l'API répondait 503 sans message, et le
+  /// préfixe d'abonnement « __ERR_ABONNEMENT__|… » devant un refus de quota.
+  static String messageLisible(AppLocalizations l10n, String message) {
+    final refus = RefusAbonnementDecode.tenter(message);
+    if (refus != null) return refus.message;
     return switch (message) {
       ErrCodes.forbidden => l10n.errForbidden,
       ErrCodes.rateLimit => l10n.errRateLimit,

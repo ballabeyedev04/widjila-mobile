@@ -389,6 +389,20 @@ class NouveauRapportCubit extends Cubit<NouveauRapportState> {
   void basculerZone(String id) => _filtrer(state.filtres.copyWith(zones: _basculer(state.filtres.zones, id)));
   void basculerEntreprise(String id) =>
       _filtrer(state.filtres.copyWith(entreprises: _basculer(state.filtres.entreprises, id)));
+  /// Une entreprise vient d'être ajoutée à l'annuaire du chantier depuis
+  /// cet écran : elle rejoint la liste ET se trouve cochée.
+  ///
+  /// Cochée, parce que c'est la raison de l'ajout — on crée l'entreprise pour
+  /// faire SON rapport. Sans cela, l'utilisateur devait encore la retrouver
+  /// dans les puces et la sélectionner lui-même.
+  void ajouterEntreprise(OptionFiltre entreprise) {
+    final dejaLa = state.entreprises.any((e) => e.id == entreprise.id);
+    emit(state.copyWith(
+      entreprises: dejaLa ? state.entreprises : [...state.entreprises, entreprise],
+    ));
+    if (!state.filtres.entreprises.contains(entreprise.id)) basculerEntreprise(entreprise.id);
+  }
+
   void basculerCorpsEtat(String id) =>
       _filtrer(state.filtres.copyWith(corpsEtat: _basculer(state.filtres.corpsEtat, id)));
   void basculerStatut(StatutReserveRapport s) =>

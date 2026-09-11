@@ -396,6 +396,51 @@ class ReservePlanRef extends Equatable {
   List<Object?> get props => [id, nom, version, fichierUrl];
 }
 
+/// Point où la réserve a été posée sur son plan — miroir de
+/// `backend/src/models/reservePosition.model.js`, servi par le DÉTAIL.
+///
+/// `x` et `y` sont des POURCENTAGES (0-100) de la page : la convention de
+/// `PlanInteractif`, qui les a produits au moment du relevé. Un pourcentage
+/// reste juste quelle que soit la taille à laquelle le plan est affiché.
+///
+/// `page` : la page du document — 1 pour un plan d'une page, et pour toutes
+/// les réserves posées avant que la page ne soit enregistrée.
+class ReservePositionRef extends Equatable {
+  final double x;
+  final double y;
+  final int page;
+
+  const ReservePositionRef({required this.x, required this.y, this.page = 1});
+
+  /// `null` — jamais une exception — quand le point est absent ou illisible :
+  /// la fiche montre alors le plan sans repère, plutôt qu'un repère inventé
+  /// en (0, 0) qui enverrait constater un défaut au mauvais endroit.
+  static ReservePositionRef? fromJson(Object? json) {
+    if (json is! Map<String, dynamic>) return null;
+    final x = _nombre(json['x']);
+    final y = _nombre(json['y']);
+    if (x == null || y == null) return null;
+    return ReservePositionRef(
+      x: x.clamp(0, 100).toDouble(),
+      y: y.clamp(0, 100).toDouble(),
+      page: _nombre(json['page'])?.toInt() ?? 1,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {'x': x, 'y': y, 'page': page};
+
+  @override
+  List<Object?> get props => [x, y, page];
+}
+
+/// Nombre servi par l'API — un DECIMAL SQL peut arriver en chaîne selon le
+/// pilote ; un cast strict ferait disparaître le repère pour une virgule.
+double? _nombre(Object? valeur) => switch (valeur) {
+      final num n => n.toDouble(),
+      final String s => double.tryParse(s),
+      _ => null,
+    };
+
 class Reserve extends Equatable {
   /// Marqueur de numéro provisoire posé par `ReserveRepositoryImpl.creerReserve`
   /// en mode hors ligne, en attendant que le serveur attribue le vrai numéro
@@ -441,6 +486,11 @@ class Reserve extends Equatable {
   ///
   /// Nul pour une réserve consignée avant le dépôt des plans du chantier.
   final ReservePlanRef? plan;
+
+  /// Point précis sur [plan] — servi par le DÉTAIL, nul sur les listes et
+  /// pour une réserve relevée sans plan. C'est lui qui permet à la fiche de
+  /// MONTRER l'endroit, au lieu de le décrire par un nom de fichier.
+  final ReservePositionRef? position;
 
   /// CORPS D'ÉTAT (métier) — référentiel administrable qui remplace
   /// `categorie`, conservée pour les réserves anciennes et l'export Excel.
@@ -493,6 +543,7 @@ class Reserve extends Equatable {
     this.partenaire,
     this.chantier,
     this.plan,
+    this.position,
     this.corpsEtat,
     this.phase,
     this.assigne,
@@ -564,6 +615,7 @@ class Reserve extends Equatable {
       partenaire: json['partenaire'] != null ? ReserveLocalisationRef.fromJson(json['partenaire'] as Map<String, dynamic>) : null,
       chantier: json['chantier'] != null ? ReserveLocalisationRef.fromJson(json['chantier'] as Map<String, dynamic>) : null,
       plan: json['plan'] != null ? ReservePlanRef.fromJson(json['plan'] as Map<String, dynamic>) : null,
+      position: ReservePositionRef.fromJson(json['position']),
       corpsEtat: json['corpsEtat'] != null
           ? ReserveLocalisationRef.fromJson(json['corpsEtat'] as Map<String, dynamic>)
           : null,
@@ -608,6 +660,9 @@ class Reserve extends Equatable {
         'partenaire': partenaire?.toJson(),
         'chantier': chantier?.toJson(),
         'plan': plan?.toJson(),
+        // Resérialisée pour le cache hors ligne : une fiche rouverte sans
+        // réseau doit garder son repère.
+        'position': position?.toJson(),
         'corpsEtat': corpsEtat?.toJson(),
         'phase': phase?.toJson(),
         'assigne': assigne?.toJson(),
@@ -620,17 +675,36 @@ class Reserve extends Equatable {
   /// Copie avec un nouveau statut — utilisée par la mise à jour OPTIMISTE
   /// hors ligne (`ReserveRepositoryImpl.changerStatut`) : l'écran doit
   /// refléter le changement immédiatement, sans attendre la synchronisation.
-  Reserve copierAvecStatut(ReserveStatut nouveauStatut) => Reserve(
+  Reserve copierAvecStatut(ReserveStatut nouveauStatut) => copierAvec(statut: nouveauStatut);
+
+  /// Copie avec les champs donnés remplacés — `null` = inchangé.
+  ///
+  /// Sert à la mise à jour OPTIMISTE hors ligne (modification de champs) et à
+  /// la RÉCONCILIATION : version serveur + changements locaux encore en file
+  /// (voir `core/offline/reconciliation.dart`).
+  Reserve copierAvec({
+    String? numero,
+    String? titre,
+    String? description,
+    ReserveSeverite? severite,
+    ReserveCategorie? categorie,
+    ReserveStatut? statut,
+    DateTime? dateLimite,
+    String? photoApercu,
+    List<ReserveMedia>? medias,
+    List<ReserveHistoriqueEntry>? historiques,
+  }) =>
+      Reserve(
         id: id,
-        numero: numero,
+        numero: numero ?? this.numero,
         chantierId: chantierId,
-        titre: titre,
-        description: description,
-        severite: severite,
+        titre: titre ?? this.titre,
+        description: description ?? this.description,
+        severite: severite ?? this.severite,
         priorite: priorite,
-        categorie: categorie,
-        statut: nouveauStatut,
-        dateLimite: dateLimite,
+        categorie: categorie ?? this.categorie,
+        statut: statut ?? this.statut,
+        dateLimite: dateLimite ?? this.dateLimite,
         createdAt: createdAt,
         batiment: batiment,
         etage: etage,
@@ -644,20 +718,25 @@ class Reserve extends Equatable {
         // de la fiche le plan sur lequel la réserve avait été relevée, alors
         // que le champ figure bien dans `props`.
         plan: plan,
+        position: position,
         corpsEtat: corpsEtat,
         phase: phase,
         assigne: assigne,
         createur: createur,
         motifRefus: motifRefus,
-        photoApercu: photoApercu,
-        medias: medias,
-        historiques: historiques,
+        // `?? this.…` : « null = inchangé », comme le promet la doc. Sans ce
+        // repli, les deux listes ne compilaient même pas (types nullables
+        // passés à des paramètres qui ne le sont pas), et l'aperçu photo était
+        // effacé par toute copie qui ne le fournissait pas.
+        photoApercu: photoApercu ?? this.photoApercu,
+        medias: medias ?? this.medias,
+        historiques: historiques ?? this.historiques,
       );
 
   @override
   List<Object?> get props => [
         id, numero, chantierId, titre, description, severite, priorite, categorie, statut, dateLimite, createdAt,
-        batiment, etage, zone, lot, entreprise, partenaire, chantier, plan,
+        batiment, etage, zone, lot, entreprise, partenaire, chantier, plan, position,
         corpsEtat, phase, assigne, createur,
         motifRefus, photoApercu, medias, historiques,
       ];

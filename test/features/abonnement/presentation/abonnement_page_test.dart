@@ -7,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:suivie_chantier_mobile/core/config/user_role.dart';
 import 'package:suivie_chantier_mobile/core/errors/failure.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/entities/abonnement.dart';
+import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/creer_code_transfert_web.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_droits.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_formules.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_historique_abonnement.dart';
@@ -27,6 +28,8 @@ class _MockDroits extends Mock implements GetDroits {}
 
 class _MockHistorique extends Mock implements GetHistoriqueAbonnement {}
 
+class _MockTransfert extends Mock implements CreerCodeTransfertWeb {}
+
 class _MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
 
 User _utilisateur(UserRole role) => User(
@@ -39,6 +42,12 @@ const _formule = FormuleAbonnement(
   limiteUtilisateurs: 5, fonctionnalites: ['reserves'],
 );
 
+/// Une formule que l'organisation n'a PAS — la seule dont le bouton agit.
+const _pro = FormuleAbonnement(
+  id: 'a2', code: 'pro', nom: 'Pro', prix: 89,
+  limiteUtilisateurs: 10, fonctionnalites: ['reserves', 'rapports'],
+);
+
 /// L'écran Abonnement — formule en cours, quota, compte à rebours, facturation.
 ///
 /// La facturation est gardée par le groupe GESTION côté serveur. L'écran doit
@@ -49,12 +58,15 @@ void main() {
   late _MockFormules formules;
   late _MockDroits droits;
   late _MockHistorique historique;
+  late _MockTransfert transfert;
   late _MockAuthBloc authBloc;
 
   setUp(() {
     formules = _MockFormules();
     droits = _MockDroits();
     historique = _MockHistorique();
+    transfert = _MockTransfert();
+    when(() => transfert()).thenAnswer((_) async => const Right('code-transfert'));
 
     when(() => formules()).thenAnswer((_) async => const Right([_formule]));
     when(() => droits()).thenAnswer((_) async => const Right(DroitsAbonnement(
@@ -73,6 +85,7 @@ void main() {
     if (sl.isRegistered<AbonnementCubit>()) sl.unregister<AbonnementCubit>();
     sl.registerFactory<AbonnementCubit>(() => AbonnementCubit(
           getFormules: formules, getDroits: droits, getHistorique: historique,
+          creerCodeTransfertWeb: transfert,
         ));
   });
 
@@ -166,6 +179,85 @@ void main() {
     await pomper(tester, UserRole.entreprise);
 
     expect(find.text('Il vous reste 12 jours'), findsOneWidget);
+  });
+
+  // ── « Choisir cette formule » ─────────────────────────────────────────────
+  //
+  // Le bouton ouvrait la page de paiement du web SANS session : le navigateur
+  // du téléphone enchaînait 401 et « refreshToken manquant », puis renvoyait
+  // vers la connexion. Il demande désormais un code de transfert d'abord.
+
+  group('choisir une formule', () {
+    // Écran haut : toutes les cartes sont construites, sans défilement.
+    const grand = Size(390, 2600);
+
+    testWidgets('demande un code de transfert AVANT d’ouvrir quoi que ce soit', (tester) async {
+      when(() => formules()).thenAnswer((_) async => const Right([_formule, _pro]));
+      // Échec du code : aucune page ne doit s'ouvrir, un message le dit.
+      when(() => transfert())
+          .thenAnswer((_) async => const Left(ServerFailure(errorMessage: 'Indisponible')));
+
+      await pomper(tester, UserRole.entreprise, taille: grand);
+      await tester.tap(find.text('Choisir cette formule'));
+      await tester.pumpAndSettle();
+
+      verify(() => transfert()).called(1);
+      expect(
+        find.text('Impossible de préparer le paiement. Vérifiez votre connexion et réessayez.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('un rôle sans facturation voit pourquoi, et rien ne part', (tester) async {
+      // Le serveur refuserait le paiement (403) : ouvrir un navigateur pour
+      // un refus serait pire que de le dire sur le bouton.
+      when(() => formules()).thenAnswer((_) async => const Right([_formule, _pro]));
+
+      await pomper(tester, UserRole.conducteurTravaux, taille: grand);
+      expect(find.text('Réservé au responsable de l’abonnement'), findsOneWidget);
+
+      await tester.tap(find.text('Réservé au responsable de l’abonnement'));
+      await tester.pumpAndSettle();
+      verifyNever(() => transfert());
+    });
+
+    testWidgets('la formule PAYÉE en cours ne se choisit pas', (tester) async {
+      await pomper(tester, UserRole.entreprise, taille: grand);
+
+      await tester.tap(find.text('Formule actuelle').last);
+      await tester.pumpAndSettle();
+      verifyNever(() => transfert());
+    });
+
+    testWidgets('pendant l’essai, la formule d’essai reste souscriptible', (tester) async {
+      // Le code de formule des droits ne dit pas qu'elle est payée : pendant
+      // l'essai, neutraliser son bouton empêchait de la souscrire.
+      when(() => droits()).thenAnswer((_) async => const Right(DroitsAbonnement(
+            actif: true, source: 'essai', planCode: 'essentiel', essaiEnCours: true,
+            joursRestants: 1,
+            utilisateurs: UsageRessource(courant: 1, limite: 5),
+            chantiers: UsageRessource(courant: 1, limite: 10),
+          )));
+
+      await pomper(tester, UserRole.entreprise, taille: grand);
+
+      expect(find.text('Choisir cette formule'), findsOneWidget);
+    });
+  });
+
+  group('adresse de la page de paiement', () {
+    test('porte la formule en requête et le code dans le FRAGMENT', () {
+      final uri = urlPaiementWeb(
+        Uri.parse('https://app.widjila.com/abonnement'),
+        formule: 'essentiel',
+        codeTransfert: 'aaa.bbb-ccc_ddd',
+      );
+
+      expect(uri.toString(), 'https://app.widjila.com/abonnement?plan=essentiel#transfert=aaa.bbb-ccc_ddd');
+      // Le fragment ne part jamais au serveur qui sert la page : le code n'a
+      // rien à faire dans la requête.
+      expect(uri.query, isNot(contains('transfert')));
+    });
   });
 
   group('mise en page — balayage des formats', () {

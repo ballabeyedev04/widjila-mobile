@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:suivie_chantier_mobile/core/errors/failure.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/entities/abonnement.dart';
+import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/creer_code_transfert_web.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_droits.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_formules.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_historique_abonnement.dart';
@@ -14,6 +15,8 @@ class MockGetFormules extends Mock implements GetFormules {}
 class MockGetDroits extends Mock implements GetDroits {}
 
 class MockGetHistorique extends Mock implements GetHistoriqueAbonnement {}
+
+class MockCreerCodeTransfertWeb extends Mock implements CreerCodeTransfertWeb {}
 
 const tEssentiel = FormuleAbonnement(
   id: 'a1',
@@ -46,18 +49,42 @@ void main() {
   late MockGetFormules getFormules;
   late MockGetDroits getDroits;
   late MockGetHistorique getHistorique;
+  late MockCreerCodeTransfertWeb creerCode;
 
   setUp(() {
     getFormules = MockGetFormules();
     getDroits = MockGetDroits();
     getHistorique = MockGetHistorique();
+    creerCode = MockCreerCodeTransfertWeb();
   });
 
   AbonnementCubit construire() => AbonnementCubit(
         getFormules: getFormules,
         getDroits: getDroits,
         getHistorique: getHistorique,
+        creerCodeTransfertWeb: creerCode,
       );
+
+  group('préparation du paiement web', () {
+    test('relaie le code de transfert du serveur tel quel', () async {
+      when(() => creerCode()).thenAnswer((_) async => const Right('code-court'));
+
+      final resultat = await construire().preparerPaiementWeb();
+
+      expect(resultat, const Right<Failure, String>('code-court'));
+    });
+
+    test('un refus reste un échec — jamais un code vide', () async {
+      // Un code vide ouvrirait la page sans session : exactement les 401 que
+      // ce transfert sert à éviter.
+      when(() => creerCode())
+          .thenAnswer((_) async => const Left(ServerFailure(errorMessage: 'Indisponible')));
+
+      final resultat = await construire().preparerPaiementWeb();
+
+      expect(resultat.isLeft(), isTrue);
+    });
+  });
 
   group('chargement', () {
     blocTest<AbonnementCubit, AbonnementState>(

@@ -5,12 +5,23 @@ import 'package:suivie_chantier_mobile/core/services/collecteur_erreurs.dart';
 /// Destination d'essai : enregistre au lieu d'envoyer.
 class _PuitsEspion implements PuitsErreurs {
   final List<Object> recues = [];
+  final List<Map<String, Object?>> contextes = [];
+  final List<String?> utilisateurs = [];
 
   @override
   void erreurFlutter(FlutterErrorDetails details) => recues.add(details.exception);
 
   @override
   void erreur(Object erreur, StackTrace? pile) => recues.add(erreur);
+
+  @override
+  void erreurNonFatale(Object erreur, StackTrace? pile, {String? raison, Map<String, Object?> contexte = const {}}) {
+    recues.add(erreur);
+    contextes.add({'raison': raison, ...contexte});
+  }
+
+  @override
+  void identifierUtilisateur(String? id) => utilisateurs.add(id);
 }
 
 void main() {
@@ -89,5 +100,61 @@ void main() {
     collecteur.brancher(puits);
     expect(puits.recues, isEmpty);
     expect(collecteur.estBranche, isFalse);
+  });
+
+  group('erreurs non fatales', () {
+    test('partent avec leur contexte (requestId, chemin, statut)', () {
+      collecteur.brancher(puits);
+
+      collecteur.signalerNonFatale(
+        'boom',
+        null,
+        raison: 'Erreur serveur 500',
+        contexte: {'requestId': 'abc-12345678', 'chemin': '/reserves', 'statut': 500},
+      );
+
+      expect(puits.recues, ['boom']);
+      expect(puits.contextes.single, {
+        'raison': 'Erreur serveur 500',
+        'requestId': 'abc-12345678',
+        'chemin': '/reserves',
+        'statut': 500,
+      });
+    });
+
+    test('la même erreur n’est signalée qu’une fois par minute — un écran qui réessaie ne noie pas Crashlytics', () {
+      collecteur.brancher(puits);
+      final t0 = DateTime(2026, 9, 11, 10);
+
+      for (var i = 0; i < 30; i++) {
+        collecteur.signalerNonFatale('boom', null,
+            raison: 'Erreur serveur 503', contexte: {'chemin': '/health'}, maintenant: t0.add(Duration(seconds: i)));
+      }
+      collecteur.signalerNonFatale('boom', null,
+          raison: 'Erreur serveur 503', contexte: {'chemin': '/health'}, maintenant: t0.add(const Duration(minutes: 2)));
+      // Une erreur DIFFÉRENTE passe tout de suite.
+      collecteur.signalerNonFatale('autre', null,
+          raison: 'Erreur serveur 500', contexte: {'chemin': '/reserves'}, maintenant: t0.add(const Duration(seconds: 5)));
+
+      // Ordre d'APPEL : les 30 « boom » (1 seul envoyé), le « boom » deux
+      // minutes plus tard (renvoyé), puis « autre » (signature différente).
+      expect(puits.recues, ['boom', 'boom', 'autre']);
+    });
+
+    test('retenues avant le branchement, comme les crashs', () {
+      collecteur.signalerNonFatale('au démarrage', null, raison: 'test');
+      expect(collecteur.enAttente, 1);
+
+      collecteur.brancher(puits);
+      expect(puits.recues, ['au démarrage']);
+    });
+  });
+
+  test('identifierUtilisateur transmet l’identifiant, puis null à la déconnexion', () {
+    collecteur.identifierUtilisateur('u-42');
+    collecteur.brancher(puits);
+    collecteur.identifierUtilisateur(null);
+
+    expect(puits.utilisateurs, ['u-42', null]);
   });
 }

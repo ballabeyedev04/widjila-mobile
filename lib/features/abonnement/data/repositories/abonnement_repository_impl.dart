@@ -52,4 +52,15 @@ class AbonnementRepositoryImpl implements AbonnementRepository {
       return Left(exceptionToFailure(e));
     }
   }
+
+  @override
+  Future<Either<Failure, String>> creerCodeTransfertWeb() async {
+    try {
+      return Right(await remoteDataSource.creerCodeTransfertWeb());
+    } catch (e) {
+      // Aucun repli : un code ne se met pas en cache — il ne sert qu'une fois,
+      // et deux minutes.
+      return Left(exceptionToFailure(e));
+    }
+  }
 }

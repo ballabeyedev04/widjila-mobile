@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/config/user_role.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/liste_chrome.dart';
 import '../../../../injection_container.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../l10n/l10n_extension.dart';
+import '../../../../core/widgets/app_alert.dart';
 import '../../../document/domain/entities/document.dart';
 import '../../../document/presentation/pages/document_viewer_page.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../organisation/presentation/cubit/partenaires_cubit.dart';
+import '../../../organisation/presentation/pages/ajouter_partenaire_sheet.dart';
 import '../../domain/entities/configuration_rapport.dart';
 import '../../domain/entities/modele_rapport.dart';
+import '../../domain/entities/option_filtre.dart';
 import '../../domain/entities/rapport.dart';
 import '../cubit/nouveau_rapport_cubit.dart';
 
@@ -69,7 +75,8 @@ class _Assistant extends StatelessWidget {
               Navigator.of(context).pop(state.rapportGenere);
               return;
             }
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.erreur!)));
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text(AppAlert.messageLisible(context.l10n, state.erreur!))));
           },
           builder: (context, state) {
             return Column(
@@ -244,6 +251,10 @@ class _EtapeFiltres extends StatelessWidget {
     final l10n = context.l10n;
     final cubit = context.read<NouveauRapportCubit>();
     final requis = state.modele?.filtresRequis ?? const <FiltreRequis>{};
+    // Le « + » n'est proposé qu'aux rôles que le serveur autorise à enrichir
+    // l'annuaire : aux autres, il ne mènerait qu'à un 403 après la saisie.
+    final peutAjouterEntreprise =
+        context.select((AuthBloc b) => b.state.utilisateur?.role)?.peutAjouterPartenaire ?? false;
 
     if (state.optionsStatut == ChargementWizard.enCours || state.optionsStatut == ChargementWizard.inactif) {
       return Center(
@@ -333,6 +344,16 @@ class _EtapeFiltres extends StatelessWidget {
             for (final e in state.entreprises)
               _Option(e.id, e.nom, f.entreprises.contains(e.id), () => cubit.basculerEntreprise(e.id)),
           ],
+          // Un annuaire vide bloquait le « Rapport par entreprise » : il
+          // fallait quitter l'assistant pour créer l'entreprise ailleurs.
+          ajout: peutAjouterEntreprise && state.chantierId != null
+              ? ActionChip(
+                  key: const ValueKey('rapport-ajouter-entreprise'),
+                  avatar: const Icon(Icons.add_rounded, size: 18, color: AppColors.primary),
+                  label: Text(l10n.rapportAjouterEntreprise),
+                  onPressed: () => _ajouterEntreprise(context, state.chantierId!),
+                )
+              : null,
         ),
         _GroupeFiltre(
           titre: l10n.rapportFiltreCorpsEtat,
@@ -380,6 +401,38 @@ class _EtapeFiltres extends StatelessWidget {
       };
 }
 
+/// Ajoute une entreprise à l'ANNUAIRE DU CHANTIER sans quitter l'assistant.
+///
+/// Le filtre « Entreprise » ne propose que l'annuaire du chantier. Quand il
+/// est vide — ou qu'il y manque la bonne entreprise — l'utilisateur devait
+/// abandonner son rapport, aller créer l'entreprise dans les intervenants,
+/// puis tout recommencer. Le formulaire est le MÊME que celui de la page des
+/// intervenants (mêmes champs, mêmes contrôles, types du référentiel), rattaché
+/// à ce chantier ; l'entreprise créée revient cochée dans le filtre.
+Future<void> _ajouterEntreprise(BuildContext context, String chantierId) async {
+  final rapport = context.read<NouveauRapportCubit>();
+  final l10n = context.l10n;
+  final partenaires = sl<PartenairesCubit>();
+  try {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => BlocProvider.value(
+        value: partenaires,
+        child: AjouterPartenaireSheet(chantierId: chantierId),
+      ),
+    );
+    final etat = partenaires.state;
+    if (etat.soumissionStatus != SoumissionPartenaireStatus.succes || etat.items.isEmpty) return;
+    final creee = etat.items.first;
+    rapport.ajouterEntreprise(OptionFiltre(id: creee.id, nom: creee.nom));
+    if (context.mounted) AppAlert.success(context, message: l10n.rapportEntrepriseAjoutee(creee.nom));
+  } finally {
+    await partenaires.close();
+  }
+}
+
 class _Option {
   final String id;
   final String libelle;
@@ -397,6 +450,10 @@ class _GroupeFiltre extends StatelessWidget {
   final bool aucunChoix;
   final List<_Option> options;
 
+  /// Action posée après les puces — « + Ajouter une entreprise ». Nulle pour
+  /// les filtres dont la liste ne s'enrichit pas d'ici.
+  final Widget? ajout;
+
   const _GroupeFiltre({
     required this.titre,
     required this.requis,
@@ -404,6 +461,7 @@ class _GroupeFiltre extends StatelessWidget {
     required this.toutes,
     required this.aucunChoix,
     required this.options,
+    this.ajout,
   });
 
   @override
@@ -429,9 +487,10 @@ class _GroupeFiltre extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          if (options.isEmpty && vide.isNotEmpty)
-            Text(vide, style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted))
-          else
+          if (options.isEmpty && vide.isNotEmpty) ...[
+            Text(vide, style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted)),
+            if (ajout != null) ...[const SizedBox(height: 8), ajout!],
+          ] else
             Wrap(
               spacing: 6,
               runSpacing: 4,
@@ -442,6 +501,7 @@ class _GroupeFiltre extends StatelessWidget {
                     selected: o.choisi,
                     onSelected: (_) => o.onTap(),
                   ),
+                ?ajout,
               ],
             ),
         ],
@@ -480,7 +540,10 @@ class _Periode extends StatelessWidget {
           runSpacing: 6,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
+            // `minimumSize` explicite : le thème impose aux OutlinedButton une
+            // largeur minimale infinie (voir `_BarreNavigation`).
             OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44)),
               icon: const Icon(Icons.event_rounded, size: 16),
               label: Text(filtres.dateDebut == null ? l10n.rapportPeriodeDebut : _date(filtres.dateDebut!)),
               onPressed: () async {
@@ -489,6 +552,7 @@ class _Periode extends StatelessWidget {
               },
             ),
             OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44)),
               icon: const Icon(Icons.event_available_rounded, size: 16),
               label: Text(filtres.dateFin == null ? l10n.rapportPeriodeFin : _date(filtres.dateFin!)),
               onPressed: () async {
@@ -711,20 +775,39 @@ class _BarreNavigation extends StatelessWidget {
         color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
+      // ── Pourquoi la barre était VIDE à partir de la deuxième étape ─────────
+      //
+      // Le thème de l'application (`app_theme.dart`) donne aux OutlinedButton
+      // `minimumSize: Size.fromHeight(52)` — une largeur minimale INFINIE,
+      // pensée pour des boutons pleine largeur dans un formulaire. Posé tel
+      // quel dans une `Row`, « Précédent » exigeait une largeur infinie : la
+      // mise en page de toute la barre échouait, et une application en
+      // production dessine alors… rien. Une bande blanche, ni « Précédent » ni
+      // « Suivant » — dès l'étape 2, c'est-à-dire dès qu'il y a une étape à
+      // laquelle revenir. Impossible de créer un rapport.
+      //
+      // Les deux boutons partagent désormais la largeur (`Expanded`) et leur
+      // taille minimale est posée ici, sans dépendre du thème.
       child: Row(
         children: [
           if (state.indexEtape > 0)
-            OutlinedButton.icon(
-              onPressed: state.occupe ? null : cubit.precedent,
-              icon: const Icon(Icons.arrow_back_rounded, size: 18),
-              label: Text(l10n.rapportPrecedent),
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+                onPressed: state.occupe ? null : cubit.precedent,
+                icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                label: Text(l10n.rapportPrecedent),
+              ),
             ),
-          const Spacer(),
+          if (state.indexEtape > 0 && state.etape != EtapeRapport.apercu) const SizedBox(width: 12),
           if (state.etape != EtapeRapport.apercu)
-            FilledButton.icon(
-              onPressed: bloque ? null : cubit.suivant,
-              icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-              label: Text(l10n.rapportSuivant),
+            Expanded(
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+                onPressed: bloque ? null : cubit.suivant,
+                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                label: Text(l10n.rapportSuivant),
+              ),
             ),
         ],
       ),

@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+
+import 'alea_fixe.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:suivie_chantier_mobile/core/errors/exceptions.dart';
 import 'package:suivie_chantier_mobile/core/offline/base_locale.dart';
@@ -60,6 +62,9 @@ void main() {
     DetecteurSimule? detecteur,
     // Par défaut AUCUNE relance : chaque test qui en veut une le dit.
     List<Duration> delais = const [],
+    // Tirage de l'étalement des relances — fixé par les tests qui MESURENT
+    // un délai (voir `alea_fixe.dart`). Nul : le vrai hasard.
+    Random? alea,
   }) {
     final s = SynchronisationService(
       file: file,
@@ -70,6 +75,7 @@ void main() {
       tirer: tirer,
       delaisRelance: delais,
       delaiApresDepot: const Duration(milliseconds: 20),
+      alea: alea,
     );
     services.add(s);
     return s;
@@ -100,6 +106,10 @@ void main() {
         TypeAction.ajouterPhotoReserve => 'photo:${a.charge['reserveId']}',
         TypeAction.changerStatutReserve => 'statut:${a.charge['reserveId']}',
         TypeAction.envoyerRapport => 'rapport:${a.charge['rapportId']}',
+        // Ajoutés au deuxième audit (A2-12) — même clé que le statut et la
+        // photo : la réserve visée.
+        TypeAction.modifierReserve => 'modifier:${a.charge['reserveId']}',
+        TypeAction.supprimerReserve => 'supprimer:${a.charge['reserveId']}',
       };
 
   Future<bool> attendreQue(Future<bool> Function() condition, {Duration max = const Duration(seconds: 3)}) async {
@@ -322,12 +332,18 @@ void main() {
       expect(s.relancePlanifiee, isFalse, reason: 'tout est passé : plus rien à relancer');
     });
 
+    // Tirage FIXÉ : le service étale chaque relance entre 50 et 100 % du
+    // palier (deuxième audit). Avec le vrai hasard, le délai mesuré tombait
+    // n'importe où entre 75 et 150 ms et ce test échouait deux fois sur trois,
+    // seul ou en suite — sans qu'aucun comportement ne soit en cause.
     test('le délai de relance CROÎT tant que l’échec dure (puis plafonne)', () async {
       await creation('A');
       final instants = <DateTime>[];
 
       service(
         delais: const [Duration(milliseconds: 20), Duration(milliseconds: 150)],
+        // Tirage au MAXIMUM : le délai vaut le palier entier.
+        alea: const AleaFixe(0.999999),
         executer: (a) async {
           instants.add(DateTime.now());
           throw const ServerException(message: 'Panne', statusCode: 503);
@@ -340,6 +356,28 @@ void main() {
       final troisieme = instants[3].difference(instants[2]);
       expect(troisieme, greaterThanOrEqualTo(const Duration(milliseconds: 140)),
           reason: 'au-delà du dernier palier, le délai reste au plafond');
+    });
+
+    test('l’étalement ne descend JAMAIS sous la moitié du palier', () async {
+      // L'autre borne de l'étalement : sans elle, un tirage bas pourrait
+      // relancer presque immédiatement et recréer la rafale qu'il doit éviter.
+      await creation('A');
+      final instants = <DateTime>[];
+
+      service(
+        delais: const [Duration(milliseconds: 20), Duration(milliseconds: 150)],
+        // Tirage au MINIMUM : 50 % du palier, soit 75 ms au plafond.
+        alea: const AleaFixe(0),
+        executer: (a) async {
+          instants.add(DateTime.now());
+          throw const ServerException(message: 'Panne', statusCode: 503);
+        },
+      ).synchroniser();
+
+      await attendreQue(() async => instants.length >= 4, max: const Duration(seconds: 3));
+
+      expect(instants.length, greaterThanOrEqualTo(4));
+      expect(instants[3].difference(instants[2]), greaterThanOrEqualTo(const Duration(milliseconds: 70)));
     });
 
     test('coupure réseau alors que l’appareil se croit en ligne : relance planifiée', () async {

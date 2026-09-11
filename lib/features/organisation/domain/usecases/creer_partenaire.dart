@@ -19,6 +19,8 @@ class CreerPartenaire {
     String? contact,
     String? adresse,
     String? notes,
+    /// Annuaire du chantier plutôt que celui de l'organisation.
+    String? chantierId,
   }) {
     return repository.creerPartenaire(
       nom: nom,
@@ -28,6 +30,7 @@ class CreerPartenaire {
       contact: contact,
       adresse: adresse,
       notes: notes,
+      chantierId: chantierId,
     );
   }
 }

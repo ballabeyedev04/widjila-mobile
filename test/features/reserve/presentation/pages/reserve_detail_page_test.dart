@@ -164,6 +164,34 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('réserve posée sur un plan : le plan est MONTRÉ, pas seulement nommé',
+      (tester) async {
+    // Fichier vide : l'aperçu tranche sans réseau (« indisponible »). Ce qui
+    // est vérifié ici, c'est la place du bloc sur la fiche — l'aperçu lui-même
+    // est testé dans `apercu_plan_reserve_test.dart`.
+    when(() => getDetail(any())).thenAnswer(
+      (_) async => const Right<Failure, Reserve>(
+        Reserve(
+          id: 'r1',
+          numero: 'R-0003',
+          chantierId: 'c1',
+          titre: 'Peinture à refaire',
+          plan: ReservePlanRef(id: 'p1', nom: 'arkada_13_2np3.jpg', version: 3),
+          position: ReservePositionRef(x: 40, y: 55),
+        ),
+      ),
+    );
+
+    await pomperPage(tester, page, role: UserRole.entreprise);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Emplacement sur le plan'), findsOneWidget);
+    expect(find.text('Voir le plan'), findsOneWidget);
+    // L'ancienne ligne « Plans · arkada_13_2np3.jpg · v3 » a laissé la place.
+    expect(find.text('Plans'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   group('mise en page — balayage des formats', () {
     // Un ecran dessine sur un telephone de 390 dp passe presque toujours a
     // 390 dp. Les debordements se produisent aux EXTREMES : sur un petit

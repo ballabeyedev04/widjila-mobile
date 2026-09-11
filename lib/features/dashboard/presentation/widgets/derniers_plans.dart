@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -11,6 +10,7 @@ import '../../../../l10n/l10n_extension.dart';
 import '../../../plan/domain/entities/plan.dart';
 import '../../../plan/presentation/cubit/plans_list_cubit.dart';
 import '../../../plan/presentation/widgets/plan_vignette.dart';
+import '../../../plan/presentation/widgets/plans_chrome.dart';
 
 /// Nombre de plans montrés — demandé par le client.
 const _combien = 8;
@@ -393,7 +393,7 @@ class _Carte extends StatelessWidget {
                       if (plan.createdAt != null) ...[
                         const SizedBox(height: 2),
                         Text(
-                          DateFormat('dd MMM yyyy').format(plan.createdAt!),
+                          dateCourtePlan(context, plan.createdAt!),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontSize: 11, color: AppColors.textMuted),

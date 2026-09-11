@@ -185,6 +185,14 @@ extension UserRoleX on UserRole {
       this == UserRole.maitreOeuvre ||
       estTitulaire;
 
+  /// Peut AJOUTER une entreprise à l'annuaire (organisation ou chantier).
+  ///
+  /// Miroir exact du `requireRole` de `POST /organisation/partenaires` et de
+  /// `POST /chantiers/:id/partenaires` (`partenaire.route.js`) : les rôles
+  /// opérationnels ET le maître d'ouvrage. Proposer le « + » à un autre rôle
+  /// ne produirait qu'un 403 après la saisie du formulaire.
+  bool get peutAjouterPartenaire => estOperationnel || this == UserRole.maitreOuvrage;
+
   /// OPERATIONNEL_CONTROLE : opérationnel + bureau de contrôle.
   bool get estOperationnelOuControle => estOperationnel || this == UserRole.bureauControle;
 

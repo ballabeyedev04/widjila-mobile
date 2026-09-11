@@ -22,13 +22,15 @@ import 'core/services/verrou_biometrique.dart';
 import 'core/widgets/garde_biometrique.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
+import 'features/auth/presentation/bloc/auth_state.dart';
 import 'injection_container.dart' as di;
 import 'l10n/generated/app_localizations.dart';
 
-/// Tampon des erreurs survenues avant que Crashlytics soit joignable.
-final CollecteurErreurs _collecteur = CollecteurErreurs();
-
 /// Branchement réel sur Crashlytics, une fois Firebase initialisé.
+///
+/// Le tampon des erreurs survenues avant que Crashlytics soit joignable est
+/// `collecteurErreurs` (collecteur_erreurs.dart) : global, pour que la couche
+/// réseau et la conversion des erreurs puissent y signaler les erreurs GÉRÉES.
 class _PuitsCrashlytics implements PuitsErreurs {
   const _PuitsCrashlytics();
 
@@ -39,6 +41,22 @@ class _PuitsCrashlytics implements PuitsErreurs {
   @override
   void erreur(Object erreur, StackTrace? pile) =>
       FirebaseCrashlytics.instance.recordError(erreur, pile, fatal: true);
+
+  @override
+  void erreurNonFatale(Object erreur, StackTrace? pile, {String? raison, Map<String, Object?> contexte = const {}}) =>
+      FirebaseCrashlytics.instance.recordError(
+        erreur,
+        pile,
+        fatal: false,
+        reason: raison,
+        information: [
+          for (final e in contexte.entries)
+            if (e.value != null) '${e.key}=${e.value}',
+        ],
+      );
+
+  @override
+  void identifierUtilisateur(String? id) => FirebaseCrashlytics.instance.setUserIdentifier(id ?? '');
 }
 
 /// Démarre l'application en surveillant TOUS les canaux d'erreur Flutter/Dart,
@@ -80,7 +98,7 @@ void _demarrerAvecSurveillanceCrash(Widget app) {
   // Erreurs de construction/rendu du framework Flutter (widgets, layout…).
   FlutterError.onError = (details) {
     FlutterError.presentError(details); // garde le rouge/gris habituel en debug
-    _collecteur.differer((puits) => puits.erreurFlutter(details));
+    collecteurErreurs.differer((puits) => puits.erreurFlutter(details));
   };
 
   // Erreurs natives/plateforme et erreurs Dart hors framework (isolat racine).
@@ -105,8 +123,8 @@ void _signalerHorsFramework(Object erreur, StackTrace? pile) {
   // intercepte : sans cette trace, une erreur survenue avant le branchement —
   // ou sur une installation sans Firebase — disparaîtrait sans laisser le
   // moindre témoin.
-  if (!_collecteur.estBranche) debugPrint('[erreur] $erreur\n$pile');
-  _collecteur.differer((puits) => puits.erreur(erreur, pile));
+  if (!collecteurErreurs.estBranche) debugPrint('[erreur] $erreur\n$pile');
+  collecteurErreurs.differer((puits) => puits.erreur(erreur, pile));
 }
 
 Future<void> _brancherCrashlytics() async {
@@ -119,10 +137,10 @@ Future<void> _brancherCrashlytics() async {
     await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!kDebugMode);
   } catch (e) {
     debugPrint('[crashlytics] Firebase non configuré — suivi des crashs inactif ($e)');
-    _collecteur.abandonner();
+    collecteurErreurs.abandonner();
     return;
   }
-  _collecteur.brancher(const _PuitsCrashlytics());
+  collecteurErreurs.brancher(const _PuitsCrashlytics());
 }
 
 Future<void> main() async {
@@ -189,6 +207,11 @@ class _SuivieChantierAppState extends State<SuivieChantierApp> {
     // `StateError` au prochain `sl<AuthBloc>()`.
     return BlocProvider<AuthBloc>.value(
       value: _authBloc,
+      // Crashlytics sait QUI un crash ou une erreur a touché — identifiant
+      // interne, jamais l'e-mail ; effacé à la déconnexion.
+      child: BlocListener<AuthBloc, AuthState>(
+        listenWhen: (avant, apres) => avant.utilisateur?.id != apres.utilisateur?.id,
+        listener: (_, etat) => collecteurErreurs.identifierUtilisateur(etat.utilisateur?.id),
       // `ValueListenableBuilder` plutôt qu'un `Provider` : même schéma que
       // `BandeauConnexion`/`SynchronisationService` déjà dans l'app — un
       // service `ValueNotifier` simple suffit, pas besoin d'un système de
@@ -235,6 +258,7 @@ class _SuivieChantierAppState extends State<SuivieChantierApp> {
             ),
           );
         },
+      ),
       ),
     );
   }

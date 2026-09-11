@@ -6,6 +6,7 @@ import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/liste_chrome.dart';
 import '../../../../injection_container.dart';
 import '../../../../l10n/l10n_extension.dart';
+import '../../../../core/widgets/app_alert.dart';
 import '../../domain/entities/inspection.dart';
 import '../../domain/usecases/inspection_usecases.dart';
 import '../cubit/inspection_detail_cubit.dart';
@@ -48,7 +49,7 @@ class _Vue extends StatelessWidget {
       listenWhen: (a, b) => a.erreurAction != b.erreurAction && b.erreurAction != null,
       listener: (context, state) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(state.erreurAction!)),
+          SnackBar(content: Text(AppAlert.messageLisible(context.l10n, state.erreurAction!))),
         );
         context.read<InspectionDetailCubit>().accuserReceptionErreur();
       },

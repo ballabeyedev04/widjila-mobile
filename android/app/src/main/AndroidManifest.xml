@@ -12,6 +12,9 @@
          utilisable sans elle, les deux champs se saisissant a la main. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- Dictée de l'observation d'une réserve (speech_to_text) : le micro n'est
+         demandé qu'au premier appui sur l'icône de dictée. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 
     <!-- Le materiel de localisation n'est PAS requis pour utiliser l'appli.
 
@@ -105,6 +108,11 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Android 11+ : sans cette déclaration, le service de reconnaissance
+             vocale du téléphone est invisible et la dictée se dit indisponible. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
         </intent>
     </queries>
 </manifest>

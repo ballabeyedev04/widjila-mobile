@@ -22,6 +22,14 @@ import 'synchronisation_service.dart';
 ///  - **reconnecté** (vert) : confirmation brève, puis disparition
 ///    automatique. Un bandeau vert permanent n'apporterait rien : l'état
 ///    normal, c'est d'être en ligne.
+///
+/// ## Le vert ne ment jamais (deuxième audit, A2-05)
+///
+/// « Connecté — tout a été synchronisé » s'affichait trois secondes au retour
+/// du réseau, PRIORITAIRE sur l'affichage des échecs : une passe qui échouait
+/// vite montrait « tout a été synchronisé » alors que des actions venaient
+/// d'être refusées. Le vert n'apparaît plus que si, au moment où il est
+/// dessiné, il ne reste RIEN en attente ni en échec.
 class BandeauConnexion extends StatefulWidget {
   final SynchronisationService service;
   final Widget child;
@@ -57,14 +65,14 @@ class _BandeauConnexionState extends State<BandeauConnexion> {
     _precedent = courant;
     if (avant == null || !mounted) return;
 
-    // Bascule hors ligne → en ligne, avec la file désormais vidée : on
-    // confirme brièvement que tout est parti.
+    // On ne confirme que ce qui est VRAI : plus rien en attente, plus rien en
+    // échec. Un retour en ligne avec du travail encore en file n'est pas
+    // « tout a été synchronisé ».
+    final toutEstParti = courant.enAttente == 0 && courant.enEchec == 0;
     final retourEnLigne = avant.reseau == EtatReseau.horsLigne && courant.reseau == EtatReseau.enLigne;
-    final synchroFinie = avant.synchro == EtatSynchro.enCours &&
-        courant.synchro == EtatSynchro.termine &&
-        courant.enAttente == 0;
+    final synchroFinie = avant.synchro == EtatSynchro.enCours && courant.synchro == EtatSynchro.termine;
 
-    if (retourEnLigne || synchroFinie) {
+    if (toutEstParti && (retourEnLigne || synchroFinie)) {
       setState(() => _afficherConfirmation = true);
       Future.delayed(_dureeConfirmation, () {
         if (mounted) setState(() => _afficherConfirmation = false);
@@ -197,7 +205,9 @@ class _Bandeau extends StatelessWidget {
       );
     }
 
-    if (confirmation) {
+    // Revérifié ICI, au dessin : l'état a pu changer depuis que la
+    // confirmation a été décidée.
+    if (confirmation && s.enAttente == 0 && s.enEchec == 0) {
       return _Apparence(
         fond: AppColors.success,
         icone: Icons.cloud_done_rounded,
@@ -218,8 +228,8 @@ class _Bandeau extends StatelessWidget {
       );
     }
 
-    // En ligne mais des actions restent en file (échec métier, ou synchro pas
-    // encore déclenchée) : on le signale sans alarmer, en orange.
+    // En ligne mais des actions restent en file (échec passager, ou synchro
+    // pas encore déclenchée) : on le signale sans alarmer, en orange.
     if (s.aDuTravailEnAttente) {
       return _Apparence(
         fond: AppColors.warning,

@@ -14,6 +14,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../injection_container.dart';
 import '../../../../l10n/l10n_extension.dart';
+import '../../../../core/widgets/app_alert.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../reserve/domain/entities/reserve.dart';
 import '../../../reserve/presentation/widgets/reserve_statut_badge.dart';
@@ -669,7 +670,7 @@ class _BoutonOuvrirExterneState extends State<_BoutonOuvrirExterne> {
     setState(() => _enCours = false);
 
     resultat.fold(
-      (failure) => messenger.showSnackBar(SnackBar(content: Text(failure.errorMessage))),
+      (failure) => messenger.showSnackBar(SnackBar(content: Text(AppAlert.messageLisible(l10n, failure.errorMessage)))),
       (issue) {
         if (issue == ResultatOuverture.aucuneApplication) {
           messenger.showSnackBar(SnackBar(content: Text(l10n.documentAucuneApplication)));

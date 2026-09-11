@@ -141,7 +141,6 @@ class RapportDetailCubit extends Cubit<RapportDetailState> {
   /// nouvelle version (§ 18) : l'écran bascule alors sur elle.
   Future<Rapport?> generer() async {
     if (state.occupe) return null;
-    final diffuse = state.rapport?.estDiffuse ?? false;
     emit(state.copyWith(action: ActionDetailRapport.generation));
     final resultat = await genererRapport(rapportId);
     if (isClosed) return null;
@@ -159,9 +158,13 @@ class RapportDetailCubit extends Cubit<RapportDetailState> {
           ));
           charger();
         } else {
+          // Un identifiant DIFFÉRENT est, par définition, une nouvelle
+          // version. Le serveur en crée une pour un rapport envoyé, mais
+          // aussi dès qu'un lien de partage est actif : se fier à
+          // `estDiffuse` annonçait « Rapport généré » dans ce second cas.
           emit(state.copyWith(
             action: ActionDetailRapport.aucune,
-            evenement: diffuse ? EvenementDetailRapport.nouvelleVersion : EvenementDetailRapport.genere,
+            evenement: EvenementDetailRapport.nouvelleVersion,
           ));
         }
         return rapport;

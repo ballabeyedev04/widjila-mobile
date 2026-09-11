@@ -1,7 +1,10 @@
+import 'package:dartz/dartz.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/errors/failure.dart';
 import '../../domain/entities/abonnement.dart';
+import '../../domain/usecases/creer_code_transfert_web.dart';
 import '../../domain/usecases/get_droits.dart';
 import '../../domain/usecases/get_formules.dart';
 import '../../domain/usecases/get_historique_abonnement.dart';
@@ -90,12 +93,20 @@ class AbonnementCubit extends Cubit<AbonnementState> {
   final GetFormules getFormules;
   final GetDroits getDroits;
   final GetHistoriqueAbonnement getHistorique;
+  final CreerCodeTransfertWeb creerCodeTransfertWeb;
 
   AbonnementCubit({
     required this.getFormules,
     required this.getDroits,
     required this.getHistorique,
+    required this.creerCodeTransfertWeb,
   }) : super(const AbonnementState());
+
+  /// Code de transfert de session pour la page de paiement du web.
+  ///
+  /// Hors de l'état de l'écran : c'est une action ponctuelle, dont seul le
+  /// bouton qui l'a déclenchée attend le résultat.
+  Future<Either<Failure, String>> preparerPaiementWeb() => creerCodeTransfertWeb();
 
   /// [avecHistorique] : à `true` seulement pour les rôles autorisés à voir la
   /// facturation (`peutGererAbonnement`, miroir du groupe FACTURATION qui garde

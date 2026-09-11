@@ -15,4 +15,8 @@ abstract class AbonnementRepository {
   /// Réservé aux rôles de GESTION côté serveur : un `AuthFailure` ici signifie
   /// « pas le droit de voir la facturation », pas « panne ».
   Future<Either<Failure, List<SouscriptionHistorique>>> getHistorique();
+
+  /// Code de transfert de session vers la page de paiement du web — deux
+  /// minutes, usage unique. Voir `AbonnementPage`.
+  Future<Either<Failure, String>> creerCodeTransfertWeb();
 }

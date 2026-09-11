@@ -110,6 +110,7 @@ import 'features/phase/domain/usecases/get_phases_actives.dart';
 import 'features/abonnement/data/datasources/abonnement_remote_datasource.dart';
 import 'features/abonnement/data/repositories/abonnement_repository_impl.dart';
 import 'features/abonnement/domain/repositories/abonnement_repository.dart';
+import 'features/abonnement/domain/usecases/creer_code_transfert_web.dart';
 import 'features/abonnement/domain/usecases/get_droits.dart';
 import 'features/abonnement/domain/usecases/get_formules.dart';
 import 'features/abonnement/domain/usecases/get_historique_abonnement.dart';
@@ -228,7 +229,18 @@ Future<void> init() async {
   // compte ne lit ni ne synchronise jamais les données d'un autre sur le
   // même appareil, y compris après une déconnexion interrompue.
   sl.registerLazySingleton(() => SessionLocale(base: sl(), medias: sl()));
-  sl.registerLazySingleton(() => DetecteurConnexion(dio: sl(), connectivity: sl()));
+  // Client HTTP NU pour la sonde de joignabilité (deuxième audit, A2-14) :
+  // délais de 4 s, ni jeton, ni relance. Le client de l'application hérite
+  // d'un délai de connexion de 15 s et de deux relances — une seule sonde
+  // pouvait durer près d'une minute, et se chevaucher avec la suivante.
+  sl.registerLazySingleton(() => DetecteurConnexion(
+        dio: Dio(BaseOptions(
+          connectTimeout: DetecteurConnexion.delaiSonde,
+          receiveTimeout: DetecteurConnexion.delaiSonde,
+          sendTimeout: DetecteurConnexion.delaiSonde,
+        )),
+        connectivity: sl(),
+      ));
 
   // Traduit une action de la file vers le VRAI appel réseau qui la
   // concrétise. N'a besoin que du datasource réserve aujourd'hui — l'étendre
@@ -489,10 +501,12 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetFormules(sl()));
   sl.registerLazySingleton(() => GetDroits(sl()));
   sl.registerLazySingleton(() => GetHistoriqueAbonnement(sl()));
+  sl.registerLazySingleton(() => CreerCodeTransfertWeb(sl()));
   sl.registerFactory(() => AbonnementCubit(
         getFormules: sl(),
         getDroits: sl(),
         getHistorique: sl(),
+        creerCodeTransfertWeb: sl(),
       ));
 
   //================================================

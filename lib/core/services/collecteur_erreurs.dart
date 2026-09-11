@@ -15,6 +15,16 @@ abstract class PuitsErreurs {
   /// Erreur Dart hors framework : `Future` orpheline, rappel de `Timer`,
   /// erreur de plateforme.
   void erreur(Object erreur, StackTrace? pile);
+
+  /// Erreur GÉRÉE — l'application a continué (écran « Réessayer »), mais
+  /// l'équipe doit la voir : erreur serveur 5xx, réponse illisible, bug de
+  /// conversion. `contexte` porte l'identifiant de requête (`requestId`), le
+  /// chemin et le statut : de quoi retrouver la ligne du journal serveur.
+  void erreurNonFatale(Object erreur, StackTrace? pile, {String? raison, Map<String, Object?> contexte});
+
+  /// Utilisateur courant (identifiant interne, jamais l'e-mail) — `null` à la
+  /// déconnexion. Sans lui, un crash ne dit pas QUI il a touché.
+  void identifierUtilisateur(String? id);
 }
 
 /// Retient les erreurs survenues AVANT que Crashlytics soit prêt, puis les lui
@@ -97,4 +107,61 @@ class CollecteurErreurs {
     _abandonne = true;
     _tampon.clear();
   }
+
+  /// Remise à zéro — tests uniquement : [collecteurErreurs] est global.
+  @visibleForTesting
+  void reinitialiser() {
+    _tampon.clear();
+    _puits = null;
+    _abandonne = false;
+    _derniersSignalements.clear();
+  }
+
+  /// Signatures des erreurs non fatales déjà envoyées, et quand.
+  final Map<String, DateTime> _derniersSignalements = {};
+
+  /// Même erreur (même type, même raison, même chemin) signalée au plus une
+  /// fois par minute. Un écran qui rejoue une requête en échec toutes les
+  /// 20 s — le détecteur de connexion, une liste qu'on rafraîchit — ne doit
+  /// pas noyer Crashlytics sous des centaines de rapports identiques.
+  static const delaiDedoublonnage = Duration(minutes: 1);
+
+  /// Signale une erreur GÉRÉE (voir [PuitsErreurs.erreurNonFatale]).
+  void signalerNonFatale(
+    Object erreur,
+    StackTrace? pile, {
+    String? raison,
+    Map<String, Object?> contexte = const {},
+    DateTime? maintenant,
+  }) {
+    final instant = maintenant ?? DateTime.now();
+    final signature = '${erreur.runtimeType}|$raison|${contexte['chemin'] ?? ''}|${contexte['statut'] ?? ''}';
+    final precedent = _derniersSignalements[signature];
+    if (precedent != null && instant.difference(precedent) < delaiDedoublonnage) return;
+    if (_derniersSignalements.length > 200) _derniersSignalements.clear();
+    _derniersSignalements[signature] = instant;
+
+    if (kDebugMode) debugPrint('[erreur non fatale] $raison — $erreur $contexte');
+    differer((puits) => puits.erreurNonFatale(erreur, pile, raison: raison, contexte: contexte));
+  }
+
+  /// Associe les rapports suivants à l'utilisateur connecté (`null` : déconnexion).
+  void identifierUtilisateur(String? id) {
+    differer((puits) => puits.identifierUtilisateur(id));
+  }
+}
+
+/// Collecteur UNIQUE de l'application : posé par `main.dart`, lu par la
+/// couche réseau et la conversion des erreurs, qui n'ont pas de
+/// `BuildContext`.
+final CollecteurErreurs collecteurErreurs = CollecteurErreurs();
+
+/// Raccourci : signale une erreur gérée au collecteur de l'application.
+void signalerErreurNonFatale(
+  Object erreur,
+  StackTrace? pile, {
+  String? raison,
+  Map<String, Object?> contexte = const {},
+}) {
+  collecteurErreurs.signalerNonFatale(erreur, pile, raison: raison, contexte: contexte);
 }

@@ -90,6 +90,7 @@ class OrganisationRepositoryImpl implements OrganisationRepository {
     String? contact,
     String? adresse,
     String? notes,
+    String? chantierId,
   }) async {
     try {
       // Les champs vides sont OMIS plutôt qu'envoyés à `''` :
@@ -104,7 +105,7 @@ class OrganisationRepositoryImpl implements OrganisationRepository {
         if (contact != null && contact.isNotEmpty) 'contact': contact,
         if (adresse != null && adresse.isNotEmpty) 'adresse': adresse,
         if (notes != null && notes.isNotEmpty) 'notes': notes,
-      });
+      }, chantierId: chantierId);
       return Right(partenaire);
     } catch (e) {
       return Left(exceptionToFailure(e));

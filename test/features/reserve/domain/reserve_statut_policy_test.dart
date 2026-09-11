@@ -64,7 +64,21 @@ void main() {
       );
 
       expect(statuts, contains(ReserveStatut.enCours));
-      expect(statuts, contains(ReserveStatut.validee));
+      expect(statuts, contains(ReserveStatut.corrigee));
+    });
+
+    test('depuis « en retard », AUCUN verdict direct (miroir du serveur)', () {
+      // Une réserve en retard n'a pas été déclarée corrigée : la valider ou la
+      // refuser d'emblée court-circuitait le contrôle. Le serveur le refuse.
+      final statuts = statutsProposables(
+        statutActuel: ReserveStatut.enRetard,
+        role: UserRole.chefProjet,
+        estAssigneAMoi: false,
+        aDesPreuves: true,
+      );
+
+      expect(statuts, isNot(contains(ReserveStatut.validee)));
+      expect(statuts, isNot(contains(ReserveStatut.refusee)));
     });
 
     test('aucun statut ne se propose lui-même', () {
@@ -124,14 +138,14 @@ void main() {
     });
   });
 
-  group('statutsProposables — rôles non-pilotage (ex: Client)', () {
+  group('statutsProposables — intervenants non-pilotage (ex: Pilote)', () {
     test('les verdicts sont masqués — le back les refuserait de toute façon', () {
       // Le sujet n'est plus 'Entreprise' : le titulaire de l'organisation
-      // pilote désormais son propre chantier, verdicts compris. Un client
-      // extérieur, lui, ne prononce toujours rien.
+      // pilote désormais son propre chantier, verdicts compris. Le rôle
+      // « Pilote » intervient sur les réserves sans prononcer de verdict.
       final statuts = statutsProposables(
         statutActuel: ReserveStatut.corrigee,
-        role: UserRole.client,
+        role: UserRole.pilote,
         estAssigneAMoi: false,
         aDesPreuves: true,
       );
@@ -142,6 +156,21 @@ void main() {
       expect(statuts, isNot(contains(ReserveStatut.rouverte)));
       expect(statuts, contains(ReserveStatut.aVerifier),
           reason: 'les statuts non-verdict restent proposés');
+    });
+
+    test('un client ne se voit RIEN proposer : la route lui est fermée', () {
+      // `PATCH /reserves/:id/statut` n'est ouverte qu'aux intervenants
+      // (RESERVE_INTERVENANTS) et au sous-traitant. Lui proposer « à
+      // vérifier » menait à un 403 à l'appui sur le bouton.
+      for (final role in [UserRole.client, UserRole.inconnu]) {
+        final statuts = statutsProposables(
+          statutActuel: ReserveStatut.corrigee,
+          role: role,
+          estAssigneAMoi: true,
+          aDesPreuves: true,
+        );
+        expect(statuts, isEmpty, reason: role.name);
+      }
     });
 
     test('le titulaire, lui, prononce les verdicts sur SON chantier', () {

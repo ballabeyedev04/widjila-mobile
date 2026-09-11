@@ -58,6 +58,10 @@ class ExecuteurActionsHorsLigne {
         await _ajouterPhoto(action);
       case TypeAction.envoyerRapport:
         await _envoyerRapport(action);
+      case TypeAction.modifierReserve:
+        await _modifier(action);
+      case TypeAction.supprimerReserve:
+        await _supprimer(action);
     }
   }
 
@@ -83,18 +87,28 @@ class ExecuteurActionsHorsLigne {
           await _cache.supprimer(action.charge['id'] as String);
 
         case TypeAction.changerStatutReserve:
-          // Le statut demandé est refusé. On rétablit la VÉRITÉ du serveur
-          // plutôt que de deviner l'ancienne valeur — la réserve a pu changer
-          // entre-temps, et une valeur inventée serait un second mensonge.
+        case TypeAction.modifierReserve:
+          // Le changement est refusé (transition illégale, CONFLIT avec une
+          // modification faite ailleurs, droits…). On rétablit la VÉRITÉ du
+          // serveur plutôt que de deviner l'ancienne valeur — la réserve a pu
+          // changer entre-temps, et une valeur inventée serait un second
+          // mensonge.
+          await _retablirDepuisServeur(action.charge['reserveId'] as String);
+
+        case TypeAction.supprimerReserve:
+          // Suppression refusée (réserve validée, droits) : la réserve existe
+          // toujours, elle doit REVENIR à l'écran. Version serveur d'abord ;
+          // à défaut, l'instantané pris au moment de la suppression.
           final id = action.charge['reserveId'] as String;
           try {
             final aJour = await _reserves.getReserveDetail(id);
             await _cache.enregistrer(aJour, enAttente: false);
           } catch (e) {
-            // Serveur injoignable ou réserve disparue : on relâche au moins la
-            // ligne, pour que le prochain rafraîchissement puisse l'écraser.
-            debugPrint('[sync] Relecture de la réserve $id impossible après refus ($e) — ligne relâchée');
-            await _cache.libererEnAttente(id);
+            final instantane = action.charge['instantane'];
+            if (instantane is Map) {
+              await _cache.enregistrer(Reserve.fromJson(instantane.cast<String, dynamic>()), enAttente: false);
+            }
+            debugPrint('[sync] Réserve $id restaurée depuis son instantané après refus de suppression ($e)');
           }
 
         case TypeAction.ajouterPhotoReserve:
@@ -112,6 +126,18 @@ class ExecuteurActionsHorsLigne {
       // Voir la note ci-dessus : l'annulation est un filet, jamais un point
       // de rupture supplémentaire — mais jamais un silence non plus.
       debugPrint('[sync] Annulation de l’action ${action.id} (${action.type.code}) impossible : $e');
+    }
+  }
+
+  Future<void> _retablirDepuisServeur(String id) async {
+    try {
+      final aJour = await _reserves.getReserveDetail(id);
+      await _cache.enregistrer(aJour, enAttente: false);
+    } catch (e) {
+      // Serveur injoignable ou réserve disparue : on relâche au moins la
+      // ligne, pour que le prochain rafraîchissement puisse l'écraser.
+      debugPrint('[sync] Relecture de la réserve $id impossible après refus ($e) — ligne relâchée');
+      await _cache.libererEnAttente(id);
     }
   }
 
@@ -181,42 +207,50 @@ class ExecuteurActionsHorsLigne {
     await _confirmer(reserve, action);
   }
 
-  /// Écrit la version CONFIRMÉE par le serveur dans le cache.
-  ///
-  /// CORRECTIF (audit synchronisation) — la ligne était toujours marquée « à
-  /// jour » (`en_attente = 0`), même quand un AUTRE changement fait hors ligne
-  /// sur la même réserve attendait encore son tour (création confirmée, mais
-  /// passage en « corrigée » pas encore parti). Deux effets :
-  ///  - le statut affiché retombait sur celui du serveur (« créée ») alors que
-  ///    l'utilisateur avait déclaré la correction ;
-  ///  - la ligne redevenait écrasable par un rafraîchissement de liste, qui
-  ///    effaçait l'écriture optimiste avant son envoi.
-  ///
-  /// Désormais, tant qu'une action reste en file pour cette réserve, on garde
-  /// la version serveur (numéro définitif, champs calculés) AVEC le statut
-  /// local, et la ligne reste protégée. Le statut est le seul champ qu'une
-  /// action hors ligne modifie : c'est donc une fusion exacte, pas une
-  /// approximation.
-  ///
-  /// Seules comptent les actions qui RÉÉCRIVENT la ligne (création, statut).
-  /// Une photo en file ne la modifie pas : la compter retenait la ligne « en
-  /// attente » pour toujours, car l'envoi de la photo ne repasse jamais par
-  /// ici pour la libérer (défaut trouvé par le test de chaos).
-  static const _typesQuiReecriventLaLigne = {TypeAction.creerReserve, TypeAction.changerStatutReserve};
+  /// Modification de champs. Les valeurs de DÉPART voyagent avec : le serveur
+  /// refuse (409 `CONFLIT_MODIFICATION`) si quelqu'un a modifié le même champ
+  /// entre-temps, au lieu de l'écraser en silence.
+  Future<void> _modifier(ActionEnAttente action) async {
+    final c = action.charge;
+    final champs = (c['champs'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+    final valeursInitiales = (c['valeursInitiales'] as Map?)?.cast<String, dynamic>();
+    final reserve = await _reserves.modifierReserve(c['reserveId'] as String, {
+      ...champs,
+      'valeursInitiales': ?valeursInitiales,
+    });
+    await _confirmer(reserve, action);
+  }
 
-  Future<void> _confirmer(Reserve serveur, ActionEnAttente action) async {
+  /// Suppression. Idempotente côté serveur : rejouer la suppression d'une
+  /// réserve déjà supprimée répond succès.
+  Future<void> _supprimer(ActionEnAttente action) async {
+    final id = action.charge['reserveId'] as String;
+    await _reserves.supprimerReserve(id);
+    if (await _actionPurgee(action)) return;
+    await _cache.supprimer(id);
+  }
+
+  /// `true` si l'action a disparu de la file pendant son envoi — la base a
+  /// été PURGÉE (déconnexion, changement de compte) : sa réponse appartient au
+  /// compte précédent et ne doit rien écrire (deuxième audit, A2-09).
+  Future<bool> _actionPurgee(ActionEnAttente action) async {
     final file = _file;
-    final encore = file != null &&
-        await file.aDesActionsEnAttentePour(action.cleEntite, sauf: action.id, types: _typesQuiReecriventLaLigne);
-    if (!encore) {
-      await _cache.enregistrer(serveur, enAttente: false);
-      return;
-    }
-    final locale = await _cache.lire(serveur.id);
-    await _cache.enregistrer(
-      locale == null ? serveur : serveur.copierAvecStatut(locale.statut),
-      enAttente: true,
-    );
+    return file != null && await file.parId(action.id) == null;
+  }
+
+  /// Écrit la version CONFIRMÉE par le serveur dans le cache, par
+  /// RÉCONCILIATION (voir `reconciliation.dart`) : la version serveur —
+  /// complète depuis le correctif A2-03, numéro définitif compris — sur
+  /// laquelle on rejoue les AUTRES changements locaux encore en file
+  /// (statut, modification, suppression faits hors ligne après celui-ci).
+  ///
+  /// Quand plus rien n'attend, la ligne redevient « à jour ». Une ligne
+  /// supprimée localement entre-temps n'est jamais ressuscitée. Une photo en
+  /// file ne retient pas la ligne (elle ne la modifie pas — défaut trouvé par
+  /// le test de chaos du premier audit).
+  Future<void> _confirmer(Reserve serveur, ActionEnAttente action) async {
+    if (await _actionPurgee(action)) return;
+    await _cache.reconcilier(serveur, saufAction: action.id);
   }
 
   Future<void> _ajouterPhoto(ActionEnAttente action) async {
@@ -229,7 +263,8 @@ class ExecuteurActionsHorsLigne {
       throw ActionInvalide('Action ajouterPhotoReserve sans chemin de fichier');
     }
     // Idempotent côté serveur : un même contenu sur une même réserve n'est
-    // enregistré qu'une fois (empreinte SHA-256, voir `MediaService`).
+    // enregistré qu'une fois (empreinte SHA-256 sous verrou, voir
+    // `MediaService`).
     await _reserves.ajouterMedia(
       reserveId: c['reserveId'] as String,
       cheminFichier: chemin,

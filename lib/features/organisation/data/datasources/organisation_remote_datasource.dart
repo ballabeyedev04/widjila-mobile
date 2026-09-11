@@ -17,7 +17,7 @@ abstract class OrganisationRemoteDataSource {
   Future<AjouterMembreResult> ajouterMembre(Map<String, dynamic> payload);
   Future<Membre> modifierMembre(String membreId, Map<String, dynamic> payload);
   Future<List<Partenaire>> getPartenaires();
-  Future<Partenaire> creerPartenaire(Map<String, dynamic> payload);
+  Future<Partenaire> creerPartenaire(Map<String, dynamic> payload, {String? chantierId});
   Future<Partenaire> modifierPartenaire(String partenaireId, Map<String, dynamic> payload);
 }
 
@@ -74,9 +74,14 @@ class OrganisationRemoteDataSourceImpl implements OrganisationRemoteDataSource {
   }
 
   @override
-  Future<Partenaire> creerPartenaire(Map<String, dynamic> payload) async {
+  Future<Partenaire> creerPartenaire(Map<String, dynamic> payload, {String? chantierId}) async {
     try {
-      final response = await dio.post('/organisation/partenaires', data: payload);
+      // Avec un chantier : l'ANNUAIRE DU CHANTIER (`partenaires.chantier_id`),
+      // celui que lisent le filtre « Entreprise » des rapports et « Entreprise
+      // concernée » d'une réserve. Même schéma, mêmes rôles côté serveur
+      // (`partenaire.route.js`).
+      final chemin = chantierId == null ? '/organisation/partenaires' : '/chantiers/$chantierId/partenaires';
+      final response = await dio.post(chemin, data: payload);
       return Partenaire.fromJson(_data(response)['partenaire'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw mapDioException(e);

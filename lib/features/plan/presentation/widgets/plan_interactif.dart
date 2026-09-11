@@ -6,6 +6,7 @@ import 'package:pdfx/pdfx.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../l10n/l10n_extension.dart';
 import '../../domain/entities/plan.dart';
+import 'dimensions_rendu_pdf.dart';
 
 /// Repère à dessiner sur le plan — une réserve, ou le point que
 /// l'utilisateur vient de désigner.
@@ -199,11 +200,12 @@ class _PlanInteractifState extends State<PlanInteractif> {
         // d'affichage : le zoom est ensuite purement géométrique
         // (`InteractiveViewer`). Re-rendre à chaque cran relancerait un rendu
         // natif sous le doigt et saccaderait le geste.
-        final largeur = page.width * 2;
-        final hauteur = page.height * 2;
+        // Facteur 2, mais grand côté PLAFONNÉ : sans plafond, un A0 devenait
+        // une image d'environ 128 Mo (voir dimensions_rendu_pdf.dart).
+        final taille = dimensionsRenduPdf(page.width, page.height);
         final rendu = await page.render(
-          width: largeur,
-          height: hauteur,
+          width: taille.largeur,
+          height: taille.hauteur,
           format: PdfPageImageFormat.png,
           // Sans fond blanc explicite, un PDF sans calque de fond est rendu
           // sur du transparent : le plan apparaissait en traits noirs sur le

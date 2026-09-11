@@ -44,7 +44,12 @@ const int _maxNotes = 2000; // notes → max(2000)
 /// OMIS du corps de la requête plutôt qu'envoyés à `''` (voir
 /// `OrganisationRepositoryImpl.creerPartenaire`).
 class AjouterPartenaireSheet extends StatefulWidget {
-  const AjouterPartenaireSheet({super.key});
+  /// Renseigné : l'intervenant rejoint l'annuaire de CE chantier (ouvert
+  /// depuis les filtres d'un rapport, par exemple). Nul : l'annuaire de
+  /// l'organisation, comme depuis la page des intervenants.
+  final String? chantierId;
+
+  const AjouterPartenaireSheet({super.key, this.chantierId});
 
   @override
   State<AjouterPartenaireSheet> createState() => _AjouterPartenaireSheetState();
@@ -100,6 +105,7 @@ class _AjouterPartenaireSheetState extends State<AjouterPartenaireSheet> {
           contact: _valeurOuNull(_contactCtrl),
           adresse: _valeurOuNull(_adresseCtrl),
           notes: _valeurOuNull(_notesCtrl),
+          chantierId: widget.chantierId,
         );
   }
 

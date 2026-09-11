@@ -198,6 +198,9 @@ class PartenairesCubit extends Cubit<PartenairesState> {
     String? contact,
     String? adresse,
     String? notes,
+    /// Annuaire du chantier plutôt que celui de l'organisation — voir
+    /// l'ajout d'entreprise depuis les filtres d'un rapport.
+    String? chantierId,
   }) async {
     // Verrou de double soumission : deux appuis créeraient deux intervenants
     // identiques dans l'annuaire de l'organisation.
@@ -211,6 +214,7 @@ class PartenairesCubit extends Cubit<PartenairesState> {
       contact: contact,
       adresse: adresse,
       notes: notes,
+      chantierId: chantierId,
     );
     if (isClosed) return;
     result.fold(

@@ -33,7 +33,9 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Widjila accède à votre photothèque pour joindre des photos existantes à vos réserves et documents.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Widjila utilise le microphone pour l'enregistrement de vidéos illustrant l'avancement de vos chantiers.</string>
+	<string>Widjila utilise le microphone pour dicter les observations de vos réserves et pour l'enregistrement de vidéos illustrant l'avancement de vos chantiers.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Widjila transcrit votre voix en texte pour remplir l'observation d'une réserve sans la taper.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

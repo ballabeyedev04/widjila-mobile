@@ -91,15 +91,15 @@ const _transitions = <ReserveStatut, Set<ReserveStatut>>{
     ReserveStatut.aVerifier,
   },
   // Posé automatiquement par le traitement des échéances ; la reprise du
-  // cycle normal reste ouverte.
+  // cycle normal reste ouverte — mais SANS verdict direct : la réserve en
+  // retard n'a pas encore été déclarée corrigée, elle repasse par
+  // `corrigee` / `a_verifier` (miroir du serveur).
   ReserveStatut.enRetard: {
     ReserveStatut.affectee,
     ReserveStatut.priseEnCharge,
     ReserveStatut.enCours,
     ReserveStatut.corrigee,
     ReserveStatut.aVerifier,
-    ReserveStatut.validee,
-    ReserveStatut.refusee,
     ReserveStatut.rouverte,
   },
   // ÉTAT TERMINAL. Le serveur n'autorise aucune sortie (`cloturee: []`).
@@ -135,6 +135,12 @@ List<ReserveStatut> statutsProposables({
   required bool estAssigneAMoi,
   required bool aDesPreuves,
 }) {
+  // 0. La ROUTE elle-même : `PATCH /reserves/:id/statut` n'est ouverte qu'aux
+  //    intervenants sur les réserves et au sous-traitant (`reserve.route.js`).
+  //    Un client, par exemple, recevait des statuts « non verdict » à
+  //    proposer — et un 403 à l'appui sur le bouton.
+  if (role != UserRole.sousTraitant && !role.peutIntervenirSurReserves) return const [];
+
   // 1. Ce que la matrice autorise depuis l'état courant. Un statut absent de
   //    cette table (valeur inconnue reçue du serveur) ne propose rien plutôt
   //    que de tout proposer.

@@ -324,6 +324,10 @@ String _libelle(ActionEnAttente a) => switch (a.type) {
       TypeAction.ajouterPhotoReserve => 'photo:${a.charge['reserveId']}',
       TypeAction.changerStatutReserve => 'statut:${a.charge['reserveId']}',
       TypeAction.envoyerRapport => 'rapport:${a.charge['rapportId']}',
+      // Ajoutés au deuxième audit (A2-12) — même clé que le statut et la
+      // photo : la réserve visée.
+      TypeAction.modifierReserve => 'modifier:${a.charge['reserveId']}',
+      TypeAction.supprimerReserve => 'supprimer:${a.charge['reserveId']}',
     };
 
 /// Audit synchronisation — scénario CHAOS complet et convergence

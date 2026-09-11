@@ -160,6 +160,8 @@ String _typeLibelle(AppLocalizations l10n, TypeAction type) => switch (type) {
       TypeAction.changerStatutReserve => l10n.syncTypeChangerStatut,
       TypeAction.ajouterPhotoReserve => l10n.syncTypeAjouterPhoto,
       TypeAction.envoyerRapport => l10n.syncTypeEnvoyerRapport,
+      TypeAction.modifierReserve => l10n.syncTypeModifierReserve,
+      TypeAction.supprimerReserve => l10n.syncTypeSupprimerReserve,
     };
 
 /// « Nom de la tâche » — plus parlant que le seul type d'opération : une
@@ -181,6 +183,12 @@ String _nomAffiche(AppLocalizations l10n, ActionEnAttente tache) {
       return l10n.syncNomPhoto;
     case TypeAction.envoyerRapport:
       return l10n.syncTypeEnvoyerRapport;
+    case TypeAction.modifierReserve:
+      final titre = (tache.charge['champs'] as Map?)?['titre'] as String?;
+      return (titre != null && titre.isNotEmpty) ? titre : l10n.syncTypeModifierReserve;
+    case TypeAction.supprimerReserve:
+      final titre = (tache.charge['instantane'] as Map?)?['titre'] as String?;
+      return (titre != null && titre.isNotEmpty) ? titre : l10n.syncTypeSupprimerReserve;
   }
 }
 

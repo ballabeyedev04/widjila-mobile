@@ -57,8 +57,7 @@ String libelleStatutPartenaire(AppLocalizations l10n, bool actif) =>
 /// maître d'ouvrage : lui refuser le bouton ici l'aurait privé d'une action
 /// que le serveur lui accorde. Le bureau de contrôle, lui, consulte l'annuaire
 /// sans le modifier.
-bool peutGererPartenaires(UserRole? role) =>
-    role != null && (role.estOperationnel || role == UserRole.maitreOuvrage);
+bool peutGererPartenaires(UserRole? role) => role?.peutAjouterPartenaire ?? false;
 
 /// Ouvre le formulaire d'ajout d'un intervenant.
 ///

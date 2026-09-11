@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../l10n/l10n_extension.dart';
 import '../theme/app_colors.dart';
+import 'app_alert.dart';
 
 /// Affiche une [Failure] avec un bouton « Réessayer » — utilisé dans chaque
 /// écran de liste/détail en cas d'échec de chargement.
@@ -55,7 +56,9 @@ class ErrorView extends StatelessWidget {
                   ),
                   SizedBox(height: contraintes.maxHeight < 380 ? 10 : 16),
                   Text(
-                    message,
+                    // Marqueurs de la couche réseau traduits (503 sans message,
+                    // refus d'abonnement…) : ils s'affichaient bruts ici.
+                    AppAlert.messageLisible(context.l10n, message),
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
                   ),

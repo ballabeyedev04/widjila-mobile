@@ -159,6 +159,39 @@ void main() {
       await autre.modifierPartenaire('p1', {'nom': 'Sous-traitant A'});
       expect(second.appel, 'PUT /partenaires/p1');
     });
+
+    // Deux annuaires, deux routes : celui de l'ORGANISATION (page des
+    // intervenants) et celui du CHANTIER — le seul que lit le filtre
+    // « Entreprise » d'un rapport. Créer depuis l'assistant des rapports dans
+    // l'annuaire de l'organisation laisserait le filtre vide.
+    test('sans chantier : l’entreprise rejoint l’annuaire de l’organisation', () async {
+      espion.repond({
+        'success': true,
+        'data': {
+          'partenaire': {'id': 'p7', 'nom': 'Groupe Nanei', 'type': 'sous_traitant'},
+        },
+      }, statut: 201);
+
+      final cree = await source.creerPartenaire({'nom': 'Groupe Nanei', 'type': 'sous_traitant'});
+
+      expect(espion.appel, 'POST /organisation/partenaires');
+      expect(cree.id, 'p7');
+    });
+
+    test('avec un chantier : l’entreprise rejoint l’annuaire DE CE CHANTIER', () async {
+      espion.repond({
+        'success': true,
+        'data': {
+          'partenaire': {'id': 'p8', 'nom': 'Groupe Nanei', 'type': 'sous_traitant', 'chantierId': 'c1'},
+        },
+      }, statut: 201);
+
+      final cree = await source.creerPartenaire({'nom': 'Groupe Nanei', 'type': 'sous_traitant'}, chantierId: 'c1');
+
+      expect(espion.appel, 'POST /chantiers/c1/partenaires');
+      expect((espion.requete.data as Map<String, dynamic>)['nom'], 'Groupe Nanei');
+      expect(cree.nom, 'Groupe Nanei');
+    });
   });
 
   test('la modification d’un membre vise son identifiant', () async {

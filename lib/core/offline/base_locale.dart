@@ -1,5 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
+
+import 'cle_entite.dart';
 
 /// Base de données locale — socle du mode hors ligne.
 ///
@@ -46,7 +50,10 @@ class BaseLocale {
   /// ajoutant la migration correspondante dans [_migrer] — sans quoi les
   /// appareils déjà installés garderont l'ancien schéma et planteront à la
   /// première requête sur une colonne absente.
-  static const int _version = 1;
+  ///
+  /// v2 (deuxième audit synchronisation) : colonne `cle_entite` indexée sur la
+  /// file, index sur `reserves.en_attente`.
+  static const int _version = 2;
 
   Database? _db;
 
@@ -134,18 +141,53 @@ class BaseLocale {
         valeur TEXT NOT NULL
       )
     ''');
+
+    await _ajouterIndexV2(db);
   }
 
-  /// Migrations de schéma.
+  /// Schéma v2 — ajouts du deuxième audit synchronisation.
   ///
-  /// Vide aujourd'hui (version 1), mais le point d'entrée existe dès le départ
-  /// : rétro-ajouter un système de migration sur une base déjà déployée chez
-  /// des utilisateurs est bien plus risqué que de le prévoir maintenant.
+  ///  - `file_attente.cle_entite` : l'entité que l'action touche, INDEXÉE.
+  ///    « Reste-t-il une action sur cette réserve ? » était calculé en relisant
+  ///    et en décodant TOUTE la file à chaque confirmation : vider N actions
+  ///    coûtait ~N²/2 lignes (mesuré : 300 actions → 45 450 lignes relues,
+  ///    10,7 s). C'est désormais une requête indexée.
+  ///  - index sur `reserves.en_attente` : lu à chaque page de liste et de
+  ///    tirage pour protéger les changements locaux.
+  static Future<void> _ajouterIndexV2(DatabaseExecutor db) async {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_file_entite ON $tableFileAttente (cle_entite, statut)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_reserves_attente ON $tableReserves (en_attente)');
+  }
+
+  /// Migrations de schéma — chacune idempotente, dans une transaction
+  /// (sqflite exécute `onUpgrade` dans une transaction : une migration
+  /// interrompue ne laisse pas un schéma à moitié modifié).
   Future<void> _migrer(Database db, int ancienne, int nouvelle) async {
-    // Exemple pour la v2 :
-    // if (ancienne < 2) {
-    //   await db.execute('ALTER TABLE reserves ADD COLUMN xxx TEXT');
-    // }
+    if (ancienne < 2) {
+      final colonnes = await db.rawQuery('PRAGMA table_info($tableFileAttente)');
+      if (!colonnes.any((c) => c['name'] == 'cle_entite')) {
+        await db.execute('ALTER TABLE $tableFileAttente ADD COLUMN cle_entite TEXT');
+      }
+      // Les actions DÉJÀ en file sur l'appareil reçoivent leur clé : sans
+      // elle, une photo migrée ne serait plus reconnue comme dépendante de sa
+      // réserve.
+      final lignes = await db.query(tableFileAttente, columns: ['id', 'type', 'charge']);
+      for (final l in lignes) {
+        Map<String, dynamic> charge;
+        try {
+          charge = jsonDecode(l['charge'] as String) as Map<String, dynamic>;
+        } catch (_) {
+          charge = const {};
+        }
+        await db.update(
+          tableFileAttente,
+          {'cle_entite': cleEntitePour(type: l['type'] as String, charge: charge, idAction: l['id'] as String)},
+          where: 'id = ?',
+          whereArgs: [l['id']],
+        );
+      }
+      await _ajouterIndexV2(db);
+    }
   }
 
   /// Purge les entités mises en cache plus anciennes que [anciennete].

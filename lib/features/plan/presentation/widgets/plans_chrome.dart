@@ -8,6 +8,20 @@ import '../../../../l10n/l10n_extension.dart';
 import '../../domain/entities/plan.dart';
 import '../cubit/plans_list_cubit.dart';
 
+/// Date courte (« 10 sept. 2026 ») dans la LANGUE de l'application.
+///
+/// `DateFormat('dd MMM yyyy')` sans locale formatait en anglais : un
+/// utilisateur francophone lisait « 10 Sep 2026 ». Les symboles de date des
+/// quatre langues sont chargés par `flutter_localizations` ; le repli
+/// numérique ne sert que si une langue venait à manquer.
+String dateCourtePlan(BuildContext context, DateTime date) {
+  try {
+    return DateFormat('d MMM yyyy', Localizations.localeOf(context).toLanguageTag()).format(date);
+  } catch (_) {
+    return DateFormat('dd/MM/yyyy').format(date);
+  }
+}
+
 /// Date de dépôt et format du fichier, séparés d'un trait vertical — même
 /// vocabulaire visuel que la ligne méta des cartes de réserve, pour que les
 /// deux listes se lisent de la même façon.
@@ -25,7 +39,7 @@ class MetaPlan extends StatelessWidget {
         if (date != null) ...[
           const Icon(Icons.calendar_today_rounded, size: 13, color: AppColors.textMuted),
           const SizedBox(width: 5),
-          Text(DateFormat('dd MMM yyyy').format(date), style: style),
+          Flexible(child: Text(dateCourtePlan(context, date), style: style, maxLines: 1, overflow: TextOverflow.ellipsis)),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Container(width: 1, height: 12, color: AppColors.border),
@@ -57,9 +71,16 @@ class TitreSectionPlans extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(
-          texte,
-          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+        // Flexible : avec un texte agrandi (réglage d'accessibilité du
+        // téléphone), le titre poussait le compteur hors de l'écran — la
+        // rangée débordait de 29 points à ×1,3.
+        Flexible(
+          child: Text(
+            texte,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+          ),
         ),
         if (compteur != null) ...[
           const SizedBox(width: 10),

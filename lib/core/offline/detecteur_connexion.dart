@@ -32,6 +32,20 @@ enum EtatReseau {
 ///
 /// Il sert donc de DÉCLENCHEUR (changement d'interface réseau), et la vérité
 /// vient d'un appel réel au serveur.
+///
+/// ## Une seule sonde à la fois (deuxième audit, A2-14)
+///
+/// Sondage périodique, changement d'interface et retour au premier plan
+/// lançaient chacun leur propre requête. Sur un signal faible, leurs réponses
+/// arrivaient dans le désordre et faisaient basculer l'état en ligne / hors
+/// ligne — chaque bascule vers « en ligne » relançant une synchronisation.
+/// Désormais, une vérification demandée pendant qu'une sonde est en vol
+/// reçoit le résultat de CETTE sonde.
+///
+/// Le client HTTP de la sonde doit être NU (voir `injection_container.dart`) :
+/// délai de connexion court, sans relance ni jeton. Celui de l'application
+/// hérite d'un délai de connexion de 15 s et de deux relances — une sonde
+/// pouvait durer près d'une minute.
 class DetecteurConnexion {
   final Dio _dio;
   final Connectivity _connectivity;
@@ -43,10 +57,14 @@ class DetecteurConnexion {
         // n'est pas une constante, elle ne peut pas figurer dans la signature.
         _connectivity = connectivity ?? Connectivity();
 
+  /// Délai maximal d'une sonde : au sous-sol, il faut conclure « hors ligne »
+  /// vite, pas figer l'interface.
+  static const Duration delaiSonde = Duration(seconds: 4);
 
   final _controleur = StreamController<EtatReseau>.broadcast();
   StreamSubscription<List<ConnectivityResult>>? _abonnement;
   Timer? _sondagePeriodique;
+  Future<EtatReseau>? _sondeEnVol;
 
   EtatReseau _etat = EtatReseau.inconnu;
 
@@ -77,7 +95,11 @@ class DetecteurConnexion {
   }
 
   /// Vérifie la joignabilité du serveur et publie le résultat.
-  Future<EtatReseau> verifier() async {
+  ///
+  /// Appels simultanés : UNE seule sonde, dont le résultat est partagé.
+  Future<EtatReseau> verifier() => _sondeEnVol ??= _verifierReellement().whenComplete(() => _sondeEnVol = null);
+
+  Future<EtatReseau> _verifierReellement() async {
     final nouveau = await _tester();
     if (nouveau != _etat) {
       _etat = nouveau;
@@ -86,11 +108,18 @@ class DetecteurConnexion {
     return nouveau;
   }
 
-  /// URL absolue du point de santé, déduite de la base API en retirant le
+  /// URL absolue du point de VIVACITÉ, déduite de la base API en retirant le
   /// suffixe de version (`/api/v1`).
+  ///
+  /// `/health/live` et non `/health` : on veut savoir si le serveur est
+  /// JOIGNABLE, pas s'il est en pleine forme. `/health` interroge la base,
+  /// Redis et le stockage — pendant une panne, mille appareils hors ligne le
+  /// sondant toutes les 20 s chargeaient justement la base qui se relevait.
+  /// Un serveur plus ancien, sans cette route, répond 404 : c'est encore une
+  /// réponse, donc « joignable » (voir `validateStatus`).
   static String get _urlSante {
     final base = Uri.parse(Env.apiBaseUrl);
-    return base.replace(path: '/health', query: '').toString();
+    return base.replace(path: '/health/live', query: '').toString();
   }
 
   Future<EtatReseau> _tester() async {
@@ -103,25 +132,30 @@ class DetecteurConnexion {
 
     try {
       // `/health` plutôt qu'un endpoint métier : pas d'authentification, pas
-      // d'effet de bord, réponse minuscule. Le délai est court — au sous-sol,
-      // il faut conclure « hors ligne » vite, pas figer l'interface.
+      // d'effet de bord, réponse minuscule.
       //
       // URL ABSOLUE : `/health` est monté à la RACINE du serveur
       // (`backend/src/app.js`), alors que `baseUrl` de Dio pointe sur
       // `/api/v1`. Une URL relative viserait `/api/v1/health`, qui n'existe
       // pas — le test conclurait alors à tort selon la réponse du serveur.
-      await _dio.get<void>(
-        _urlSante,
-        options: Options(
-          receiveTimeout: const Duration(seconds: 4),
-          sendTimeout: const Duration(seconds: 4),
-          // Toute réponse du serveur prouve qu'il est joignable, même un 401
-          // ou un 404 : c'est la JOIGNABILITÉ qu'on teste, pas le droit
-          // d'accès.
-          validateStatus: (_) => true,
-        ),
-      );
+      await _dio
+          .get<void>(
+            _urlSante,
+            options: Options(
+              receiveTimeout: delaiSonde,
+              sendTimeout: delaiSonde,
+              // Toute réponse du serveur prouve qu'il est joignable, même un 401
+              // ou un 404 : c'est la JOIGNABILITÉ qu'on teste, pas le droit
+              // d'accès.
+              validateStatus: (_) => true,
+            ),
+          )
+          // Borne GLOBALE (résolution DNS et connexion comprises) : quel que
+          // soit le client fourni, une sonde ne dure jamais plus que ça.
+          .timeout(delaiSonde + const Duration(seconds: 1));
       return EtatReseau.enLigne;
+    } on TimeoutException {
+      return EtatReseau.horsLigne;
     } on DioException catch (e) {
       final coupure = e.type == DioExceptionType.connectionError ||
           e.type == DioExceptionType.connectionTimeout ||

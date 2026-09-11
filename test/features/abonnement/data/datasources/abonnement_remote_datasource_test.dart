@@ -203,6 +203,31 @@ void main() {
     });
   });
 
+  group('POST /auth/transfert-web', () {
+    test('demande le code de transfert et le relit', () async {
+      // Réponse écrite d'après `auth.controller.js#creerTransfertWeb`.
+      espion.repond({
+        'success': true,
+        'message': 'Code de transfert émis',
+        'data': {'code': 'code-court', 'expiresIn': 120},
+      }, statut: 201);
+
+      final code = await source.creerCodeTransfertWeb();
+
+      expect(espion.appel, 'POST /auth/transfert-web');
+      expect(code, 'code-court');
+    });
+
+    test('un refus remonte en exception, jamais en code vide', () async {
+      espion.repondErreur(403, corps: {
+        'success': false,
+        'message': 'Votre compte est désactivé.',
+      });
+
+      await expectLater(source.creerCodeTransfertWeb(), throwsA(isA<ServerException>()));
+    });
+  });
+
   group('refus d’abonnement', () {
     test('le code du serveur est conservé pour la modale', () async {
       // Le mobile ne réécrit pas ce message : lui seul nomme la formule et

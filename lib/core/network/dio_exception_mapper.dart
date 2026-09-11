@@ -10,7 +10,8 @@ import '../errors/exceptions.dart';
 /// [UnauthorizedException], définies dans `core/errors/exceptions.dart`).
 ///
 /// Contrat backend (voir `backend/src/middlewares/errorHandler.middleware.js`) :
-/// toute erreur répond `{ success: false, message, details? }`.
+/// toute erreur répond `{ success: false, message, code?, details?,
+/// error: { code, message, details? }, requestId }`.
 Exception mapDioException(DioException e) {
   if (e.type == DioExceptionType.connectionTimeout ||
       e.type == DioExceptionType.receiveTimeout ||
@@ -21,14 +22,17 @@ Exception mapDioException(DioException e) {
 
   final statusCode = e.response?.statusCode;
   final data = e.response?.data;
-  // `e.message` peut déjà porter un des marqueurs `ErrCodes` posés par
-  // l'intercepteur (`dio_client_factory.dart`) — dans ce cas on le laisse
-  // passer tel quel, `AppAlert` le traduira. Le seul cas restant sans AUCUN
-  // message exploitable (ni backend, ni marqueur) retombe sur `ErrCodes
-  // .generic`, jamais un texte en dur.
-  final baseMessage = (data is Map && data['message'] is String)
-      ? data['message'] as String
-      : (e.message ?? ErrCodes.generic);
+  final corps = data is Map ? data : null;
+
+  // Identifiant de la requête : corps d'erreur, sinon en-tête de réponse,
+  // sinon celui qu'on a envoyé (réponse d'un proxy qui ne le renvoie pas).
+  final requestId = _texte(corps?['requestId']) ??
+      e.response?.headers.value('x-request-id') ??
+      _texte(e.requestOptions.headers['X-Request-Id']);
+  final erreurUniforme = corps?['error'];
+  final codeErreur = erreurUniforme is Map ? _texte(erreurUniforme['code']) : null;
+
+  final baseMessage = _texte(corps?['message']) ?? _messageSansCorps(e, statusCode);
 
   // `ValidationError` (422, voir validate.middleware.js) renvoie un message
   // générique (« Données invalides ») ACCOMPAGNÉ d'un détail par champ Joi en
@@ -36,8 +40,8 @@ Exception mapDioException(DioException e) {
   // qui échappe à la validation locale (ex : contournement du clavier natif)
   // affiche un message inexploitable à l'utilisateur alors que le backend a
   // déjà la raison précise sous la main.
-  final details = data is Map && data['details'] is List
-      ? (data['details'] as List).map((d) => d.toString()).where((d) => d.isNotEmpty)
+  final details = corps != null && corps['details'] is List
+      ? (corps['details'] as List).map((d) => d.toString()).where((d) => d.isNotEmpty)
       : const Iterable<String>.empty();
   final message = details.isEmpty ? baseMessage : '$baseMessage\n${details.join('\n')}';
 
@@ -57,7 +61,7 @@ Exception mapDioException(DioException e) {
   // Un PRÉFIXE plutôt qu'un type d'exception dédié : le message du serveur est
   // conservé intact, et les dizaines d'écrans qui affichent déjà `failure
   // .errorMessage` n'ont pas une ligne à changer.
-  final code = data is Map ? data['code'] : null;
+  final code = corps?['code'];
   if (code is String && code.startsWith('SUBSCRIPTION_')) {
     // Le CODE voyage avec le message : il permet à l'affichage d'adapter son
     // titre (plafond atteint / option absente / aucun abonnement) sans avoir à
@@ -66,10 +70,37 @@ Exception mapDioException(DioException e) {
       message: '${ErrCodes.prefixeAbonnement}$code|$message',
       statusCode: statusCode,
       code: code,
+      codeErreur: codeErreur,
+      requestId: requestId,
     );
   }
 
   // Le code voyage aussi hors abonnement : `ENVOI_EN_COURS` (409) se lit
   // « réessayer plus tard », là où un autre 409 est un vrai conflit.
-  return ServerException(message: message, statusCode: statusCode, code: code is String ? code : null);
+  return ServerException(
+    message: message,
+    statusCode: statusCode,
+    code: code is String ? code : null,
+    codeErreur: codeErreur,
+    requestId: requestId,
+  );
+}
+
+String? _texte(Object? valeur) => valeur is String && valeur.isNotEmpty ? valeur : null;
+
+/// Message quand le serveur n'en a donné AUCUN.
+///
+/// CORRECTIF : on retombait sur `e.message`, le texte technique de Dio —
+/// « This exception was thrown because the response has a status code of 502
+/// and RequestOptions.validateStatus was configured to throw… ». C'est
+/// exactement ce qui s'affichait, en anglais, dans l'écran d'erreur quand
+/// nginx répondait 502/504 (API arrêtée ou en redémarrage) : la page HTML du
+/// proxy n'a pas de `message`. Seuls les marqueurs `ErrCodes` posés par
+/// l'intercepteur passent désormais ; tout le reste devient un marqueur
+/// traduit par l'affichage.
+String _messageSansCorps(DioException e, int? statusCode) {
+  final marqueur = e.message;
+  if (marqueur != null && marqueur.startsWith('__ERR_')) return marqueur;
+  if (statusCode != null && statusCode >= 500) return ErrCodes.serviceUnavailable;
+  return ErrCodes.generic;
 }

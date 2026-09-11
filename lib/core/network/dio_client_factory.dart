@@ -11,6 +11,7 @@ import '../errors/error_codes.dart';
 import '../services/auth_event_bus.dart';
 import '../services/token_service.dart';
 import 'cache_reponses_get.dart';
+import 'identifiant_requete.dart';
 
 /// Construit le client Dio central de l'app : base URL, timeouts, pinning de
 /// certificat (best-effort), Bearer token automatique, refresh silencieux
@@ -170,6 +171,12 @@ class DioClientFactory {
     return InterceptorsWrapper(
       onRequest: (options, handler) async {
         if (kDebugMode) debugPrint('🌐 [${options.method}] ${options.path}');
+
+        // Identifiant de corrélation (voir identifiant_requete.dart). `??=` :
+        // un rejeu (délai de connexion, jeton rafraîchi) clone les en-têtes et
+        // garde donc le MÊME identifiant — les tentatives d'une même requête
+        // se regroupent dans le journal serveur. Uniquement vers l'API.
+        if (_versApi(options)) options.headers['X-Request-Id'] ??= identifiantRequete();
 
         // Le jeton ne part QUE vers l'API. Les photos de profil et logos ont
         // une URL absolue sur le CDN public (R2) : le client Dio partagé les

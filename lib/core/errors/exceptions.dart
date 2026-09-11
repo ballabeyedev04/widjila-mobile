@@ -11,10 +11,27 @@ class ServerException implements Exception {
   /// définitif d'un « réessayez plus tard » portant le même statut HTTP.
   final String? code;
 
-  const ServerException({required this.message, this.statusCode, this.code});
+  /// Code UNIFORME du serveur (`error.code` : BASE_INDISPONIBLE,
+  /// RESSOURCE_INTROUVABLE…) — toujours renseigné quand le serveur répond au
+  /// nouveau format. Distinct de [code], qui reste réservé aux codes métier
+  /// explicites sur lesquels la synchronisation classe ses reprises.
+  final String? codeErreur;
+
+  /// Identifiant de la requête (`requestId` du corps, ou en-tête
+  /// `X-Request-Id`) : c'est lui qui retrouve la ligne du journal serveur.
+  final String? requestId;
+
+  const ServerException({
+    required this.message,
+    this.statusCode,
+    this.code,
+    this.codeErreur,
+    this.requestId,
+  });
 
   @override
-  String toString() => 'ServerException($statusCode${code != null ? ', $code' : ''}): $message';
+  String toString() => 'ServerException($statusCode${code != null ? ', $code' : ''}'
+      '${requestId != null ? ', requestId=$requestId' : ''}): $message';
 }
 
 class CacheException implements Exception {

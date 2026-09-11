@@ -85,6 +85,12 @@ Future<void> pomperPage(
   Size taille = ecranTelephone,
   bool reglerSurface = true,
   AuthBloc? auth,
+  /// Thème de l'application — `AppTheme.light` pour voir l'écran tel qu'il
+  /// s'affiche vraiment. Nul par défaut (thème Material de base), comme
+  /// avant : le thème réel impose des tailles minimales aux boutons, et un
+  /// écran qui ne tient qu'avec le thème de base casse en production. C'est
+  /// ce qui a vidé la barre de navigation de l'assistant des rapports.
+  ThemeData? theme,
 }) async {
   if (reglerSurface) {
     tester.view.physicalSize = taille;
@@ -125,6 +131,7 @@ Future<void> pomperPage(
         BlocProvider<NotificationsCubit>.value(value: notifications),
       ],
       child: MaterialApp(
+        theme: theme,
         locale: testLocale,
         localizationsDelegates: testLocalizationsDelegates,
         supportedLocales: testSupportedLocales,

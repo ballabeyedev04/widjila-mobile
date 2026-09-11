@@ -1211,6 +1211,23 @@
     }
   },
   "abonnementOuvertureImpossible": "Impossible d’ouvrir la page de paiement.",
+  "abonnementPreparationImpossible": "Impossible de préparer le paiement. Vérifiez votre connexion et réessayez.",
+  "abonnementReserveFacturation": "Réservé au responsable de l’abonnement",
+  "reserveEmplacementTitre": "Emplacement sur le plan",
+  "reserveEmplacementNonPrecise": "Aucun point n’a été posé sur ce plan pour cette réserve.",
+  "reserveEmplacementAgrandir": "Touchez le plan pour l’agrandir.",
+  "reserveEmplacementIci": "La réserve se trouve ici",
+  "reserveApercuPlanIndisponible": "Aperçu du plan indisponible",
+  "reserveVoirPlan": "Voir le plan",
+  "rapportAjouterEntreprise": "Ajouter une entreprise",
+  "rapportEntrepriseAjoutee": "{nom} a été ajoutée à l’annuaire du chantier et sélectionnée.",
+  "@rapportEntrepriseAjoutee": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "abonnementFReserves": "Gestion des réserves",
   "abonnementFMobile": "Application mobile",
   "abonnementFStockage": "Stockage des photos et documents",
@@ -1652,6 +1669,8 @@
   "rapportEnvoiNonGenere": "Générez le rapport avant de l’envoyer.",
   "rapportEnvoiAvertissementLien": "Le rapport partira sous forme d’un lien sécurisé, valable 30 jours. Vérifiez les destinataires avant d’envoyer.",
   "syncTypeEnvoyerRapport": "Envoi d’un rapport",
+  "syncTypeModifierReserve": "Modification d’une réserve",
+  "syncTypeSupprimerReserve": "Suppression d’une réserve",
   "dashboardNouveauRapportAide": "Choisissez le projet, le modèle et les filtres, puis générez le PDF.",
   "chantierDetailInspectionsSousTitre": "Visites, points de controle et convocations",
   "chantierDetailRapportsSousTitre": "Generer et consulter les rapports PDF",
@@ -1736,6 +1755,15 @@
   "reserveNouvTitreHint": "Ex. Finition mur à reprendre",
   "reserveNouvObservation": "Observation",
   "reserveNouvObservationHint": "Décrivez le défaut et sa localisation.",
+  "reserveNouvDicter": "Dicter l’observation",
+  "reserveNouvDicteeArreter": "Arrêter la dictée",
+  "reserveNouvDicteeEcoute": "Écoute en cours… parlez, le texte s’ajoute à l’observation.",
+  "reserveNouvDicteeMicroRefuse": "Accès au micro refusé. Autorisez-le dans les réglages du téléphone pour dicter.",
+  "reserveNouvDicteeIndisponible": "La dictée n’est pas disponible sur cet appareil.",
+  "reserveNouvDicteeAucuneParole": "Aucune parole détectée. Appuyez sur le micro et parlez plus près du téléphone.",
+  "reserveNouvDicteeInterrompue": "La dictée a été interrompue. Le texte déjà reconnu est conservé.",
+  "reserveNouvDicteeReseau": "La dictée a besoin du réseau sur ce téléphone. Le texte déjà reconnu est conservé.",
+  "reserveNouvSuggestionsTitre": "Déjà utilisées",
   "reserveNouvEntreprise": "Entreprise concernée",
   "reserveNouvAucuneEntreprise": "— Aucune —",
   "reserveNouvPhoto": "Photo",

@@ -428,7 +428,8 @@ class _Etape2Localisation extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(state.erreur ?? l10n.commonError, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary)),
+                  Text(AppAlert.messageLisible(l10n, state.erreur ?? l10n.commonError),
+                      textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary)),
                   const SizedBox(height: 12),
                   OutlinedButton(onPressed: cubit.chargerStructure, child: Text(l10n.commonRetry)),
                 ],

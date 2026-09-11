@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/services/capture_photo.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -19,6 +23,11 @@ import '../../../organisation/domain/usecases/get_partenaires.dart';
 import '../../../reserve/domain/entities/reserve.dart';
 import '../../../reserve/domain/usecases/ajouter_media_reserve.dart';
 import '../../../reserve/domain/usecases/creer_reserve.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../reserve/data/datasources/observations_remote_datasource.dart';
+import '../../../reserve/data/historique_observations.dart';
+import '../../../reserve/presentation/widgets/champ_observation.dart';
+import '../../../reserve/presentation/widgets/dictee_vocale.dart';
 
 /// Localisation héritée du parcours de navigation — jamais saisie à la main.
 class LocalisationReserve {
@@ -110,9 +119,21 @@ class _NouvelleReserveSheetState extends State<NouvelleReserveSheet> {
   bool _entrepriseManquante = false;
   bool _echeanceManquante = false;
 
+  /// Suggestions du champ « Observation » : ses observations passées (serveur)
+  /// et celles saisies sur ce téléphone (y compris hors ligne).
+  late final HistoriqueObservations _historiqueObservations;
+
+  /// Dictée du champ « Observation ».
+  final MoteurDictee _moteurDictee = MoteurDicteeSpeechToText();
+
   @override
   void initState() {
     super.initState();
+    _historiqueObservations = HistoriqueObservations(
+      distant: ObservationsRemoteDataSource(sl<Dio>()),
+      prefs: sl<SharedPreferences>(),
+      utilisateurId: _utilisateurCourant(),
+    );
     _chargerPartenaires();
     _chargerCorpsEtat();
     _chargerPhases();
@@ -123,6 +144,16 @@ class _NouvelleReserveSheetState extends State<NouvelleReserveSheet> {
     _titreCtrl.dispose();
     _observationCtrl.dispose();
     super.dispose();
+  }
+
+  /// Identifiant de l'utilisateur connecté — l'historique des observations est
+  /// rangé par personne. `null` si la session n'est pas lisible ici.
+  String? _utilisateurCourant() {
+    try {
+      return context.read<AuthBloc>().state.utilisateur?.id;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// L'annuaire alimente « Entreprise concernée ». Un échec ne bloque rien :
@@ -266,6 +297,10 @@ class _NouvelleReserveSheetState extends State<NouvelleReserveSheet> {
         AppAlert.error(context, message: failure.errorMessage);
       },
       (reserve) async {
+        // La réserve est enregistrée (ou mise en file hors ligne) : son
+        // observation rejoint les suggestions de la suivante.
+        final observation = _observationCtrl.text.trim();
+        if (observation.isNotEmpty) unawaited(_historiqueObservations.memoriser(observation));
         if (_photo != null) {
           final envoi = await sl<AjouterMediaReserve>()(
             reserveId: reserve.id,
@@ -353,16 +388,15 @@ class _NouvelleReserveSheetState extends State<NouvelleReserveSheet> {
                             (v ?? '').trim().length < 2 ? l10n.reserveNouvTitreRequis : null,
                       ),
                       const SizedBox(height: 8),
-                      TextFormField(
+                      // Même champ qu'avant (5000 caractères, 3 lignes), avec
+                      // la dictée (icône micro) et les suggestions tirées des
+                      // observations déjà employées.
+                      ChampObservation(
                         controller: _observationCtrl,
-                        maxLines: 3,
-                        maxLength: 5000,
-                        textCapitalization: TextCapitalization.sentences,
-                        decoration: InputDecoration(
-                          labelText: l10n.reserveNouvObservation,
-                          hintText: l10n.reserveNouvObservationHint,
-                          alignLabelWithHint: true,
-                        ),
+                        labelText: l10n.reserveNouvObservation,
+                        hintText: l10n.reserveNouvObservationHint,
+                        historique: _historiqueObservations,
+                        moteur: _moteurDictee,
                       ),
                       const SizedBox(height: 8),
 

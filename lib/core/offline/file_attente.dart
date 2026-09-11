@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 
 import 'base_locale.dart';
+import 'cle_entite.dart';
 
 /// Types d'actions différables. La valeur est PERSISTÉE en base : ne jamais
 /// renommer une entrée existante sans migration, les appareils ont des actions
@@ -17,7 +18,16 @@ enum TypeAction {
   /// Envoi d'un rapport par e-mail — cahier des charges Rapports § 22 :
   /// « l'envoi d'un rapport nécessite une connexion. Widjila peut mettre
   /// l'action en file d'attente et la transmettre lorsque le réseau revient. »
-  envoyerRapport('envoyerRapport');
+  envoyerRapport('envoyerRapport'),
+
+  /// Modification de champs (titre, description, gravité…) — deuxième audit.
+  /// Porte les valeurs de DÉPART : le serveur s'en sert pour détecter qu'un
+  /// autre a modifié le même champ entre-temps, au lieu de l'écraser.
+  modifierReserve('modifierReserve'),
+
+  /// Suppression — deuxième audit. Porte un instantané de la réserve pour
+  /// pouvoir la restaurer si le serveur refuse.
+  supprimerReserve('supprimerReserve');
 
   const TypeAction(this.code);
   final String code;
@@ -69,37 +79,26 @@ class ActionEnAttente {
     this.cheminFichier,
     this.tentatives = 0,
     this.statut = statutAttente,
-  this.derniereErreur,
+    this.derniereErreur,
   });
 
   static const String statutAttente = 'attente';
 
-  /// Refus MÉTIER du serveur (chantier supprimé, droits retirés…). Inutile de
-  /// retenter : seule une intervention humaine peut débloquer.
+  /// Refus MÉTIER du serveur (chantier supprimé, droits retirés, conflit de
+  /// modification…). Inutile de retenter : seule une intervention humaine
+  /// peut débloquer.
   static const String statutEchecDefinitif = 'echec_definitif';
 
   bool get estDefinitivementEnEchec => statut == statutEchecDefinitif;
 
-  /// L'entité métier que cette action touche.
+  /// L'entité métier que cette action touche — voir [cleEntitePour].
   ///
-  /// Sert à respecter les DÉPENDANCES pendant la synchronisation : la photo et
-  /// le changement de statut d'une réserve ne partent jamais tant que la
-  /// création de cette réserve n'a pas abouti — ils échoueraient en 404 et
-  /// seraient classés en échec définitif pour une raison évitable. Deux
-  /// réserves différentes, elles, ne se bloquent jamais l'une l'autre.
-  ///
-  /// Une action dont l'entité est inconnue (charge incomplète) n'est reliée à
-  /// AUCUNE autre : sans identifiant, on ne suppose pas de dépendance — deux
-  /// actions sans rapport ne doivent pas se bloquer mutuellement.
-  String get cleEntite {
-    final cible = switch (type) {
-      TypeAction.creerReserve => charge['id'],
-      TypeAction.changerStatutReserve || TypeAction.ajouterPhotoReserve => charge['reserveId'],
-      TypeAction.envoyerRapport => charge['rapportId'],
-    };
-    if (cible == null) return 'action:$id';
-    return type == TypeAction.envoyerRapport ? 'rapport:$cible' : 'reserve:$cible';
-  }
+  /// Sert à respecter les DÉPENDANCES pendant la synchronisation : la photo, le
+  /// statut, la modification ou la suppression d'une réserve ne partent jamais
+  /// tant que la création de cette réserve n'a pas abouti — ils échoueraient
+  /// en 404 et seraient classés en échec définitif pour une raison évitable.
+  /// Deux réserves différentes, elles, ne se bloquent jamais l'une l'autre.
+  String get cleEntite => cleEntitePour(type: type.code, charge: charge, idAction: id);
 
   factory ActionEnAttente.depuisLigne(Map<String, Object?> l) {
     final type = TypeAction.depuisCode(l['type'] as String);
@@ -127,6 +126,9 @@ class ActionEnAttente {
         'tentatives': tentatives,
         'statut': statut,
         'derniere_erreur': derniereErreur,
+        // Colonne indexée (schéma v2) : « reste-t-il une action sur cette
+        // réserve ? » ne relit plus toute la file.
+        'cle_entite': cleEntite,
       };
 }
 
@@ -217,15 +219,26 @@ class FileAttente {
   /// `true` s'il reste une action EN ATTENTE sur [cleEntite] (voir
   /// [ActionEnAttente.cleEntite]), autre que [sauf].
   ///
-  /// Sert à ne pas déclarer « confirmée » une réserve dont un autre
-  /// changement, fait hors ligne, n'est pas encore parti.
-  ///
   /// [types] restreint la recherche à certains types d'action — par exemple
   /// ceux qui RÉÉCRIVENT la ligne locale (une photo en file, elle, ne la
   /// modifie pas et ne doit pas la retenir « en attente »).
+  ///
+  /// Requête INDEXÉE (schéma v2) : la version précédente relisait et décodait
+  /// toute la file à chaque appel — appelée après chaque confirmation, elle
+  /// rendait la vidange d'une grosse file quadratique (A2-08).
   Future<bool> aDesActionsEnAttentePour(String cleEntite, {String? sauf, Set<TypeAction>? types}) async {
-    final actions = await aTraiter();
-    return actions.any((a) => a.id != sauf && a.cleEntite == cleEntite && (types == null || types.contains(a.type)));
+    final db = await _base.base;
+    final conditions = StringBuffer('cle_entite = ? AND statut = ? AND id != ?');
+    final args = <Object?>[cleEntite, ActionEnAttente.statutAttente, sauf ?? ''];
+    if (types != null && types.isNotEmpty) {
+      conditions.write(' AND type IN (${List.filled(types.length, '?').join(', ')})');
+      args.addAll(types.map((t) => t.code));
+    }
+    final r = await db.rawQuery(
+      'SELECT EXISTS(SELECT 1 FROM ${BaseLocale.tableFileAttente} WHERE $conditions) AS n',
+      args,
+    );
+    return (Sqflite.firstIntValue(r) ?? 0) == 1;
   }
 
   Future<List<ActionEnAttente>> _lister({String? where, List<Object?>? args}) async {

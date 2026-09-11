@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../../core/config/env.dart';
 import '../../../../core/network/dio_exception_mapper.dart';
 import '../../domain/entities/abonnement.dart';
 
@@ -7,6 +8,7 @@ abstract class AbonnementRemoteDataSource {
   Future<List<FormuleAbonnement>> getFormules();
   Future<DroitsAbonnement> getDroits();
   Future<List<SouscriptionHistorique>> getHistorique();
+  Future<String> creerCodeTransfertWeb();
 }
 
 class AbonnementRemoteDataSourceImpl implements AbonnementRemoteDataSource {
@@ -52,6 +54,19 @@ class AbonnementRemoteDataSourceImpl implements AbonnementRemoteDataSource {
       return (_data(response)['souscriptions'] as List)
           .map((e) => SouscriptionHistorique.fromJson(e as Map<String, dynamic>))
           .toList();
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<String> creerCodeTransfertWeb() async {
+    try {
+      // Code de deux minutes, à usage unique, que la page de paiement du web
+      // échange contre une session (`auth.service.js#_generateTransfertWeb`).
+      // Jamais le jeton d'accès ni le refresh token dans une adresse.
+      final response = await dio.post(Env.authTransfertWeb);
+      return _data(response)['code'] as String;
     } on DioException catch (e) {
       throw mapDioException(e);
     }

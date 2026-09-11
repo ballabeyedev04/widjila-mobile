@@ -49,6 +49,21 @@ class PlanVignette extends StatefulWidget {
 
   final double rayon;
 
+  /// Cadrage de l'aperçu. `cover` (défaut) remplit la pastille quitte à
+  /// rogner ; `contain` montre le plan ENTIER — ce que veut une grande carte,
+  /// où rogner un plan d'architecte en masque justement les bords.
+  final BoxFit ajustement;
+
+  /// Fond derrière l'aperçu. `null` : la teinte de [couleur] (pastilles).
+  /// Blanc pour un plan affiché en entier : c'est la couleur du papier.
+  final Color? fond;
+
+  /// Largeur, en pixels, du rendu de la première page d'un PDF.
+  ///
+  /// 320 suffit à une pastille de 52 points ; une carte pleine largeur sur un
+  /// écran à densité 3 en demande bien plus, sans quoi le plan paraît flou.
+  final double largeurRendu;
+
   const PlanVignette({
     super.key,
     required this.plan,
@@ -57,6 +72,9 @@ class PlanVignette extends StatefulWidget {
     this.taille = 52,
     this.largeur,
     this.rayon = 16,
+    this.ajustement = BoxFit.cover,
+    this.fond,
+    this.largeurRendu = 320,
   });
 
   @override
@@ -105,9 +123,13 @@ bool _estPdf(Uint8List octets) {
 
 /// Renvoie `null` — jamais une exception — quand le rendu est impossible :
 /// l'appelant retombe alors sur son icône.
-Future<Uint8List?> _rendrePremierePage(Plan plan) async {
-  final cle = plan.fichierUrl;
-  if (cle.isEmpty) return null;
+/// Clé de cache : le fichier ET la largeur de rendu — une pastille et une
+/// grande carte du même plan ne partagent pas la même image.
+String _cleCache(Plan plan, double largeurRendu) => '${plan.fichierUrl}@${largeurRendu.round()}';
+
+Future<Uint8List?> _rendrePremierePage(Plan plan, double largeurRendu) async {
+  if (plan.fichierUrl.isEmpty) return null;
+  final cle = _cleCache(plan, largeurRendu);
 
   final dejaLa = _cache[cle];
   if (dejaLa != null) return dejaLa;
@@ -121,7 +143,7 @@ Future<Uint8List?> _rendrePremierePage(Plan plan) async {
       // Les octets transitent par le Dio de l'application, qui porte le jeton
       // exigé par `/uploads/*` — un lien direct répondrait 401.
       final reponse = await sl<Dio>().get<List<int>>(
-        cle,
+        plan.fichierUrl,
         options: Options(responseType: ResponseType.bytes),
       );
       final donnees = reponse.data;
@@ -152,7 +174,7 @@ Future<Uint8List?> _rendrePremierePage(Plan plan) async {
         // Largeur cible fixe plutôt qu'une échelle fixe : un plan A0 et un plan
         // A4 donneraient sinon des vignettes de poids très différents, la
         // première pesant plusieurs mégaoctets pour être réduite à 52 points.
-        const largeurCible = 320.0;
+        final largeurCible = largeurRendu;
         final echelle = largeurCible / page.width;
         final rendu = await page.render(
           width: largeurCible,
@@ -198,7 +220,7 @@ class _PlanVignetteState extends State<PlanVignette> {
     super.initState();
     // Le cache est consulté DÈS le premier rendu : une vignette déjà connue
     // s'affiche sans le moindre clignotement d'icône.
-    _apercu = _cache[widget.plan.fichierUrl];
+    _apercu = _cache[_cleCache(widget.plan, widget.largeurRendu)];
     if (_apercu == null) _charger();
   }
 
@@ -207,8 +229,8 @@ class _PlanVignetteState extends State<PlanVignette> {
     super.didUpdateWidget(ancien);
     // Le recyclage d'une tuile de liste doit repartir du cache pour CE
     // fichier, sans conserver l'aperçu du plan précédent.
-    if (ancien.plan.fichierUrl != widget.plan.fichierUrl) {
-      _apercu = _cache[widget.plan.fichierUrl];
+    if (ancien.plan.fichierUrl != widget.plan.fichierUrl || ancien.largeurRendu != widget.largeurRendu) {
+      _apercu = _cache[_cleCache(widget.plan, widget.largeurRendu)];
       if (_apercu == null) _charger();
     }
   }
@@ -218,7 +240,7 @@ class _PlanVignetteState extends State<PlanVignette> {
     // `initState` et depuis `didUpdateWidget`, deux moments où une
     // reconstruction suit de toute façon — et où `setState` lèverait.
     _enCours = true;
-    final image = await _rendrePremierePage(widget.plan);
+    final image = await _rendrePremierePage(widget.plan, widget.largeurRendu);
     if (!mounted) return;
     // `_enCours` retombe DANS TOUS LES CAS, y compris à l'échec : c'est ce qui
     // fait passer la carte de « ça arrive » à « il n'y a pas d'aperçu ».
@@ -231,12 +253,16 @@ class _PlanVignetteState extends State<PlanVignette> {
   @override
   Widget build(BuildContext context) {
     final apercu = _apercu;
+    // `taille` peut valoir `double.infinity` : la vignette REMPLIT alors son
+    // parent (grande carte). L'indicateur et l'icône gardent une taille
+    // raisonnable au lieu d'hériter d'une dimension infinie.
+    final repere = widget.taille.isFinite ? widget.taille : 72.0;
 
     return Container(
       width: widget.largeur ?? widget.taille,
       height: widget.taille,
       decoration: BoxDecoration(
-        color: widget.couleur.withValues(alpha: 0.13),
+        color: widget.fond ?? widget.couleur.withValues(alpha: 0.13),
         borderRadius: BorderRadius.circular(widget.rayon),
       ),
       clipBehavior: Clip.antiAlias,
@@ -246,8 +272,8 @@ class _PlanVignetteState extends State<PlanVignette> {
               // un anneau de taille normale déborderait d'une pastille de 40.
               ? Center(
                   child: SizedBox(
-                    width: widget.taille * 0.3,
-                    height: widget.taille * 0.3,
+                    width: repere * 0.3,
+                    height: repere * 0.3,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       color: widget.couleur.withValues(alpha: 0.6),
@@ -257,15 +283,18 @@ class _PlanVignetteState extends State<PlanVignette> {
               // APERÇU INDISPONIBLE : format sans visionneuse, fichier
               // illisible, réseau coupé. L'icône reste — une carte sans
               // aperçu vaut mieux qu'une carte manquante.
-              : Icon(widget.icone, color: widget.couleur, size: widget.taille * 0.48))
+              : Center(child: Icon(widget.icone, color: widget.couleur, size: repere * 0.48)))
           : Image.memory(
               apercu,
-              fit: BoxFit.cover,
+              fit: widget.ajustement,
+              // Réduction lissée : un plan de traits fins réduit sans filtrage
+              // perd ses lignes les plus fines.
+              filterQuality: FilterQuality.medium,
               gaplessPlayback: true,
               // Un décodage raté ne doit pas faire tomber la liste : on
               // retombe sur l'icône, comme pour un fichier illisible.
               errorBuilder: (_, _, _) =>
-                  Icon(widget.icone, color: widget.couleur, size: widget.taille * 0.48),
+                  Center(child: Icon(widget.icone, color: widget.couleur, size: repere * 0.48)),
             ),
     );
   }

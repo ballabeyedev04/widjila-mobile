@@ -352,7 +352,7 @@ class _Liste extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
                 sliver: SliverList.separated(
                   itemCount: plans.length > 1 ? plans.length - 1 : 0,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  separatorBuilder: (_, _) => const SizedBox(height: 14),
                   itemBuilder: (context, i) {
                     final plan = plans[i + 1];
                     return ApparitionEnCascade(
@@ -374,13 +374,28 @@ class _Liste extends StatelessWidget {
   }
 }
 
+/// Carte d'un plan : le PLAN d'abord, ses informations ensuite.
+///
+/// ## Ce qu'elle remplace
+///
+/// L'ancienne carte posait côte à côte une vignette de 52 points, une colonne
+/// de texte et un bouton « Détail ». Sur un téléphone de 360 points, le texte
+/// n'avait plus que 98 points de large : la ligne date + format débordait de
+/// 95 points, le nom s'écrasait, et l'ombre — peinte PAR-DESSUS le fond blanc
+/// — grisait toute la carte. On voyait un grand bloc gris et un timbre-poste
+/// rogné (`BoxFit.cover`) qui ne montrait pas le plan.
+///
+/// Désormais : l'aperçu occupe toute la largeur, le plan est montré EN ENTIER
+/// (`BoxFit.contain`) comme une feuille posée sur la table, rendu assez fin
+/// pour qu'on en lise les traits. La carte entière s'ouvre au toucher : le
+/// bouton « Détail » ne faisait que répéter ce geste.
 class _CartePlan extends StatelessWidget {
   final Plan plan;
   final bool avecChantier;
   final VoidCallback onTap;
 
-  /// Carte de tête de la section « Mes plans » — liseré et vignette teintés de
-  /// l'orange de marque, pour la détacher de la liste qui suit.
+  /// Carte de tête de la section « Mes plans » — aperçu plus haut et contour
+  /// orange, pour la détacher de la liste qui suit.
   final bool miseEnAvant;
 
   const _CartePlan({
@@ -390,108 +405,231 @@ class _CartePlan extends StatelessWidget {
     this.miseEnAvant = false,
   });
 
-  /// Couleur stable dérivée de l'identifiant — voir `reserve_card.dart` pour
-  /// le raisonnement (un index de liste changerait au moindre filtre).
-  static const List<Color> _palette = [
-    Color(0xFF4F86F7),
-    Color(0xFF34C759),
-    Color(0xFF8B5CF6),
-    Color(0xFFF5A623),
-    Color(0xFF00BCD4),
-  ];
+  /// Où se trouve le plan : chantier (liste transversale) puis bâtiment,
+  /// niveau, appartement — « Résidence Les Almadies · Bâtiment A · R+2 ».
+  String? _emplacement() {
+    final parties = <String>[
+      if (avecChantier && plan.chantierNom != null) plan.chantierNom!,
+      for (final niveau in [plan.batiment, plan.etage, plan.zone])
+        if (niveau != null && niveau.nom.trim().isNotEmpty) niveau.nom.trim(),
+    ];
+    return parties.isEmpty ? null : parties.join(' · ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final emplacement = _emplacement();
+    // La date DU PLAN quand elle est connue, sinon celle du dépôt.
+    final date = plan.datePlan ?? plan.createdAt;
+    final type = plan.typePlan?.trim();
+
+    return Material(
+      color: AppColors.surface,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: miseEnAvant ? AppColors.primary.withValues(alpha: 0.55) : AppColors.border,
+          width: miseEnAvant ? 1.5 : 1,
+        ),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _ApercuPlan(plan: plan, miseEnAvant: miseEnAvant),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 8, 13),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          plan.nom,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                            height: 1.25,
+                          ),
+                        ),
+                        if (emplacement != null) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            emplacement,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                          ),
+                        ],
+                        if (date != null || (type != null && type.isNotEmpty)) ...[
+                          const SizedBox(height: 8),
+                          // `Wrap` et non `Row` : c'est une rangée de ce genre qui
+                          // débordait. Trop longue, elle passe à la ligne.
+                          Wrap(
+                            spacing: 14,
+                            runSpacing: 4,
+                            children: [
+                              if (date != null)
+                                _InfoPlan(icone: Icons.event_outlined, texte: dateCourtePlan(context, date)),
+                              if (type != null && type.isNotEmpty)
+                                _InfoPlan(icone: Icons.category_outlined, texte: type),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 24),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// L'aperçu du plan, en tête de carte : la feuille sur la table.
+class _ApercuPlan extends StatelessWidget {
+  final Plan plan;
+  final bool miseEnAvant;
+
+  const _ApercuPlan({required this.plan, required this.miseEnAvant});
+
+  /// Gris très clair, légèrement bleuté : la « table » sur laquelle la feuille
+  /// blanche du plan se détache sans cadre appuyé.
+  static const Color _table = Color(0xFFE9EDF2);
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final couleur =
-        miseEnAvant ? AppColors.primary : _palette[plan.id.hashCode.abs() % _palette.length];
+    final aTraiter = plan.nombreReservesATraiter;
+    // « 3 à traiter » quand le serveur le sait, sinon le total des réserves.
+    final String? reserves = (aTraiter != null && aTraiter > 0)
+        ? l10n.planCtxNATraiter(aTraiter)
+        : (plan.nombreReserves > 0 ? l10n.planExplorerNReserves(plan.nombreReserves) : null);
 
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border(left: BorderSide(color: couleur, width: 4)),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 14, offset: const Offset(0, 4)),
-            ],
-          ),
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Aperçu de la première page du plan, plutôt qu'un pictogramme :
-              // c'est ce qui permet de reconnaître un plan sans l'ouvrir.
-              // L'icône reste le repli (format non rendu, réseau coupé…).
-              PlanVignette(
-                plan: plan,
-                icone: miseEnAvant ? Icons.map_rounded : Icons.description_outlined,
-                couleur: couleur,
-              ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      plan.nom,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
-                        color: AppColors.textPrimary,
-                        height: 1.25,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (avecChantier && plan.chantierNom != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        plan.chantierNom!,
-                        style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                    const SizedBox(height: 9),
-                    MetaPlan(plan: plan),
+    return AspectRatio(
+      key: ValueKey('apercu-${plan.id}'),
+      aspectRatio: miseEnAvant ? 4 / 3 : 16 / 10,
+      child: ColoredBox(
+        color: _table,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: DecoratedBox(
+                // Ombre SOUS la feuille (fond de la décoration, peint avant
+                // l'enfant) — et non par-dessus comme l'ancienne carte.
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.10), blurRadius: 8, offset: const Offset(0, 2)),
                   ],
                 ),
+                child: PlanVignette(
+                  plan: plan,
+                  icone: Icons.map_outlined,
+                  couleur: AppColors.primary,
+                  taille: double.infinity,
+                  largeur: double.infinity,
+                  rayon: 6,
+                  ajustement: BoxFit.contain,
+                  fond: Colors.white,
+                  // Assez fin pour une carte pleine largeur sur un écran à
+                  // densité 3, sans peser comme le PDF d'origine.
+                  largeurRendu: 900,
+                ),
               ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 20),
-                  const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    onPressed: onTap,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primary,
-                      side: const BorderSide(color: AppColors.primary, width: 1.4),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                      visualDensity: VisualDensity.compact,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    icon: const Icon(Icons.visibility_outlined, size: 15),
-                    label: Text(
-                      l10n.planDetailBouton,
-                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ],
+            ),
+            if (plan.version > 1)
+              Positioned(
+                top: 18,
+                right: 18,
+                child: _PastilleApercu(texte: 'v${plan.version}'),
               ),
-            ],
-          ),
+            if (reserves != null)
+              Positioned(
+                left: 18,
+                bottom: 18,
+                child: _PastilleApercu(
+                  texte: reserves,
+                  icone: Icons.flag_rounded,
+                  accent: aTraiter != null && aTraiter > 0,
+                ),
+              ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+/// Étiquette posée sur l'aperçu : version, réserves.
+class _PastilleApercu extends StatelessWidget {
+  final String texte;
+  final IconData? icone;
+
+  /// Orange de marque : ce qui demande une action (réserves à traiter).
+  final bool accent;
+
+  const _PastilleApercu({required this.texte, this.icone, this.accent = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final couleur = accent ? Colors.white : AppColors.textPrimary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: accent ? AppColors.primary : Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 4, offset: const Offset(0, 1))],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icone != null) ...[
+            Icon(icone, size: 13, color: couleur),
+            const SizedBox(width: 4),
+          ],
+          Text(texte, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: couleur)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Une information de pied de carte : icône discrète et texte.
+class _InfoPlan extends StatelessWidget {
+  final IconData icone;
+  final String texte;
+
+  const _InfoPlan({required this.icone, required this.texte});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icone, size: 14, color: AppColors.textMuted),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            texte,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show FileSystemException;
+import 'dart:math';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -78,30 +79,28 @@ class StatutOffline {
 ///  3. une action vient d'être déposée alors qu'on est déjà en ligne
 ///     ([FileAttente.depots]) ;
 ///  4. une RELANCE planifiée après un échec passager (panne serveur, limite de
-///     débit), avec un délai croissant ([delaisRelanceParDefaut]).
-///
-/// Sans le 4ᵉ, un appareil resté « en ligne » pendant une panne serveur ne
-/// retentait plus rien : aucun événement réseau ne venait relancer la file,
-/// qui restait bloquée jusqu'au prochain passage en arrière-plan.
+///     débit), avec un délai croissant ([delaisRelanceParDefaut]) et
+///     aléatoirement étalé (voir [_planifierRelance]).
 ///
 /// ## Garanties
 ///
 ///  - **Ordre** : les actions partent dans leur ordre de création, ce qui
 ///    permet à une photo de suivre la réserve à laquelle elle se rattache.
 ///  - **Dépendances** : une action dont une action PRÉCÉDENTE sur la même
-///    entité n'a pas abouti n'est pas tentée (voir [ActionEnAttente.cleEntite])
-///    — sinon la photo d'une réserve pas encore créée partait en 404 et était
-///    grillée en échec définitif.
-///  - **Pas de doublon** : un verrou interne empêche deux passes simultanées
-///    (le réseau peut « revenir » plusieurs fois en quelques secondes).
-///  - **Idempotence** : les identifiants étant générés côté mobile, rejouer
-///    une action déjà reçue par le serveur est sans effet (voir
-///    `ReserveService.creerReserve`, `changerStatut`, `MediaService` et
-///    l'en-tête `Idempotency-Key` de l'envoi de rapport).
+///    entité n'a pas abouti n'est pas tentée (voir [ActionEnAttente.cleEntite]).
+///  - **Pas de doublon** : un verrou interne empêche deux passes simultanées.
+///  - **Idempotence** : chaque action est rejouable sans effet de bord côté
+///    serveur (identifiant client, statut identique sans effet, empreinte de
+///    média sous verrou, suppression idempotente, clé d'envoi de rapport).
 ///  - **Rien n'est jeté pour une raison passagère** : 408, 425, 429, 401, 5xx,
-///    abonnement suspendu et coupure réseau laissent l'action en file. Seul un
-///    refus MÉTIER (4xx compris par le serveur) ou une action localement
-///    impossible ([ActionInvalide], fichier disparu) la sort du cycle.
+///    abonnement suspendu et coupure réseau laissent l'action en file.
+///  - **Pas d'insistance** : quand le SERVEUR a demandé d'attendre (429,
+///    abonnement, session), un événement réseau ou un dépôt ne contourne pas
+///    l'attente — seule une demande explicite de l'utilisateur le fait.
+///  - **Traçabilité** : chaque action s'exécute dans une zone portant son
+///    identifiant ([cleZoneOperation]) ; le client HTTP peut l'envoyer comme
+///    identifiant de requête, pour suivre une action du mobile jusqu'aux
+///    journaux du serveur.
 class SynchronisationService {
   final FileAttente _file;
   final DetecteurConnexion _detecteur;
@@ -116,14 +115,6 @@ class SynchronisationService {
   /// Symétrique de [_executer], et injectée pour la même raison : ce service
   /// ne sait pas ce qu'une action a écrit en local, seulement qu'elle a échoué
   /// sans appel.
-  ///
-  /// Sans elle, un refus serveur (transition illégale, preuves manquantes,
-  /// droits retirés) laissait la base locale sur la valeur demandée par
-  /// l'utilisateur — et `CacheReserves.enregistrerTous`, qui épargne les
-  /// lignes « en attente », empêchait ensuite toute correction par le serveur.
-  /// L'écran affichait indéfiniment un état que le serveur avait rejeté.
-  ///
-  /// Facultative : un appelant qui n'a rien à défaire n'a pas à la fournir.
   final Future<void> Function(ActionEnAttente action)? _annuler;
 
   /// Tirage des changements SERVEUR (voir `TirageReserves`), après une passe
@@ -132,6 +123,11 @@ class SynchronisationService {
 
   final List<Duration> _delaisRelance;
   final Duration _delaiApresDepot;
+  final Random _alea;
+
+  /// Clé de zone portant l'identifiant de l'action en cours d'envoi — lue par
+  /// le client HTTP pour l'identifiant de requête.
+  static const Symbol cleZoneOperation = #idOperationSync;
 
   /// Délais de relance après un échec passager : 5 s, 15 s, 30 s, 1 min,
   /// 2 min, puis 5 min tant que l'échec dure. Remis à zéro dès qu'une passe
@@ -159,6 +155,7 @@ class SynchronisationService {
     Future<void> Function()? tirer,
     List<Duration> delaisRelance = delaisRelanceParDefaut,
     Duration delaiApresDepot = const Duration(milliseconds: 400),
+    Random? alea,
   })  : _file = file,
         _detecteur = detecteur,
         _base = base,
@@ -166,7 +163,8 @@ class SynchronisationService {
         _annuler = annuler,
         _tirer = tirer,
         _delaisRelance = delaisRelance,
-        _delaiApresDepot = delaiApresDepot;
+        _delaiApresDepot = delaiApresDepot,
+        _alea = alea ?? Random();
 
   final _statut = ValueNotifier<StatutOffline>(const StatutOffline());
 
@@ -195,6 +193,10 @@ class SynchronisationService {
   int _niveauRelance = 0;
   bool _arrete = false;
 
+  /// Attente IMPOSÉE par le serveur (429, abonnement, session) : aucun
+  /// déclencheur automatique ne passe avant cette date.
+  DateTime? _pauseServeurJusqua;
+
   String? _derniereErreurTirage;
 
   /// Dernier échec du tirage des changements serveur, `null` si le dernier a
@@ -203,6 +205,14 @@ class SynchronisationService {
 
   /// `true` si une relance automatique est planifiée (diagnostic et tests).
   bool get relancePlanifiee => _relance != null;
+
+  /// Fin de l'attente imposée par le serveur, `null` s'il n'y en a pas.
+  DateTime? get pauseServeurJusqua => _pauseServeurJusqua;
+
+  bool get _enPauseServeur {
+    final fin = _pauseServeurJusqua;
+    return fin != null && DateTime.now().isBefore(fin);
+  }
 
   Future<void> demarrer() async {
     _abonnementReseau = _detecteur.flux.listen((etat) {
@@ -241,9 +251,9 @@ class SynchronisationService {
     if (etat == EtatReseau.enLigne) await synchroniser();
   }
 
-  /// Vide la file d'attente. Sans effet si hors ligne ; si une passe est déjà
-  /// en cours, en planifie une autre à sa suite plutôt que d'en lancer une
-  /// seconde en parallèle.
+  /// Vide la file d'attente. Sans effet si hors ligne ou si le serveur a
+  /// imposé une attente ; si une passe est déjà en cours, en planifie une
+  /// autre à sa suite plutôt que d'en lancer une seconde en parallèle.
   ///
   /// Ne traite QUE les tâches en attente (voir `FileAttente.aTraiter`) — les
   /// échecs définitifs n'y repartent jamais tout seuls. C'est le
@@ -258,6 +268,10 @@ class SynchronisationService {
       return _passeEnCours ?? Future<void>.value();
     }
     if (!_detecteur.estEnLigne) return Future<void>.value();
+    // Le serveur a demandé d'attendre : un réseau qui bascule ne doit pas
+    // lui renvoyer une rafale. La relance planifiée à la fin de l'attente
+    // reprendra la main.
+    if (_enPauseServeur) return Future<void>.value();
 
     // Le verrou est posé de façon SYNCHRONE, avant tout `await` : deux appels
     // rapprochés (un réseau qui bascule plusieurs fois en une seconde) ne
@@ -279,6 +293,8 @@ class SynchronisationService {
     // après la remise en attente, laissant une passe automatique démarrer
     // entre les deux — et la même action partir deux fois.
     _enCours = true;
+    // Geste explicite : il passe outre une attente imposée par le serveur.
+    _pauseServeurJusqua = null;
     var enLigne = false;
     final passe = _verrouiller(() async {
       await _file.remettreToutEnAttente();
@@ -309,6 +325,7 @@ class SynchronisationService {
   Future<bool> synchroniserUne(String id) async {
     if (_enCours || _arrete) return false;
     _enCours = true;
+    _pauseServeurJusqua = null;
     var resultat = _ResultatAction.echecTemporaire;
     final passe = _verrouiller(() async {
       final action = await _file.parId(id);
@@ -355,6 +372,7 @@ class SynchronisationService {
     final actions = await _file.aTraiter();
     if (actions.isEmpty) {
       _niveauRelance = 0;
+      _pauseServeurJusqua = null;
       await rafraichirCompteurs();
       await _tirerChangements();
       // Rien à envoyer ET rien en échec : c'est l'état « tout est à jour »
@@ -411,10 +429,13 @@ class SynchronisationService {
       return;
     }
 
-    if (suspendu || echecsPassagers > 0) {
+    if (suspendu) {
+      _planifierRelance(imposeeParServeur: true);
+    } else if (echecsPassagers > 0) {
       _planifierRelance();
     } else {
       _niveauRelance = 0;
+      _pauseServeurJusqua = null;
     }
 
     // Serveur qui demande d'attendre : ne pas l'accabler d'un tirage en plus.
@@ -434,7 +455,9 @@ class SynchronisationService {
   /// compte comme « à retenter » vs « abandonner ».
   Future<_ResultatAction> _tenterAction(ActionEnAttente action) async {
     try {
-      await _executer(action);
+      // Zone portant l'identifiant de l'action : le client HTTP peut s'en
+      // servir comme identifiant de requête (traçabilité de bout en bout).
+      await runZoned(() => _executer(action), zoneValues: {cleZoneOperation: action.id});
       await _file.supprimer(action.id);
       _journaliser(action, 'envoyée');
       return _ResultatAction.succes;
@@ -468,7 +491,6 @@ class SynchronisationService {
       return _appliquer(action, _classerRefus(e.response?.statusCode, code), _messageErreur(e));
     } on FileSystemException catch (e) {
       // Le fichier local (photo) a disparu : aucun rejeu ne le fera revenir.
-      // L'ancienne version le retentait indéfiniment.
       return _appliquer(action, _ResultatAction.echecDefinitif, 'Fichier local introuvable : ${e.path ?? e.message}');
     } on ActionInvalide catch (e) {
       return _appliquer(action, _ResultatAction.echecDefinitif, e.message);
@@ -485,8 +507,8 @@ class SynchronisationService {
   Future<_ResultatAction> _appliquer(ActionEnAttente action, _ResultatAction resultat, String message) async {
     if (resultat == _ResultatAction.echecDefinitif) {
       // 4xx : le serveur a compris et refuse (chantier supprimé, droits
-      // retirés). Retenter indéfiniment ne changerait rien et bloquerait
-      // la file derrière cette action.
+      // retirés, conflit de modification). Retenter indéfiniment ne
+      // changerait rien et bloquerait la file derrière cette action.
       //
       // On DÉFAIT d'abord ce que l'action avait écrit en local : sans cela,
       // l'écriture optimiste survivait au refus, et la protection des lignes
@@ -502,11 +524,9 @@ class SynchronisationService {
 
   /// Classe une réponse HTTP d'ÉCHEC.
   ///
-  /// La version précédente traitait TOUT 4xx sauf 401 en refus définitif,
+  /// La version d'origine traitait TOUT 4xx sauf 401 en refus définitif,
   /// ce qui envoyait au rebut — et faisait EFFACER en local — une réserve
-  /// créée hors ligne sur un simple 429 (limite de débit : 300 requêtes par
-  /// quart d'heure et par compte, vite atteinte en vidant une journée de
-  /// relevés) ou sur un 408.
+  /// créée hors ligne sur un simple 429 ou 408.
   static _ResultatAction _classerRefus(int? statut, String? code) {
     if (statut == null) return _ResultatAction.echecTemporaire;
     if (statut == 401 || statut == 429) return _ResultatAction.suspendu;
@@ -518,31 +538,53 @@ class SynchronisationService {
     // premier part encore) : la réponse viendra, il suffit de réessayer.
     if (code == 'ENVOI_EN_COURS') return _ResultatAction.echecTemporaire;
     if (statut == 408 || statut == 425) return _ResultatAction.echecTemporaire;
+    // Tout autre 4xx — dont 409 `CONFLIT_MODIFICATION` : un vrai conflit ne
+    // se résout pas en réessayant, il se montre à l'utilisateur.
     if (statut >= 400 && statut < 500) return _ResultatAction.echecDefinitif;
     // 5xx : la faute peut être passagère côté serveur.
     return _ResultatAction.echecTemporaire;
   }
 
   /// Planifie la prochaine relance selon le palier courant, puis le monte.
-  void _planifierRelance() {
+  ///
+  /// ÉTALEMENT ALÉATOIRE (deuxième audit) : le délai tiré tombe entre 50 et
+  /// 100 % du palier. Sans lui, après une panne du serveur, tous les
+  /// téléphones qui avaient échoué au même instant retentaient au même
+  /// instant — une vague synchronisée à chaque palier.
+  ///
+  /// [imposeeParServeur] : le serveur a demandé d'attendre — aucun
+  /// déclencheur automatique ne passera avant la fin du délai.
+  void _planifierRelance({bool imposeeParServeur = false}) {
     if (_delaisRelance.isEmpty) return;
     final palier = _niveauRelance < _delaisRelance.length ? _niveauRelance : _delaisRelance.length - 1;
     if (_niveauRelance < _delaisRelance.length) _niveauRelance++;
-    _planifier(_delaisRelance[palier]);
+    final base = _delaisRelance[palier];
+    final delai = Duration(microseconds: (base.inMicroseconds * (0.5 + 0.5 * _alea.nextDouble())).round());
+    if (imposeeParServeur) _pauseServeurJusqua = DateTime.now().add(delai);
+    _planifier(delai);
   }
 
   /// Planifie une passe dans [delai] — sauf si une passe PLUS PROCHE est déjà
-  /// prévue, qui couvrira celle-ci.
+  /// prévue, qui couvrira celle-ci. Jamais avant la fin d'une attente imposée
+  /// par le serveur.
   void _planifier(Duration delai) {
     if (_arrete) return;
-    final echeance = DateTime.now().add(delai);
+    var delaiEffectif = delai;
+    final pause = _pauseServeurJusqua;
+    if (pause != null) {
+      final reste = pause.difference(DateTime.now());
+      if (reste > delaiEffectif) delaiEffectif = reste;
+    }
+    final echeance = DateTime.now().add(delaiEffectif);
     final prevue = _echeanceRelance;
     if (_relance != null && prevue != null && !prevue.isAfter(echeance)) return;
     _relance?.cancel();
     _echeanceRelance = echeance;
-    _relance = Timer(delai, () {
+    _relance = Timer(delaiEffectif, () {
       _relance = null;
       _echeanceRelance = null;
+      final fin = _pauseServeurJusqua;
+      if (fin != null && !DateTime.now().isBefore(fin)) _pauseServeurJusqua = null;
       unawaited(synchroniser());
     });
   }

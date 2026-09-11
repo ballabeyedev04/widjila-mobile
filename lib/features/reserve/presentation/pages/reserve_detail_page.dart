@@ -20,6 +20,8 @@ import '../../domain/entities/reserve.dart';
 import '../../domain/reserve_statut_policy.dart';
 import '../cubit/reserve_detail_cubit.dart';
 import '../cubit/reserve_detail_state.dart';
+import '../../../plan/presentation/widgets/fiche_reserve_sheet.dart' show couleurStatutReserve;
+import '../widgets/apercu_plan_reserve.dart';
 import '../widgets/reserve_collaboration.dart';
 import '../widgets/reserve_statut_badge.dart';
 import '../widgets/section_pieces_jointes.dart';
@@ -310,31 +312,34 @@ class _DetailBody extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
+          // LE PLAN LUI-MÊME, et l'endroit exact de la réserve dessus.
+          //
+          // La fiche n'en donnait que le nom de fichier (« arkada_13_2np3.jpg
+          // · v3 ») : pour savoir où aller, il fallait ouvrir le plan et
+          // chercher sa pastille parmi toutes les autres. « C'est où ? » est
+          // la première question devant une réserve qu'on n'a pas relevée soi-
+          // même — la réponse se MONTRE.
+          if (reserve.plan != null) ...[
+            ApercuPlanReserve(
+              plan: reserve.plan!,
+              position: reserve.position,
+              libelle: reserve.numeroAffiche(l10n),
+              couleur: couleurStatutReserve(reserve.statut),
+              onOuvrirPlan: () => context.push('/plans/${reserve.plan!.id}'),
+            ),
+            const SizedBox(height: 16),
+          ],
+
           _Carte(
             child: Column(
               children: [
-                // CHANTIER et PLAN en tête : ce sont les deux questions qu'on
-                // se pose devant une réserve qu'on n'a pas relevée soi-même —
-                // « c'est où ? » avant « c'est quoi ? ». Aucun des deux
-                // n'était affiché : le chantier était pourtant chargé, et le
-                // plan n'était même pas joint par le serveur.
+                // CHANTIER en tête : « c'est où ? » avant « c'est quoi ? ». Le
+                // plan, lui, est montré juste au-dessus.
                 if (reserve.chantier != null)
                   _InfoRow(
                     icon: Icons.apartment_outlined,
                     label: l10n.reserveProjetLabel,
                     valeur: reserve.chantier!.nom,
-                  ),
-                if (reserve.plan != null)
-                  _InfoRow(
-                    icon: Icons.map_outlined,
-                    label: l10n.navPlans,
-                    valeur: reserve.plan!.version > 1
-                        ? '${reserve.plan!.nom} · v${reserve.plan!.version}'
-                        : reserve.plan!.nom,
-                    // Ouvre le plan, repère compris : depuis la fiche, on veut
-                    // souvent revoir l'endroit exact plutôt que relire le
-                    // texte.
-                    onTap: () => context.push('/plans/${reserve.plan!.id}'),
                   ),
                 _InfoRow(icon: Icons.calendar_today_outlined, label: l10n.reserveDetailCreeeLe, valeur: reserve.createdAt != null ? df.format(reserve.createdAt!) : '—'),
                 if (reserve.createur != null)
@@ -854,18 +859,13 @@ class _InfoRow extends StatelessWidget {
   final String valeur;
   final bool dernier;
 
-  /// Rend la ligne ACTIONNABLE — le plan s'ouvre d'un appui.
-  ///
-  /// Nul pour les lignes purement informatives : un chevron sur une date
-  /// promettrait une action qui n'existe pas.
-  final VoidCallback? onTap;
-
+  // Plus de variante « actionnable » : la seule ligne qui l'était, celle du
+  // plan, est devenue l'aperçu du plan lui-même (`ApercuPlanReserve`).
   const _InfoRow({
     required this.icon,
     required this.label,
     required this.valeur,
     this.dernier = false,
-    this.onTap,
   });
 
   @override
@@ -873,7 +873,7 @@ class _InfoRow extends StatelessWidget {
     final ligne = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 17, color: onTap == null ? AppColors.textMuted : AppColors.primary),
+        Icon(icon, size: 17, color: AppColors.textMuted),
         const SizedBox(width: 10),
         Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
         const Spacer(),
@@ -881,29 +881,19 @@ class _InfoRow extends StatelessWidget {
           child: Text(
             valeur,
             textAlign: TextAlign.right,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 13.5,
-              color: onTap == null ? AppColors.textPrimary : AppColors.primary,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.w600,
             ),
           ),
         ),
-        if (onTap != null) ...[
-          const SizedBox(width: 2),
-          const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.primary),
-        ],
       ],
     );
 
     return Padding(
       padding: EdgeInsets.only(bottom: dernier ? 0 : 12),
-      child: onTap == null
-          ? ligne
-          : InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: ligne),
-            ),
+      child: ligne,
     );
   }
 }

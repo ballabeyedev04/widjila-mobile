@@ -51,6 +51,9 @@ abstract class OrganisationRepository {
     String? contact,
     String? adresse,
     String? notes,
+    /// Renseigné : l'intervenant rejoint l'annuaire de CE chantier. Nul :
+    /// l'annuaire de l'organisation.
+    String? chantierId,
   });
 
   /// Active ou archive un intervenant — `PUT /partenaires/:id`.

@@ -11,6 +11,7 @@ import '../../../../core/widgets/loading_list.dart';
 import '../../../../injection_container.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../l10n/l10n_extension.dart';
+import '../../../../core/widgets/app_alert.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../document/domain/entities/document.dart';
 import '../../../document/presentation/pages/document_viewer_page.dart';
@@ -131,7 +132,7 @@ class _VueDetail extends StatelessWidget {
     final messenger = ScaffoldMessenger.of(context);
 
     if (state.erreur != null) {
-      messenger.showSnackBar(SnackBar(content: Text(state.erreur!)));
+      messenger.showSnackBar(SnackBar(content: Text(AppAlert.messageLisible(l10n, state.erreur!))));
       return;
     }
     switch (state.evenement) {
@@ -260,7 +261,7 @@ class _Corps extends StatelessWidget {
     messenger.hideCurrentSnackBar();
 
     await octets.fold<Future<void>>(
-      (f) async => messenger.showSnackBar(SnackBar(content: Text(f.errorMessage))),
+      (f) async => messenger.showSnackBar(SnackBar(content: Text(AppAlert.messageLisible(l10n, f.errorMessage)))),
       (donnees) async {
         final ok = await ouverture.enregistrer(octets: donnees, nomFichier: _nomFichier(r, l10n, excel ? 'xlsx' : 'pdf'));
         ok.fold(

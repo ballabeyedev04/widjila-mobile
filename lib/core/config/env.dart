@@ -28,6 +28,11 @@ class Env {
   static const String authLogout = '/auth/logout';
   static const String authMfaVerify = '/auth/mfa-verify';
 
+  /// Code de transfert de session vers le navigateur (paiement de
+  /// l'abonnement). Route AUTHENTIFIÉE : elle n'est pas dans la liste des
+  /// chemins exemptés du Bearer.
+  static const String authTransfertWeb = '/auth/transfert-web';
+
   /// Pages légales — hébergées par l'admin web (pas de vue native dédiée
   /// côté mobile), ouvertes dans le navigateur externe depuis l'inscription.
   /// Mêmes routes que `admin/src/routes/AppRoutes.jsx`

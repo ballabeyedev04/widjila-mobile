@@ -11,6 +11,7 @@ import '../../../../core/widgets/liste_chrome.dart';
 import '../../../../core/widgets/loading_list.dart';
 import '../../../../injection_container.dart';
 import '../../../../l10n/l10n_extension.dart';
+import '../../../../core/widgets/app_alert.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../domain/entities/etat_rapport.dart';
 import '../../domain/entities/rapport.dart';
@@ -120,7 +121,7 @@ Future<void> _ouvrir(BuildContext context, Rapport rapport) async {
 
   messenger.hideCurrentSnackBar();
   resultat.fold(
-    (failure) => messenger.showSnackBar(SnackBar(content: Text(failure.errorMessage))),
+    (failure) => messenger.showSnackBar(SnackBar(content: Text(AppAlert.messageLisible(l10n, failure.errorMessage)))),
     (issue) {
       if (issue == ResultatOuverture.aucuneApplication) {
         messenger.showSnackBar(SnackBar(content: Text(l10n.documentAucuneApplication)));
@@ -143,7 +144,7 @@ Future<void> _telecharger(BuildContext context, Rapport rapport) async {
 
   messenger.hideCurrentSnackBar();
   await octets.fold<Future<void>>(
-    (failure) async => messenger.showSnackBar(SnackBar(content: Text(failure.errorMessage))),
+    (failure) async => messenger.showSnackBar(SnackBar(content: Text(AppAlert.messageLisible(l10n, failure.errorMessage)))),
     (donnees) async {
       final enregistre = await sl<OuvertureFichier>().enregistrer(octets: donnees, nomFichier: _nomFichier(rapport));
       enregistre.fold(

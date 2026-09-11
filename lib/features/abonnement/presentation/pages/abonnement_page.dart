@@ -30,6 +30,14 @@ import '../../../../core/routes/retour.dart';
 /// natif) n'a pas à être ajouté. Le seul point d'attention reste
 /// [Env.abonnementUrl], qui doit pointer sur le domaine de l'INTERFACE
 /// (`app.*`) et non sur celui de l'API (`api.*`).
+///
+/// ── La session suit l'utilisateur dans le navigateur ──────────────────────
+/// Le navigateur du téléphone n'a jamais vu l'utilisateur se connecter.
+/// Ouverte telle quelle, la page d'abonnement tombait sur des 401, tentait un
+/// renouvellement sans cookie (« refreshToken manquant »), puis renvoyait vers
+/// la connexion. Le bouton demande donc d'abord au serveur un code de
+/// transfert — deux minutes, usage unique — que la page échange contre une
+/// session. Voir [urlPaiementWeb].
 class AbonnementPage extends StatelessWidget {
   const AbonnementPage({super.key});
 
@@ -55,6 +63,20 @@ class AbonnementPage extends StatelessWidget {
   }
 }
 
+/// Adresse de la page de paiement du web pour [formule], session transférée.
+///
+///  - `?plan=` : la page ouvre directement le paiement de cette formule, sans
+///    la faire rechercher une seconde fois dans la grille ;
+///  - `#transfert=` : le code, dans le FRAGMENT. Un fragment n'est jamais
+///    envoyé au serveur qui sert la page, ni recopié dans l'en-tête `Referer`
+///    vers Stripe ; la page l'efface de l'adresse avant de l'échanger
+///    (`admin/src/service/api.js#consommerTransfertWeb`).
+Uri urlPaiementWeb(Uri base, {required String formule, required String codeTransfert}) =>
+    base.replace(
+      queryParameters: {...base.queryParameters, 'plan': formule},
+      fragment: 'transfert=${Uri.encodeQueryComponent(codeTransfert)}',
+    );
+
 class _AbonnementView extends StatefulWidget {
   final bool voitLaFacturation;
 
@@ -71,6 +93,11 @@ class _AbonnementViewState extends State<_AbonnementView> with WidgetsBindingObs
   /// passage en arrière-plan — notification, appel reçu, changement
   /// d'application — relancerait deux requêtes réseau pour rien.
   bool _paiementLance = false;
+
+  /// Code de la formule dont le paiement se prépare (demande du code de
+  /// transfert en cours). Son bouton affiche un indicateur, les autres sont
+  /// neutralisés : deux appuis rapides n'ouvrent pas deux navigateurs.
+  String? _preparation;
 
   @override
   void initState() {
@@ -97,21 +124,62 @@ class _AbonnementViewState extends State<_AbonnementView> with WidgetsBindingObs
     context.read<AbonnementCubit>().charger(avecHistorique: widget.voitLaFacturation);
   }
 
-  /// Ouvre la page d'abonnement du web — voir l'en-tête pour le raisonnement.
-  Future<void> _ouvrirPaiement(BuildContext context) async {
+  /// Ouvre la page de paiement du web pour [formule], session comprise — voir
+  /// l'en-tête pour le raisonnement.
+  Future<void> _ouvrirPaiement(BuildContext context, FormuleAbonnement formule) async {
+    if (_preparation != null) return;
     final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
+    final cubit = context.read<AbonnementCubit>();
 
-    final uri = Uri.tryParse(Env.abonnementUrl);
-    if (uri == null) return;
+    final base = Uri.tryParse(Env.abonnementUrl);
+    if (base == null) {
+      messenger.showSnackBar(SnackBar(content: Text(l10n.abonnementOuvertureImpossible)));
+      return;
+    }
 
-    final ouvert = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    // Armé seulement si le navigateur s'est RÉELLEMENT ouvert : un échec
-    // d'ouverture ne fait pas quitter l'application, donc aucun retour à
-    // guetter.
-    _paiementLance = ouvert;
+    setState(() => _preparation = formule.code);
+    try {
+      final resultat = await cubit.preparerPaiementWeb();
+      if (!mounted) return;
 
-    if (!ouvert) {
+      final code = resultat.fold<String?>((_) => null, (c) => c);
+      if (code == null) {
+        // Pas de page sans session : elle retomberait exactement dans les
+        // erreurs que ce code sert à éviter.
+        messenger.showSnackBar(SnackBar(content: Text(l10n.abonnementPreparationImpossible)));
+        return;
+      }
+
+      final ouvert = await launchUrl(
+        urlPaiementWeb(base, formule: formule.code, codeTransfert: code),
+        mode: LaunchMode.externalApplication,
+      );
+      // Armé seulement si le navigateur s'est RÉELLEMENT ouvert : un échec
+      // d'ouverture ne fait pas quitter l'application, donc aucun retour à
+      // guetter.
+      _paiementLance = ouvert;
+
+      if (!ouvert) {
+        messenger.showSnackBar(SnackBar(content: Text(l10n.abonnementOuvertureImpossible)));
+      }
+    } finally {
+      if (mounted) setState(() => _preparation = null);
+    }
+  }
+
+  /// « Nous contacter » d'une formule sur devis : un courriel, pas la page de
+  /// paiement — il n'y a aucun montant à régler en ligne.
+  Future<void> _contacter() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
+    bool ouvert;
+    try {
+      ouvert = await launchUrl(Uri(scheme: 'mailto', path: 'contact@widjila.com'));
+    } catch (_) {
+      ouvert = false;
+    }
+    if (!ouvert && mounted) {
       messenger.showSnackBar(SnackBar(content: Text(l10n.abonnementOuvertureImpossible)));
     }
   }
@@ -170,8 +238,23 @@ class _AbonnementViewState extends State<_AbonnementView> with WidgetsBindingObs
                 for (final formule in state.formules) ...[
                   _CarteFormule(
                     formule: formule,
-                    actuelle: formule.code == state.droits.planCode,
-                    onChoisir: () => _ouvrirPaiement(context),
+                    // Formule PAYÉE en cours seulement : pendant l'essai, le
+                    // code de formule des droits ne dit pas qu'elle est
+                    // réglée — la neutraliser empêcherait de la souscrire.
+                    actuelle: state.droits.source == 'abonnement' &&
+                        formule.code == state.droits.planCode,
+                    enPreparation: _preparation == formule.code,
+                    // Le serveur refuse le paiement hors du groupe
+                    // FACTURATION (403) : le bouton le dit avant, au lieu
+                    // d'ouvrir un navigateur pour un refus.
+                    reserveFacturation: !widget.voitLaFacturation,
+                    onChoisir: _preparation != null
+                        ? null
+                        : formule.surDevis
+                            ? _contacter
+                            : widget.voitLaFacturation
+                                ? () => _ouvrirPaiement(context, formule)
+                                : null,
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -323,9 +406,24 @@ class _LigneUsage extends StatelessWidget {
 class _CarteFormule extends StatelessWidget {
   final FormuleAbonnement formule;
   final bool actuelle;
-  final VoidCallback onChoisir;
 
-  const _CarteFormule({required this.formule, required this.actuelle, required this.onChoisir});
+  /// `null` = bouton neutralisé (autre paiement en préparation, rôle sans
+  /// facturation).
+  final VoidCallback? onChoisir;
+
+  /// Vrai pendant la demande du code de transfert pour CETTE formule.
+  final bool enPreparation;
+
+  /// Le compte connecté ne peut pas engager de dépense.
+  final bool reserveFacturation;
+
+  const _CarteFormule({
+    required this.formule,
+    required this.actuelle,
+    required this.onChoisir,
+    this.enPreparation = false,
+    this.reserveFacturation = false,
+  });
 
   /// Libellé d'un code de fonctionnalité, traduit côté client.
   String _libelle(BuildContext context, String code) {
@@ -446,18 +544,31 @@ class _CarteFormule extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: actuelle ? AppColors.neutral : AppColors.primary,
                 foregroundColor: Colors.white,
+                // Pendant la préparation, le bouton garde sa couleur : c'est
+                // lui qui travaille, pas un bouton devenu indisponible.
+                disabledBackgroundColor: enPreparation ? AppColors.primary : null,
+                disabledForegroundColor: enPreparation ? Colors.white : null,
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
               onPressed: actuelle ? null : onChoisir,
-              child: Text(
-                actuelle
-                    ? l10n.abonnementFormuleActuelle
-                    : formule.surDevis
-                        ? l10n.abonnementNousContacter
-                        : l10n.abonnementChoisir,
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-              ),
+              child: enPreparation
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : Text(
+                      actuelle
+                          ? l10n.abonnementFormuleActuelle
+                          : formule.surDevis
+                              ? l10n.abonnementNousContacter
+                              : reserveFacturation
+                                  ? l10n.abonnementReserveFacturation
+                                  : l10n.abonnementChoisir,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                    ),
             ),
           ),
 
