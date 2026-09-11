@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../../core/network/dio_exception_mapper.dart';
+import '../../../../core/network/options_envoi_fichier.dart';
 import '../../domain/entities/plan.dart';
 
 abstract class PlanRemoteDataSource {
@@ -124,7 +125,7 @@ class PlanRemoteDataSourceImpl implements PlanRemoteDataSource {
       final formData = FormData.fromMap({
         'fichier': await MultipartFile.fromFile(cheminFichier),
       });
-      final response = await dio.post('/plans/$id/versions', data: formData);
+      final response = await dio.post('/plans/$id/versions', data: formData, options: optionsEnvoiFichier());
       return Plan.fromJson(_data(response)['plan'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw mapDioException(e);

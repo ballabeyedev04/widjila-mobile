@@ -4,7 +4,17 @@
 class ServerException implements Exception {
   final String message;
   final int? statusCode;
-  const ServerException({required this.message, this.statusCode});
+
+  /// Code STABLE renvoyé par le serveur (`{ code }` du corps d'erreur), ex.
+  /// `ENVOI_EN_COURS`, `SUBSCRIPTION_REQUIRED`. `null` quand le serveur n'en
+  /// donne pas. La synchronisation s'en sert pour distinguer un refus
+  /// définitif d'un « réessayez plus tard » portant le même statut HTTP.
+  final String? code;
+
+  const ServerException({required this.message, this.statusCode, this.code});
+
+  @override
+  String toString() => 'ServerException($statusCode${code != null ? ', $code' : ''}): $message';
 }
 
 class CacheException implements Exception {

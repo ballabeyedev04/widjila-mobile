@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/config/breakpoints.dart';
 import '../../../../core/config/user_role.dart';
@@ -18,6 +19,7 @@ import '../../../reserve/domain/entities/reserve.dart';
 import '../../../reserve/presentation/widgets/reserve_statut_badge.dart';
 import '../../domain/entities/plan.dart';
 import '../cubit/plan_detail_cubit.dart';
+import '../widgets/contexte_plan.dart';
 import '../widgets/fiche_reserve_sheet.dart';
 import '../widgets/nouvelle_reserve_sheet.dart';
 import '../widgets/plan_interactif.dart';
@@ -159,11 +161,41 @@ class _ContenuState extends State<_Contenu> {
   /// lire.
   bool _pleinEcran = false;
 
+  /// La structure du chantier et ses plans — l'arborescence du panneau bas,
+  /// voir [PanneauContextePlan].
+  EtatContexte _contexte = const EtatContexte.enChargement();
+
+  /// Ce qui est déplié dans l'arborescence. Ouvrir un plan depuis elle
+  /// EMPILE une visionneuse : celle-ci reste montée dessous, et retrouve donc
+  /// son arborescence telle qu'on l'a laissée.
+  final EtatDepliage _depliage = EtatDepliage();
+
+  bool _panneauAgrandi = false;
 
   @override
   void initState() {
     super.initState();
     _telecharger();
+    _chargerContexte();
+  }
+
+  /// Jamais bloquant : sans structure, le plan reste consultable et on peut y
+  /// poser une réserve ; seul le panneau le signale.
+  Future<void> _chargerContexte() async {
+    final chantierId = widget.plan.chantierId;
+    if (chantierId.isEmpty) {
+      // Affectation directe : appelée depuis `initState`, où la
+      // reconstruction suit de toute façon.
+      _contexte = const EtatContexte.echec('');
+      return;
+    }
+    final etat = await chargerContexteChantier(chantierId);
+    if (mounted) setState(() => _contexte = etat);
+  }
+
+  void _rechargerContexte() {
+    setState(() => _contexte = const EtatContexte.enChargement());
+    _chargerContexte();
   }
 
   @override
@@ -228,7 +260,7 @@ class _ContenuState extends State<_Contenu> {
           // Ni bâtiment, ni étage, ni zone : le serveur les déduit du plan
           // (`reserve.service.js#_heriterLocalisationDuPlan`). Les envoyer
           // d'ici ne ferait que risquer de le contredire.
-          chemin: [widget.plan.chantierNom, widget.plan.nom]
+          chemin: [widget.plan.chantierNom, ...lieuDuPlan(widget.plan), widget.plan.nom]
               .whereType<String>()
               .join(' › '),
         ),
@@ -279,11 +311,17 @@ class _ContenuState extends State<_Contenu> {
           if (!_pleinEcran)
             _BandeauViewer(
               titre: plan.nom,
-              sousTitre: [
-                if (plan.chantierNom != null) plan.chantierNom!,
-                '${plan.format.label} · v${plan.version}',
-                if (plan.typePlan != null && plan.typePlan!.isNotEmpty) plan.typePlan!,
-              ].join(' · '),
+              // Un plan de la STRUCTURE se situe par sa place dans le
+              // chantier — « Océania › Bâtiment A › R+1 › A001 » ; le format
+              // et la version passent alors dans la fiche du panneau bas.
+              sousTitre: lieuDuPlan(plan).isNotEmpty
+                  ? [if (plan.chantierNom != null) plan.chantierNom!, ...lieuDuPlan(plan)]
+                      .join(' › ')
+                  : [
+                      if (plan.chantierNom != null) plan.chantierNom!,
+                      '${plan.format.label} · v${plan.version}',
+                      if (plan.typePlan != null && plan.typePlan!.isNotEmpty) plan.typePlan!,
+                    ].join(' · '),
             ),
           if (!_pleinEcran && peutCreer && _octets != null)
             _BandeauAide(texte: context.l10n.planPointerAide),
@@ -292,6 +330,18 @@ class _ContenuState extends State<_Contenu> {
             _PanneauReserves(
               reserves: plan.reserves,
               onOuvrirReserve: _ouvrirFiche,
+              contexte: PanneauContextePlan(
+                plan: plan,
+                chantierNom: plan.chantierNom,
+                etat: _contexte,
+                onReessayer: _rechargerContexte,
+                // Une visionneuse EMPILÉE : la flèche de retour ramène à
+                // celle-ci, arborescence dépliée comme on l'a laissée.
+                onOuvrirPlan: (p) => context.push('/plans/${p.id}'),
+                depliage: _depliage,
+              ),
+              agrandi: _panneauAgrandi,
+              onBasculerTaille: () => setState(() => _panneauAgrandi = !_panneauAgrandi),
             // Le bouton n'ARME rien : l'appui sur le plan fonctionne de toute
             // façon. Il est là pour ceux qui le cherchent, et il dit où
             // appuyer — c'est le bandeau d'aide, juste au-dessus, qui répond.
@@ -664,10 +714,21 @@ class _PanneauReserves extends StatelessWidget {
   /// bouton disparaît plutôt que de mener nulle part.
   final VoidCallback? onCreerReserve;
 
+  /// Ce qui dépend de la PORTÉE du plan — les bâtiments sous un plan global,
+  /// la localisation sous celui d'un appartement. Voir [PanneauContextePlan].
+  final Widget contexte;
+
+  /// Panneau agrandi par sa poignée — voir [PoigneePanneau].
+  final bool agrandi;
+  final VoidCallback onBasculerTaille;
+
   const _PanneauReserves({
     required this.reserves,
     required this.onOuvrirReserve,
     required this.onCreerReserve,
+    required this.contexte,
+    required this.agrandi,
+    required this.onBasculerTaille,
   });
 
   @override
@@ -684,6 +745,10 @@ class _PanneauReserves extends StatelessWidget {
       constraints: BoxConstraints(
         maxHeight: hauteurPanneauBas(
           context,
+          // Agrandi, le panneau monte jusqu'au plafond commun de 70 % : il
+          // porte alors l'arborescence d'un bâtiment déplié.
+          part: agrandi ? 0.7 : 0.34,
+          plafond: agrandi ? double.infinity : 340,
           // Poignée (24) + bouton (51) : tout le reste défile.
           contenuIncompressible: onCreerReserve == null ? 24 : 75,
         ),
@@ -704,15 +769,7 @@ class _PanneauReserves extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(top: 10, bottom: 10),
-              decoration: BoxDecoration(
-                color: AppColors.border,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+            PoigneePanneau(agrandi: agrandi, onBasculer: onBasculerTaille),
             if (onCreerReserve != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
@@ -748,6 +805,8 @@ class _PanneauReserves extends StatelessWidget {
                 shrinkWrap: true,
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 children: [
+                  contexte,
+                  const SizedBox(height: 14),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
                     child: Text(

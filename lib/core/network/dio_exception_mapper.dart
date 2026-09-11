@@ -65,8 +65,11 @@ Exception mapDioException(DioException e) {
     return ServerException(
       message: '${ErrCodes.prefixeAbonnement}$code|$message',
       statusCode: statusCode,
+      code: code,
     );
   }
 
-  return ServerException(message: message, statusCode: statusCode);
+  // Le code voyage aussi hors abonnement : `ENVOI_EN_COURS` (409) se lit
+  // « réessayer plus tard », là où un autre 409 est un vrai conflit.
+  return ServerException(message: message, statusCode: statusCode, code: code is String ? code : null);
 }

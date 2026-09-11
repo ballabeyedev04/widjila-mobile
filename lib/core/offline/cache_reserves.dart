@@ -16,8 +16,13 @@ class CacheReserves {
   final BaseLocale _base;
   CacheReserves(this._base);
 
-  Future<void> enregistrer(Reserve reserve, {bool enAttente = false}) async {
-    final db = await _base.base;
+  /// Écrit (ou remplace) une réserve.
+  ///
+  /// [executeur] — transaction en cours, quand l'écriture doit être ATOMIQUE
+  /// avec une autre (dépôt de l'action correspondante dans la file, voir
+  /// `FileAttente.deposer`). Absent : la base elle-même.
+  Future<void> enregistrer(Reserve reserve, {bool enAttente = false, DatabaseExecutor? executeur}) async {
+    final db = executeur ?? await _base.base;
     await db.insert(
       BaseLocale.tableReserves,
       {
@@ -51,13 +56,7 @@ class CacheReserves {
     //
     // Une seule requête, sans clause `IN` : les lignes en attente sont par
     // nature peu nombreuses, et cela évite la limite de variables de SQLite.
-    final enAttente = (await db.query(
-      BaseLocale.tableReserves,
-      columns: ['id'],
-      where: 'en_attente = 1',
-    ))
-        .map((l) => l['id'] as String)
-        .toSet();
+    final enAttente = await _idsEnAttente(db);
 
     final lot = db.batch();
     for (final r in reserves) {
@@ -76,6 +75,59 @@ class CacheReserves {
     }
     await lot.commit(noResult: true);
   }
+
+  /// Applique UNE page du tirage incrémental (`GET /sync/reserves`).
+  ///
+  /// Toujours appelée dans la transaction qui enregistre aussi le curseur
+  /// (voir `TirageReserves`) : la page et la position de reprise avancent
+  /// ensemble, ou pas du tout — une application tuée en pleine page reprend
+  /// exactement là où la dernière page COMPLÈTE s'est arrêtée.
+  ///
+  /// Règles de conflit :
+  ///  - SUPPRESSION : le serveur l'emporte, même sur une ligne en attente. Une
+  ///    réserve supprimée ne peut plus recevoir de changement ; les actions
+  ///    qui la visaient échoueront en 404 et resteront visibles, avec leur
+  ///    motif, dans l'écran des tâches ;
+  ///  - MODIFICATION : une ligne en attente est épargnée, pour la même raison
+  ///    que dans [enregistrerTous] — la version serveur est plus ancienne que
+  ///    le changement local encore en file.
+  Future<void> appliquerTirage({
+    required List<Reserve> modifiees,
+    required List<String> supprimees,
+    required DatabaseExecutor executeur,
+  }) async {
+    if (modifiees.isEmpty && supprimees.isEmpty) return;
+    final enAttente = await _idsEnAttente(executeur);
+    final maintenant = DateTime.now().millisecondsSinceEpoch;
+
+    final lot = executeur.batch();
+    for (final id in supprimees) {
+      lot.delete(BaseLocale.tableReserves, where: 'id = ?', whereArgs: [id]);
+    }
+    for (final r in modifiees) {
+      if (enAttente.contains(r.id)) continue;
+      lot.insert(
+        BaseLocale.tableReserves,
+        {
+          'id': r.id,
+          'chantier_id': r.chantierId,
+          'donnees': jsonEncode(r.toJson()),
+          'maj_le': maintenant,
+          'en_attente': 0,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    await lot.commit(noResult: true);
+  }
+
+  Future<Set<String>> _idsEnAttente(DatabaseExecutor db) async => (await db.query(
+        BaseLocale.tableReserves,
+        columns: ['id'],
+        where: 'en_attente = 1',
+      ))
+          .map((l) => l['id'] as String)
+          .toSet();
 
   /// Relâche une ligne restée « en attente » : elle redevient écrasable par
   /// la version du serveur.

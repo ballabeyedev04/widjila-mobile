@@ -17,6 +17,11 @@ class DocumentsListState extends Equatable {
   final DepotStatus depotStatus;
   final String? depotErreur;
 
+  /// Part déjà envoyée du dépôt en cours, de 0 à 1 — `null` tant que rien
+  /// n'a été signalé. Une vidéo de chantier met plusieurs dizaines de
+  /// secondes à partir : sans chiffre, le bouton semble figé.
+  final double? depotProgression;
+
   const DocumentsListState({
     this.status = DocumentsListStatus.initial,
     this.items = const [],
@@ -25,21 +30,18 @@ class DocumentsListState extends Equatable {
     this.erreur,
     this.depotStatus = DepotStatus.inactif,
     this.depotErreur,
+    this.depotProgression,
   });
 
   /// Répartition par nature de fichier — les trois onglets de l'écran
-  /// « Photos & documents ». Le tri se fait sur le `mime_type` renvoyé par le
-  /// back plutôt que sur `DocumentType` : ce dernier décrit la NATURE MÉTIER
-  /// du document (DOE, PV, contrat…) et ne dit rien de son format, alors que
-  /// les onglets de la maquette séparent bien images / vidéos / le reste.
-  List<ChantierDocument> get photos => _parMime('image/');
-  List<ChantierDocument> get videos => _parMime('video/');
-  List<ChantierDocument> get autresDocuments => itemsFiltres
-      .where((d) => !(d.mimeType ?? '').startsWith('image/') && !(d.mimeType ?? '').startsWith('video/'))
-      .toList();
-
-  List<ChantierDocument> _parMime(String prefixe) =>
-      itemsFiltres.where((d) => (d.mimeType ?? '').startsWith(prefixe)).toList();
+  /// « Photos & documents ». Le tri se fait sur le FORMAT (type MIME, et
+  /// l'extension à défaut) plutôt que sur `DocumentType` : ce dernier décrit
+  /// la NATURE MÉTIER du document (DOE, PV, contrat…) et ne dit rien de son
+  /// format, alors que les onglets séparent bien images / vidéos / le reste.
+  List<ChantierDocument> get photos => itemsFiltres.where((d) => d.estImage).toList();
+  List<ChantierDocument> get videos => itemsFiltres.where((d) => d.estVideo).toList();
+  List<ChantierDocument> get autresDocuments =>
+      itemsFiltres.where((d) => !d.estImage && !d.estVideo).toList();
 
   /// La recherche est déjà appliquée côté serveur ; ce filtre local ne sert
   /// qu'à masquer les documents archivés, que le back renvoie mais qui n'ont
@@ -56,6 +58,8 @@ class DocumentsListState extends Equatable {
     DepotStatus? depotStatus,
     String? depotErreur,
     bool effacerDepotErreur = false,
+    double? depotProgression,
+    bool effacerDepotProgression = false,
   }) {
     return DocumentsListState(
       status: status ?? this.status,
@@ -65,9 +69,11 @@ class DocumentsListState extends Equatable {
       erreur: erreur,
       depotStatus: depotStatus ?? this.depotStatus,
       depotErreur: effacerDepotErreur ? null : (depotErreur ?? this.depotErreur),
+      depotProgression: effacerDepotProgression ? null : (depotProgression ?? this.depotProgression),
     );
   }
 
   @override
-  List<Object?> get props => [status, items, recherche, filtreType, erreur, depotStatus, depotErreur];
+  List<Object?> get props =>
+      [status, items, recherche, filtreType, erreur, depotStatus, depotErreur, depotProgression];
 }

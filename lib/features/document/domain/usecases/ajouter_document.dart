@@ -12,7 +12,15 @@ class AjouterDocument {
     required String chantierId,
     required String cheminFichier,
     required DocumentType type,
+    String? nomFichier,
+    void Function(double progression)? onProgression,
   }) {
-    return repository.ajouterDocument(chantierId: chantierId, cheminFichier: cheminFichier, type: type);
+    return repository.ajouterDocument(
+      chantierId: chantierId,
+      cheminFichier: cheminFichier,
+      type: type,
+      nomFichier: nomFichier,
+      onProgression: onProgression,
+    );
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart';
@@ -11,7 +12,12 @@ import 'base_locale.dart';
 enum TypeAction {
   creerReserve('creerReserve'),
   changerStatutReserve('changerStatutReserve'),
-  ajouterPhotoReserve('ajouterPhotoReserve');
+  ajouterPhotoReserve('ajouterPhotoReserve'),
+
+  /// Envoi d'un rapport par e-mail — cahier des charges Rapports § 22 :
+  /// « l'envoi d'un rapport nécessite une connexion. Widjila peut mettre
+  /// l'action en file d'attente et la transmettre lorsque le réseau revient. »
+  envoyerRapport('envoyerRapport');
 
   const TypeAction(this.code);
   final String code;
@@ -25,6 +31,20 @@ enum TypeAction {
     // plutôt que de lever, et l'appelant la laissera en attente.
     return null;
   }
+}
+
+/// Action de la file qu'il est IMPOSSIBLE de rejouer telle quelle, pour une
+/// raison locale (charge incohérente, dépendance manquante) — la retenter
+/// n'y changerait rien.
+///
+/// Sous-classe de [StateError] pour rester compatible avec les appelants qui
+/// attrapaient déjà ce type ; `SynchronisationService` la reconnaît
+/// SPÉCIFIQUEMENT et la classe en échec définitif. Un [StateError] quelconque
+/// (bogue d'analyse d'une réponse pourtant réussie, par exemple) reste, lui,
+/// un échec temporaire : le classer définitif ferait défaire une écriture que
+/// le serveur a peut-être acceptée.
+class ActionInvalide extends StateError {
+  ActionInvalide(super.message);
 }
 
 /// Une action faite hors ligne, en attente d'envoi.
@@ -59,6 +79,27 @@ class ActionEnAttente {
   static const String statutEchecDefinitif = 'echec_definitif';
 
   bool get estDefinitivementEnEchec => statut == statutEchecDefinitif;
+
+  /// L'entité métier que cette action touche.
+  ///
+  /// Sert à respecter les DÉPENDANCES pendant la synchronisation : la photo et
+  /// le changement de statut d'une réserve ne partent jamais tant que la
+  /// création de cette réserve n'a pas abouti — ils échoueraient en 404 et
+  /// seraient classés en échec définitif pour une raison évitable. Deux
+  /// réserves différentes, elles, ne se bloquent jamais l'une l'autre.
+  ///
+  /// Une action dont l'entité est inconnue (charge incomplète) n'est reliée à
+  /// AUCUNE autre : sans identifiant, on ne suppose pas de dépendance — deux
+  /// actions sans rapport ne doivent pas se bloquer mutuellement.
+  String get cleEntite {
+    final cible = switch (type) {
+      TypeAction.creerReserve => charge['id'],
+      TypeAction.changerStatutReserve || TypeAction.ajouterPhotoReserve => charge['reserveId'],
+      TypeAction.envoyerRapport => charge['rapportId'],
+    };
+    if (cible == null) return 'action:$id';
+    return type == TypeAction.envoyerRapport ? 'rapport:$cible' : 'reserve:$cible';
+  }
 
   factory ActionEnAttente.depuisLigne(Map<String, Object?> l) {
     final type = TypeAction.depuisCode(l['type'] as String);
@@ -98,28 +139,60 @@ class ActionEnAttente {
 class FileAttente {
   final BaseLocale _base;
   final _uuid = const Uuid();
+  final _depots = StreamController<void>.broadcast();
 
   FileAttente(this._base);
 
+  /// Émet après CHAQUE dépôt réussi.
+  ///
+  /// `SynchronisationService` s'y abonne : une action déposée alors que
+  /// l'appareil est en ligne (envoi direct tombé en délai dépassé, par
+  /// exemple) part d'elle-même, sans attendre un événement réseau qui ne
+  /// viendrait pas — l'appareil n'a jamais cessé d'être « en ligne ».
+  Stream<void> get depots => _depots.stream;
+
   /// Dépose une action. Retourne son identifiant local.
+  ///
+  /// [avecEcriture] — écriture locale OPTIMISTE qui accompagne l'action
+  /// (réserve « en attente » dans le cache, statut provisoire). Elle est
+  /// exécutée dans la MÊME transaction SQLite que le dépôt : les deux
+  /// existent, ou aucun des deux.
+  ///
+  /// Sans cela, un échec entre les deux écritures (disque plein, process tué
+  /// par le système) laissait une réserve affichée « en attente d'envoi » que
+  /// rien n'enverrait jamais — et que la protection des lignes en attente
+  /// empêchait même le serveur de corriger. Une perte silencieuse.
+  ///
+  /// [id] — identifiant imposé par l'appelant, quand il doit être connu AVANT
+  /// le dépôt (nom du fichier copié d'une photo, clé d'idempotence déjà
+  /// utilisée par une tentative en ligne).
   Future<String> deposer({
     required TypeAction type,
     required Map<String, dynamic> charge,
     String? cheminFichier,
+    String? id,
+    Future<void> Function(Transaction txn)? avecEcriture,
   }) async {
     final db = await _base.base;
     final action = ActionEnAttente(
-      id: _uuid.v4(),
+      id: id ?? _uuid.v4(),
       type: type,
       charge: charge,
       cheminFichier: cheminFichier,
       creeLe: DateTime.now(),
     );
-    await db.insert(
-      BaseLocale.tableFileAttente,
-      action.versLigne(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    // `versLigne` AVANT la transaction : une charge non sérialisable échoue
+    // ici, sans avoir rien ouvert ni rien écrit.
+    final ligne = action.versLigne();
+    await db.transaction((txn) async {
+      if (avecEcriture != null) await avecEcriture(txn);
+      await txn.insert(
+        BaseLocale.tableFileAttente,
+        ligne,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    });
+    if (!_depots.isClosed) _depots.add(null);
     return action.id;
   }
 
@@ -139,6 +212,20 @@ class FileAttente {
   Future<ActionEnAttente?> parId(String id) async {
     final resultats = await _lister(where: 'id = ?', args: [id]);
     return resultats.isEmpty ? null : resultats.first;
+  }
+
+  /// `true` s'il reste une action EN ATTENTE sur [cleEntite] (voir
+  /// [ActionEnAttente.cleEntite]), autre que [sauf].
+  ///
+  /// Sert à ne pas déclarer « confirmée » une réserve dont un autre
+  /// changement, fait hors ligne, n'est pas encore parti.
+  ///
+  /// [types] restreint la recherche à certains types d'action — par exemple
+  /// ceux qui RÉÉCRIVENT la ligne locale (une photo en file, elle, ne la
+  /// modifie pas et ne doit pas la retenir « en attente »).
+  Future<bool> aDesActionsEnAttentePour(String cleEntite, {String? sauf, Set<TypeAction>? types}) async {
+    final actions = await aTraiter();
+    return actions.any((a) => a.id != sauf && a.cleEntite == cleEntite && (types == null || types.contains(a.type)));
   }
 
   Future<List<ActionEnAttente>> _lister({String? where, List<Object?>? args}) async {

@@ -112,6 +112,46 @@ class ChantierDocument extends Equatable {
     return l10n.documentTailleMo((ko / 1024).toStringAsFixed(1));
   }
 
+  /// Extension du nom de fichier, en minuscules et sans le point.
+  String get extension {
+    final i = nomFichier.lastIndexOf('.');
+    if (i < 0 || i == nomFichier.length - 1) return '';
+    return nomFichier.substring(i + 1).toLowerCase();
+  }
+
+  /// Type MIME exploitable, `null` s'il est absent ou générique — l'extension
+  /// prend alors le relais (lignes anciennes, dépôts sans type).
+  String? get _mimeConnu {
+    final mime = mimeType?.trim().toLowerCase();
+    if (mime == null || mime.isEmpty || mime == 'application/octet-stream') return null;
+    return mime;
+  }
+
+  static const _mimesImage = {'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'};
+  static const _extensionsImage = {'jpg', 'jpeg', 'png', 'webp', 'gif'};
+  static const _extensionsVideo = {'mp4', 'm4v', '3gp', 'mov', 'webm'};
+
+  /// Photo affichable telle quelle. Seuls les formats MATRICIELS comptent :
+  /// un plan DWG servi en `image/vnd.dwg` n'est pas une photo.
+  bool get estImage {
+    final mime = _mimeConnu;
+    return mime != null ? _mimesImage.contains(mime) : _extensionsImage.contains(extension);
+  }
+
+  bool get estVideo {
+    final mime = _mimeConnu;
+    return mime != null ? mime.startsWith('video/') : _extensionsVideo.contains(extension);
+  }
+
+  bool get estPdf {
+    final mime = _mimeConnu;
+    return mime != null ? mime == 'application/pdf' : extension == 'pdf';
+  }
+
+  /// L'application sait-elle l'afficher elle-même, sans rien enregistrer sur
+  /// le téléphone ? Les autres formats passent par une application tierce.
+  bool get apercuIntegre => estPdf || estImage;
+
   factory ChantierDocument.fromJson(Map<String, dynamic> json) => ChantierDocument(
         id: json['id'] as String,
         chantierId: json['chantierId'] as String? ?? json['chantier_id'] as String? ?? '',

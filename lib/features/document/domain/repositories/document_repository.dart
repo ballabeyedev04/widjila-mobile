@@ -15,5 +15,7 @@ abstract class DocumentRepository {
     required String chantierId,
     required String cheminFichier,
     required DocumentType type,
+    String? nomFichier,
+    void Function(double progression)? onProgression,
   });
 }

@@ -84,6 +84,47 @@ class ModifierZone {
       repository.modifierZone(chantierId, batimentId, etageId, zoneId, nom: nom);
 }
 
+/// Renomme un bâtiment.
+class ModifierBatiment {
+  final ChantierRepository repository;
+  ModifierBatiment(this.repository);
+
+  Future<Either<Failure, BatimentStructure>> call(String chantierId, String batimentId, {required String nom}) =>
+      repository.modifierBatiment(chantierId, batimentId, nom: nom);
+}
+
+/// Supprime un bâtiment — refusé par le serveur tant qu'une réserve y pointe.
+class SupprimerBatiment {
+  final ChantierRepository repository;
+  SupprimerBatiment(this.repository);
+
+  Future<Either<Failure, void>> call(String chantierId, String batimentId) =>
+      repository.supprimerBatiment(chantierId, batimentId);
+}
+
+/// Renomme un niveau.
+class ModifierEtage {
+  final ChantierRepository repository;
+  ModifierEtage(this.repository);
+
+  Future<Either<Failure, EtageStructure>> call(
+    String chantierId,
+    String batimentId,
+    String etageId, {
+    required String nom,
+  }) =>
+      repository.modifierEtage(chantierId, batimentId, etageId, nom: nom);
+}
+
+/// Supprime un niveau — refusé par le serveur tant qu'une réserve y pointe.
+class SupprimerEtage {
+  final ChantierRepository repository;
+  SupprimerEtage(this.repository);
+
+  Future<Either<Failure, void>> call(String chantierId, String batimentId, String etageId) =>
+      repository.supprimerEtage(chantierId, batimentId, etageId);
+}
+
 /// Supprime un appartement.
 ///
 /// Le serveur refuse tant qu'une réserve y pointe — son message remonte tel

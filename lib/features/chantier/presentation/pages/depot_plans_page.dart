@@ -279,6 +279,10 @@ class _Contenu extends StatelessWidget {
             titre: global?.nom ?? l10n.depotNiveauChoisirFichier,
             sousTitre: l10n.depotPlanGlobalAide,
             onTap: () => _deposerGlobal(context),
+            // Un brouillon n'existe pas encore côté serveur : rien à ouvrir.
+            onOuvrir: global == null || global.id.startsWith('brouillon-')
+                ? null
+                : () => context.push('/plans/${global.id}'),
           ),
           const SizedBox(height: 22),
 
@@ -1084,12 +1088,21 @@ class _CarteAction extends StatelessWidget {
   final String sousTitre;
   final VoidCallback onTap;
 
+  /// Ouvre le plan déposé — son image, ses réserves, et sous lui les
+  /// bâtiments du chantier. Nul tant qu'il n'y a rien d'envoyé à ouvrir.
+  ///
+  /// Distinct de [onTap], qui REMPLACE le fichier : la carte existait avant
+  /// qu'on puisse consulter le plan global, et changer ce que fait son appui
+  /// surprendrait qui l'utilise déjà pour redéposer.
+  final VoidCallback? onOuvrir;
+
   const _CarteAction({
     required this.icone,
     required this.couleur,
     required this.titre,
     required this.sousTitre,
     required this.onTap,
+    this.onOuvrir,
   });
 
   @override
@@ -1128,6 +1141,14 @@ class _CarteAction extends StatelessWidget {
                   ],
                 ),
               ),
+              if (onOuvrir != null)
+                IconButton(
+                  onPressed: onOuvrir,
+                  icon: const Icon(Icons.visibility_outlined, size: 20),
+                  tooltip: context.l10n.depotPlanPrevisualiser,
+                  visualDensity: VisualDensity.compact,
+                  color: AppColors.textSecondary,
+                ),
               const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
             ],
           ),

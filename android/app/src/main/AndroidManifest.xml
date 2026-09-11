@@ -33,10 +33,16 @@
     <uses-feature android:name="android.hardware.location" android:required="false"/>
     <uses-feature android:name="android.hardware.location.gps" android:required="false"/>
     <uses-feature android:name="android.hardware.fingerprint" android:required="false"/>
+    <!-- allowBackup="false" : la sauvegarde Google et le transfert d'appareil
+         a appareil emportaient la base SQLite (chantiers, reserves, file
+         d'envoi) et les photos hors ligne, en clair. Les jetons, eux, sont
+         lies au Keystore de l'appareil et ne se restaurent de toute facon pas. -->
     <application
         android:label="Widjila"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -54,6 +60,15 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- L'application n'expose aucun lien profond. Active par defaut
+                 depuis Flutter 3.27, ce mecanisme laissait n'importe quelle
+                 application installee ouvrir un ecran interne avec des
+                 parametres choisis (ex. un faux nom de chantier sur l'ecran de
+                 depot des plans). Les alertes push naviguent par leur charge
+                 utile, pas par ce mecanisme. -->
+            <meta-data
+              android:name="flutter_deeplinking_enabled"
+              android:value="false" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>

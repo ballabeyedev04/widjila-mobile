@@ -5,9 +5,13 @@ import 'package:suivie_chantier_mobile/core/offline/cache_reserves.dart';
 import 'package:suivie_chantier_mobile/core/offline/executeur_actions.dart';
 import 'package:suivie_chantier_mobile/core/offline/file_attente.dart';
 import 'package:suivie_chantier_mobile/core/offline/stockage_medias.dart';
+import 'package:suivie_chantier_mobile/features/rapport/data/datasources/rapport_remote_datasource.dart';
+import 'package:suivie_chantier_mobile/features/rapport/domain/entities/envoi_rapport.dart';
 import 'package:suivie_chantier_mobile/features/reserve/data/datasources/reserve_remote_datasource.dart';
 
 class MockReserveRemoteDataSource extends Mock implements ReserveRemoteDataSource {}
+
+class MockRapportRemoteDataSource extends Mock implements RapportRemoteDataSource {}
 
 class MockCacheReserves extends Mock implements CacheReserves {}
 
@@ -83,6 +87,91 @@ void main() {
         throwsA(isNot(isA<ServerException>()
             .having((e) => e.message, 'message', contains('phase')))),
       );
+    });
+  });
+
+  // Cahier des charges Rapports § 22 : « l'envoi d'un rapport nécessite une
+  // connexion. Widjila peut mettre l'action en file d'attente et la
+  // transmettre lorsque le réseau revient. »
+  group('rejeu d’un envoi de rapport', () {
+    late MockRapportRemoteDataSource rapports;
+
+    setUpAll(() => registerFallbackValue(const DemandeEnvoiRapport()));
+
+    setUp(() {
+      rapports = MockRapportRemoteDataSource();
+      executeur = ExecuteurActionsHorsLigne(
+        reserves: reserves,
+        cache: cache,
+        medias: MockStockageMedias(),
+        rapports: rapports,
+      );
+    });
+
+    ActionEnAttente envoi(Map<String, dynamic> demande) => ActionEnAttente(
+          id: 'a-2',
+          type: TypeAction.envoyerRapport,
+          charge: {'rapportId': 'r1', 'demande': demande},
+          creeLe: DateTime(2026, 9, 10),
+        );
+
+    test('rejoue la demande VALIDÉE par l’utilisateur, telle quelle', () async {
+      when(() => rapports.envoyerRapport(any(), any(), cleIdempotence: any(named: 'cleIdempotence')))
+          .thenAnswer((_) async => 'Rapport envoyé.');
+
+      await executeur.executer(envoi({
+        'exclure': ['plomberie@ex.fr'],
+        'objet': 'OPR bâtiment A',
+        'mode': 'lien',
+      }));
+
+      verify(() => rapports.envoyerRapport(
+            'r1',
+            const DemandeEnvoiRapport(exclure: ['plomberie@ex.fr'], objet: 'OPR bâtiment A', mode: ModeEnvoiRapport.lien),
+            cleIdempotence: any(named: 'cleIdempotence'),
+          )).called(1);
+      verifyZeroInteractions(reserves);
+    });
+
+    test('rejoue avec la clé de la tentative d’ORIGINE quand l’action la porte', () async {
+      when(() => rapports.envoyerRapport(any(), any(), cleIdempotence: any(named: 'cleIdempotence')))
+          .thenAnswer((_) async => 'Rapport envoyé.');
+
+      await executeur.executer(ActionEnAttente(
+        id: 'a-3',
+        type: TypeAction.envoyerRapport,
+        charge: {'rapportId': 'r1', 'demande': const <String, dynamic>{}, 'cleIdempotence': 'cle-tentative-en-ligne'},
+        creeLe: DateTime(2026, 9, 10),
+      ));
+
+      verify(() => rapports.envoyerRapport('r1', any(), cleIdempotence: 'cle-tentative-en-ligne')).called(1);
+    });
+
+    test('action déposée par une version antérieure (sans clé) : l’identifiant d’action sert de clé', () async {
+      // Stable d'un rejeu à l'autre : c'est tout ce qu'on demande à la clé.
+      when(() => rapports.envoyerRapport(any(), any(), cleIdempotence: any(named: 'cleIdempotence')))
+          .thenAnswer((_) async => 'Rapport envoyé.');
+
+      await executeur.executer(envoi({}));
+
+      verify(() => rapports.envoyerRapport('r1', any(), cleIdempotence: 'a-2')).called(1);
+    });
+
+    test('un refus du serveur remonte — la file le classera', () async {
+      when(() => rapports.envoyerRapport(any(), any(), cleIdempotence: any(named: 'cleIdempotence')))
+          .thenThrow(const ServerException(statusCode: 400, message: 'Adresse étrangère au chantier'));
+
+      await expectLater(executeur.executer(envoi({})), throwsA(isA<ServerException>()));
+    });
+
+    test('annuler ne touche à rien : l’envoi n’avait rien écrit localement', () async {
+      await executeur.annuler(envoi({}));
+      verifyZeroInteractions(cache);
+      verifyZeroInteractions(rapports);
+    });
+
+    test('le type est relu depuis la base locale', () {
+      expect(TypeAction.depuisCode('envoyerRapport'), TypeAction.envoyerRapport);
     });
   });
 }

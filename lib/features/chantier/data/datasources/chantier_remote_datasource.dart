@@ -3,6 +3,7 @@ import '../../../../core/network/dio_exception_mapper.dart';
 import '../../../referentiel/domain/entities/code_niveau.dart';
 import '../../../reserve/domain/entities/chantier_structure.dart';
 import '../../domain/entities/chantier.dart';
+import '../../domain/entities/membre_chantier.dart';
 import '../../domain/repositories/chantier_repository.dart';
 
 abstract class ChantierRemoteDataSource {
@@ -30,6 +31,13 @@ abstract class ChantierRemoteDataSource {
   /// Ajoute un bâtiment au chantier.
   Future<BatimentStructure> creerBatiment(String chantierId, {required String nom, String? code});
 
+  /// `PUT /chantiers/:id/batiments/:b` — renomme un bâtiment.
+  Future<BatimentStructure> modifierBatiment(String chantierId, String batimentId, {required String nom});
+
+  /// `DELETE /chantiers/:id/batiments/:b`. Refusé par le serveur tant qu'une
+  /// réserve y est rattachée — son message remonte tel quel.
+  Future<void> supprimerBatiment(String chantierId, String batimentId);
+
   /// Ajoute un niveau à un bâtiment — sa nature range l'étage sous
   /// « SOUS-SOLS », « ÉTAGES » ou « TOITURE ».
   Future<EtageStructure> creerEtage(
@@ -41,6 +49,18 @@ abstract class ChantierRemoteDataSource {
     String? description,
     int? niveau,
   });
+
+  /// `PUT /chantiers/:id/batiments/:b/etages/:e` — renomme un niveau.
+  Future<EtageStructure> modifierEtage(
+    String chantierId,
+    String batimentId,
+    String etageId, {
+    required String nom,
+  });
+
+  /// `DELETE /chantiers/:id/batiments/:b/etages/:e`. Même garde que le
+  /// bâtiment : refusé tant qu'une réserve y est rattachée.
+  Future<void> supprimerEtage(String chantierId, String batimentId, String etageId);
 
   /// Ajoute un appartement (zone) à un niveau.
   Future<ZoneStructure> creerZone(
@@ -73,11 +93,27 @@ abstract class ChantierRemoteDataSource {
     String etageId,
     String zoneId,
   );
+
+  /// `GET /chantiers/:id/membres` — membres affectés au chantier.
+  Future<List<MembreChantier>> getMembresChantier(String chantierId);
+
+  /// `GET /chantiers/:id/membres/candidats` — membres ACTIFS de
+  /// l'organisation pas encore affectés.
+  Future<List<MembreChantier>> getCandidatsMembres(String chantierId);
+
+  /// `POST /chantiers/:id/membres` — affecte un ou plusieurs membres.
+  Future<void> affecterMembres(String chantierId, {required List<String> membreIds, String? roleChantier});
+
+  /// `DELETE /chantiers/:id/membres/:membreId`.
+  Future<void> retirerMembre(String chantierId, String membreId);
 }
 
 class ChantierRemoteDataSourceImpl implements ChantierRemoteDataSource {
   final Dio dio;
   ChantierRemoteDataSourceImpl({required this.dio});
+
+  Map<String, dynamic> _data(Response<dynamic> response) =>
+      (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
 
   @override
   Future<ChantierPage> getChantiers({
@@ -100,7 +136,7 @@ class ChantierRemoteDataSourceImpl implements ChantierRemoteDataSource {
         // suivi n'afficherait jamais rien.
         if (demandes != null) 'demandes': demandes.raw,
       });
-      final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+      final data = _data(response);
       final items = (data['chantiers'] as List).map((e) => Chantier.fromJson(e as Map<String, dynamic>)).toList();
       return ChantierPage(items: items, total: data['total'] as int? ?? items.length);
     } on DioException catch (e) {
@@ -144,8 +180,7 @@ class ChantierRemoteDataSourceImpl implements ChantierRemoteDataSource {
         if (budget != null) 'budget': budget,
         if (responsableId != null && responsableId.isNotEmpty) 'responsableId': responsableId,
       });
-      final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
-      return Chantier.fromJson(data['chantier'] as Map<String, dynamic>);
+      return Chantier.fromJson(_data(response)['chantier'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw mapDioException(e);
     }
@@ -162,8 +197,26 @@ class ChantierRemoteDataSourceImpl implements ChantierRemoteDataSource {
         'nom': nom,
         if (code != null && code.isNotEmpty) 'code': code,
       });
-      final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
-      return BatimentStructure.fromJson(data['batiment'] as Map<String, dynamic>);
+      return BatimentStructure.fromJson(_data(response)['batiment'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<BatimentStructure> modifierBatiment(String chantierId, String batimentId, {required String nom}) async {
+    try {
+      final response = await dio.put('/chantiers/$chantierId/batiments/$batimentId', data: {'nom': nom});
+      return BatimentStructure.fromJson(_data(response)['batiment'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<void> supprimerBatiment(String chantierId, String batimentId) async {
+    try {
+      await dio.delete('/chantiers/$chantierId/batiments/$batimentId');
     } on DioException catch (e) {
       throw mapDioException(e);
     }
@@ -190,8 +243,34 @@ class ChantierRemoteDataSourceImpl implements ChantierRemoteDataSource {
           if (niveau != null) 'niveau': niveau,
         },
       );
-      final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
-      return EtageStructure.fromJson(data['etage'] as Map<String, dynamic>);
+      return EtageStructure.fromJson(_data(response)['etage'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<EtageStructure> modifierEtage(
+    String chantierId,
+    String batimentId,
+    String etageId, {
+    required String nom,
+  }) async {
+    try {
+      final response = await dio.put(
+        '/chantiers/$chantierId/batiments/$batimentId/etages/$etageId',
+        data: {'nom': nom},
+      );
+      return EtageStructure.fromJson(_data(response)['etage'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<void> supprimerEtage(String chantierId, String batimentId, String etageId) async {
+    try {
+      await dio.delete('/chantiers/$chantierId/batiments/$batimentId/etages/$etageId');
     } on DioException catch (e) {
       throw mapDioException(e);
     }
@@ -213,8 +292,7 @@ class ChantierRemoteDataSourceImpl implements ChantierRemoteDataSource {
           if (type != null && type.isNotEmpty) 'type': type,
         },
       );
-      final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
-      return ZoneStructure.fromJson(data['zone'] as Map<String, dynamic>);
+      return ZoneStructure.fromJson(_data(response)['zone'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw mapDioException(e);
     }
@@ -233,8 +311,7 @@ class ChantierRemoteDataSourceImpl implements ChantierRemoteDataSource {
         '/chantiers/$chantierId/batiments/$batimentId/etages/$etageId/zones/$zoneId',
         data: {'nom': nom},
       );
-      final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
-      return ZoneStructure.fromJson(data['zone'] as Map<String, dynamic>);
+      return ZoneStructure.fromJson(_data(response)['zone'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw mapDioException(e);
     }
@@ -260,8 +337,52 @@ class ChantierRemoteDataSourceImpl implements ChantierRemoteDataSource {
   Future<Chantier> getChantierDetail(String id) async {
     try {
       final response = await dio.get('/chantiers/$id');
-      final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
-      return Chantier.fromJson(data['chantier'] as Map<String, dynamic>);
+      return Chantier.fromJson(_data(response)['chantier'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<List<MembreChantier>> getMembresChantier(String chantierId) async {
+    try {
+      final response = await dio.get('/chantiers/$chantierId/membres');
+      return (_data(response)['membres'] as List? ?? [])
+          .map((e) => MembreChantier.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<List<MembreChantier>> getCandidatsMembres(String chantierId) async {
+    try {
+      final response = await dio.get('/chantiers/$chantierId/membres/candidats');
+      return (_data(response)['candidats'] as List? ?? [])
+          .map((e) => MembreChantier.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<void> affecterMembres(String chantierId, {required List<String> membreIds, String? roleChantier}) async {
+    try {
+      await dio.post('/chantiers/$chantierId/membres', data: {
+        'membreIds': membreIds,
+        if (roleChantier != null && roleChantier.trim().isNotEmpty) 'roleChantier': roleChantier.trim(),
+      });
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<void> retirerMembre(String chantierId, String membreId) async {
+    try {
+      await dio.delete('/chantiers/$chantierId/membres/$membreId');
     } on DioException catch (e) {
       throw mapDioException(e);
     }

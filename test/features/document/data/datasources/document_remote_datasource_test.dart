@@ -122,4 +122,52 @@ void main() {
       DocumentType.photo.raw,
     );
   });
+
+  Map<String, dynamic> documentCree() => {
+        'success': true,
+        'data': {
+          'document': {
+            'id': 'd10',
+            'chantierId': 'c1',
+            'type': 'compte_rendu',
+            'nom_fichier': 'CR.docx',
+            'fichier_url': '/uploads/documents/d10.docx',
+          },
+        },
+      };
+
+  test('le dépôt garde le nom d’origine et annonce le type MIME exact', () async {
+    // Le serveur confronte le type annoncé au contenu réel : un
+    // `application/octet-stream` par défaut ferait refuser un Word dont le
+    // nom de cache n'a pas d'extension.
+    espion.repond(documentCree());
+
+    await source.ajouterDocument(
+      chantierId: 'c1',
+      cheminFichier: fichierTemporaire('file_picker_cache_1234'),
+      type: DocumentType.compteRendu,
+      nomFichier: 'CR réunion 12.docx',
+    );
+
+    final envoye = (espion.requete.data as FormData).files.single.value;
+    expect(envoye.filename, 'CR réunion 12.docx');
+    expect(
+      envoye.contentType?.mimeType,
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    );
+  });
+
+  test('un dépôt n’est pas borné par le délai de 30 s du client', () async {
+    // Chez Dio, `sendTimeout` borne l'envoi ENTIER : une vidéo sur la 4G
+    // d'un chantier ne tiendrait jamais en 30 s.
+    espion.repond(documentCree());
+
+    await source.ajouterDocument(
+      chantierId: 'c1',
+      cheminFichier: fichierTemporaire('fissure.mp4'),
+      type: DocumentType.autre,
+    );
+
+    expect(espion.requete.sendTimeout, greaterThanOrEqualTo(const Duration(minutes: 5)));
+  });
 }

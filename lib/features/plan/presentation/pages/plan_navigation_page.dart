@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/config/user_role.dart';
 import '../../../../core/config/breakpoints.dart';
 import '../../../referentiel/domain/entities/code_niveau.dart';
+import '../../../../core/services/ouverture_fichier.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/liste_chrome.dart' show colonnesAdaptatives;
 import '../../../../core/widgets/empty_state.dart';
@@ -916,7 +917,7 @@ class _PlanApercuState extends State<_PlanApercu> {
     if (!mounted) return;
     detail.fold((_) {}, (p) => setState(() => _hotspots = p.hotspots));
 
-    if (!widget.plan.format.affichableSurMobile) {
+    if (_formatNonAffichable) {
       setState(() => _erreur = context.l10n.planViewerFormatNonSupporte);
       return;
     }
@@ -929,6 +930,31 @@ class _PlanApercuState extends State<_PlanApercu> {
     }
   }
 
+  /// DWG, IFC : rien à dessiner ici. Le message renvoyait vers l'espace web,
+  /// qui ne sait pas davantage les afficher ; une application du téléphone,
+  /// elle, le peut peut-être — le bouton la propose, comme la visionneuse.
+  bool get _formatNonAffichable => !widget.plan.format.affichableSurMobile;
+
+  Future<void> _ouvrirExterne() async {
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    final resultat = await sl<OuvertureFichier>().ouvrir(
+      url: widget.plan.fichierUrl,
+      // Le nom du plan n'a pas d'extension : sans celle du format, le système
+      // ne sait pas à quelle application confier le fichier.
+      nomFichier: '${widget.plan.nom}.${widget.plan.format.raw}',
+    );
+    if (!mounted) return;
+    resultat.fold(
+      (failure) => messenger.showSnackBar(SnackBar(content: Text(failure.errorMessage))),
+      (issue) {
+        if (issue == ResultatOuverture.aucuneApplication) {
+          messenger.showSnackBar(SnackBar(content: Text(l10n.documentAucuneApplication)));
+        }
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
@@ -937,12 +963,25 @@ class _PlanApercuState extends State<_PlanApercu> {
         color: AppColors.surface,
         child: _erreur != null
             ? Center(
-                child: Padding(
+                child: SingleChildScrollView(
                   padding: const EdgeInsets.all(20),
-                  child: Text(
-                    _erreur!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _erreur!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+                      ),
+                      if (_formatNonAffichable) ...[
+                        const SizedBox(height: 10),
+                        TextButton.icon(
+                          onPressed: _ouvrirExterne,
+                          icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                          label: Text(context.l10n.planOuvrirExterne),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               )

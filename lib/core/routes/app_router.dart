@@ -25,6 +25,9 @@ import '../../features/organisation/presentation/pages/intervenants_list_page.da
 import '../../features/organisation/presentation/pages/membres_list_page.dart';
 import '../../features/inspection/presentation/pages/inspection_detail_page.dart';
 import '../../features/inspection/presentation/pages/inspections_list_page.dart';
+import '../../features/rapport/domain/entities/rapport.dart';
+import '../../features/rapport/presentation/pages/nouveau_rapport_page.dart';
+import '../../features/rapport/presentation/pages/rapport_detail_page.dart';
 import '../../features/rapport/presentation/pages/rapports_list_page.dart';
 import '../../features/plan/presentation/pages/plan_navigation_page.dart';
 import '../../features/plan/presentation/pages/plan_viewer_page.dart';
@@ -32,6 +35,8 @@ import '../../features/plan/presentation/pages/plan_explorer_page.dart';
 import '../../features/plan/presentation/pages/plans_list_page.dart';
 import '../../features/chantier/presentation/pages/demandes_chantier_page.dart';
 import '../../features/chantier/presentation/pages/depot_plans_page.dart';
+import '../../features/chantier/presentation/pages/membres_chantier_page.dart';
+import '../../features/chantier/presentation/pages/structure_chantier_page.dart';
 import '../../features/reserve/presentation/pages/chantier_dashboard_page.dart';
 import '../../features/reserve/presentation/pages/reserve_detail_page.dart';
 import '../../features/reserve/presentation/pages/reserve_wizard_page.dart';
@@ -131,6 +136,17 @@ class AppRoutes {
   static const inspections = '/chantiers/:chantierId/inspections';
   static const inspectionDetail = '/inspections/:id';
   static const rapports = '/chantiers/:chantierId/rapports';
+
+  // Module Rapports du cahier des charges : l'assistant « + Nouveau
+  // rapport » (§ 3), depuis un chantier ou depuis nulle part — l'étape
+  // « Choisir le projet » s'ajoute alors —, et le détail d'un rapport.
+  static const rapportNouveau = '/chantiers/:chantierId/rapports/nouveau';
+  static const rapportDetail = '/chantiers/:chantierId/rapports/:rapportId';
+  static const rapportNouveauGlobal = '/rapports/nouveau';
+
+  // Structure et membres d'un chantier — mêmes règles : écrans pleins.
+  static const chantierStructure = '/chantiers/:chantierId/structure';
+  static const chantierMembres = '/chantiers/:chantierId/membres';
 }
 
 /// Transition commune à tous les écrans PLEINS (ceux empilés hors de la
@@ -506,6 +522,44 @@ class AppRouter {
           chantierId: state.pathParameters['chantierId']!,
           chantierNom: state.uri.queryParameters['nom'],
         )),
+      ),
+      // « nouveau » AVANT « :rapportId » : sinon le mot serait pris pour un
+      // identifiant de rapport.
+      GoRoute(
+        path: AppRoutes.rapportNouveau,
+        pageBuilder: (_, state) => _pagePleine(state, NouveauRapportPage(
+          chantierId: state.pathParameters['chantierId']!,
+          chantierNom: state.uri.queryParameters['nom'],
+          // Rapport à modifier (§ 20) ou copie à retoucher.
+          existant: state.extra is Rapport ? state.extra as Rapport : null,
+        )),
+      ),
+      GoRoute(
+        path: AppRoutes.rapportDetail,
+        pageBuilder: (_, state) => _pagePleine(state, RapportDetailPage(
+          rapportId: state.pathParameters['rapportId']!,
+          chantierNom: state.uri.queryParameters['nom'],
+        )),
+      ),
+      GoRoute(
+        path: AppRoutes.rapportNouveauGlobal,
+        pageBuilder: (_, state) => _pagePleine(state, const NouveauRapportPage()),
+      ),
+
+      // ── Structure et membres d'un chantier — écrans pleins ────────────────
+      GoRoute(
+        path: AppRoutes.chantierStructure,
+        pageBuilder: (_, state) => _pagePleine(
+          state,
+          StructureChantierPage(chantierId: state.pathParameters['chantierId']!),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.chantierMembres,
+        pageBuilder: (_, state) => _pagePleine(
+          state,
+          MembresChantierPage(chantierId: state.pathParameters['chantierId']!),
+        ),
       ),
     ],
   );

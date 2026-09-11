@@ -1,7 +1,9 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:open_file/open_file.dart' as plugin;
 import 'package:path_provider/path_provider.dart';
 
@@ -19,15 +21,20 @@ enum ResultatOuverture {
   aucuneApplication,
 }
 
-/// Téléchargement puis ouverture d'un fichier de l'API dans l'application
-/// système appropriée.
+/// Téléchargement, aperçu, ouverture et enregistrement d'un fichier de l'API.
 ///
 /// Pourquoi ce détour plutôt qu'un simple lien confié au navigateur : depuis
 /// l'audit H1, `/uploads/*` n'est plus servi publiquement et exige l'en-tête
 /// `Authorization`. Un `url_launcher` sur l'URL brute répondrait donc 401.
 /// Les octets doivent transiter par le Dio de l'application — celui qui porte
-/// le jeton et sait le rafraîchir — puis être écrits sur disque, car
-/// `open_file` prend un CHEMIN et non un flux.
+/// le jeton et sait le rafraîchir.
+///
+/// Trois usages, trois destinations des octets :
+///   - [telecharger] : en MÉMOIRE seulement — l'aperçu intégré (« voir sans
+///     télécharger ») ; rien n'est écrit sur l'appareil ;
+///   - [ouvrir] / [ouvrirOctets] : copie dans le dossier TEMPORAIRE, confiée à
+///     l'application système (`open_file` prend un chemin, pas un flux) ;
+///   - [enregistrer] : copie DURABLE, à l'emplacement choisi par l'utilisateur.
 class OuvertureFichier {
   final Dio dio;
   const OuvertureFichier({required this.dio});
@@ -53,14 +60,13 @@ class OuvertureFichier {
     return nettoye.length > 120 ? nettoye.substring(nettoye.length - 120) : nettoye;
   }
 
-  /// Télécharge [url] et l'ouvre. [nomFichier] sert de nom sur disque.
+  /// Télécharge [url] EN MÉMOIRE, sans rien écrire sur l'appareil.
   ///
   /// [onProgression] reçoit une valeur de 0 à 1, ou `null` quand le serveur
   /// n'annonce pas de `Content-Length` — l'appelant doit alors afficher une
   /// progression indéterminée plutôt qu'une barre bloquée à zéro.
-  Future<Either<Failure, ResultatOuverture>> ouvrir({
+  Future<Either<Failure, Uint8List>> telecharger({
     required String url,
-    required String nomFichier,
     void Function(double?)? onProgression,
   }) async {
     try {
@@ -76,7 +82,35 @@ class OuvertureFichier {
       if (octets == null || octets.isEmpty) {
         return Left(ServerFailure(errorMessage: 'Fichier vide'));
       }
+      return Right(octets is Uint8List ? octets : Uint8List.fromList(octets));
+    } on DioException catch (e) {
+      return Left(exceptionToFailure(mapDioException(e)));
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
 
+  /// Télécharge [url] et l'ouvre dans l'application système appropriée.
+  /// [nomFichier] sert de nom sur disque ; [onProgression] : voir [telecharger].
+  Future<Either<Failure, ResultatOuverture>> ouvrir({
+    required String url,
+    required String nomFichier,
+    void Function(double?)? onProgression,
+  }) async {
+    final octets = await telecharger(url: url, onProgression: onProgression);
+    return octets.fold<Future<Either<Failure, ResultatOuverture>>>(
+      (failure) async => Left(failure),
+      (donnees) => ouvrirOctets(octets: donnees, nomFichier: nomFichier),
+    );
+  }
+
+  /// Confie des octets DÉJÀ chargés à l'application système appropriée —
+  /// depuis l'aperçu, sans second téléchargement.
+  Future<Either<Failure, ResultatOuverture>> ouvrirOctets({
+    required List<int> octets,
+    required String nomFichier,
+  }) async {
+    try {
       final dossier = await getTemporaryDirectory();
       // Préfixe horodaté : deux versions successives du même document
       // porteraient sinon le même chemin, et `open_file` rouvrirait l'ancienne
@@ -90,8 +124,29 @@ class OuvertureFichier {
       return Right(
         resultat.type == plugin.ResultType.done ? ResultatOuverture.ouvert : ResultatOuverture.aucuneApplication,
       );
-    } on DioException catch (e) {
-      return Left(exceptionToFailure(mapDioException(e)));
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  /// Enregistre [octets] sur l'appareil, à l'emplacement choisi par
+  /// l'utilisateur.
+  ///
+  /// Passe par la boîte « Enregistrer sous » du système — le sélecteur de
+  /// documents d'Android, qui propose le dossier Téléchargements, ou l'app
+  /// Fichiers d'iOS. Aucune permission de stockage n'est demandée : c'est
+  /// l'utilisateur qui désigne le fichier à créer, et le système n'accorde
+  /// l'écriture que pour celui-là.
+  ///
+  /// `Right(false)` : l'utilisateur a refermé la boîte sans enregistrer. Ce
+  /// n'est pas une erreur, rien ne doit s'afficher.
+  Future<Either<Failure, bool>> enregistrer({
+    required Uint8List octets,
+    required String nomFichier,
+  }) async {
+    try {
+      final chemin = await FilePicker.platform.saveFile(fileName: nomSur(nomFichier), bytes: octets);
+      return Right(chemin != null);
     } catch (e) {
       return Left(exceptionToFailure(e));
     }

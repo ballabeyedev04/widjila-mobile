@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
@@ -6,7 +9,6 @@ import 'package:intl/intl.dart';
 import '../../../../core/config/user_role.dart';
 import '../../../../core/services/capture_photo.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/services/ouverture_fichier.dart';
 import '../../../../core/widgets/app_alert.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/fichier_image.dart';
@@ -16,16 +18,23 @@ import '../../../../injection_container.dart';
 import '../../../../l10n/l10n_extension.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../domain/entities/document.dart';
+import '../../domain/formats_document.dart';
 import '../cubit/documents_list_cubit.dart';
 import '../cubit/documents_list_state.dart';
+import '../widgets/actions_document.dart';
 import '../../../../core/network/forcer_reseau.dart';
 
 /// Écran 6 de la maquette — « Photos & documents » d'un chantier.
 ///
 /// Les trois onglets viennent d'une SEULE source (la GED du chantier,
-/// `GET /chantiers/:id/documents`) répartie par type MIME côté client : le
-/// back n'expose pas de route « médias du chantier » distincte, et les photos
-/// de réserves appartiennent à leur réserve, pas au chantier.
+/// `GET /chantiers/:id/documents`) répartie par format côté client : le back
+/// n'expose pas de route « médias du chantier » distincte, et les photos de
+/// réserves appartiennent à leur réserve, pas au chantier.
+///
+/// Chaque onglet a son geste d'ajout — appareil photo, caméra, fichiers de
+/// l'appareil — et chaque fichier se VOIT dans l'application (PDF, photo),
+/// se TÉLÉCHARGE ou s'OUVRE dans une autre application : voir
+/// `widgets/actions_document.dart`.
 class DocumentsListPage extends StatelessWidget {
   final String chantierId;
   const DocumentsListPage({super.key, required this.chantierId});
@@ -47,29 +56,39 @@ class _MediathequeView extends StatefulWidget {
 }
 
 class _MediathequeViewState extends State<_MediathequeView> with SingleTickerProviderStateMixin {
-  late final TabController _tabController = TabController(length: 3, vsync: this);
+  late final TabController _tabController = TabController(length: 3, vsync: this)
+    ..addListener(_surChangementOnglet);
+
+  /// Onglet courant, gardé à part pour ne reconstruire qu'au CHANGEMENT :
+  /// le contrôleur notifie aussi pendant l'animation de balayage.
+  int _onglet = 0;
+
+  void _surChangementOnglet() {
+    if (_tabController.index != _onglet) setState(() => _onglet = _tabController.index);
+  }
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _tabController
+      ..removeListener(_surChangementOnglet)
+      ..dispose();
     super.dispose();
   }
 
-  /// La source dépend de l'onglet courant : photo/vidéo passent par
-  /// `image_picker` (galerie ou caméra). L'onglet Documents n'a pas de
-  /// sélecteur de fichiers — `file_picker` n'est pas dans le projet — donc on
-  /// le dit plutôt que d'afficher un bouton sans effet.
+  /// Le geste d'ajout dépend de l'onglet courant : photo et vidéo passent par
+  /// `image_picker` (caméra ou galerie), un document par le sélecteur de
+  /// fichiers de l'appareil.
   Future<void> _deposer(BuildContext context) async {
     final cubit = context.read<DocumentsListCubit>();
     final onglet = _tabController.index;
 
     if (onglet == 2) {
-      AppAlert.error(context, message: context.l10n.documentAjoutDepuisWeb);
+      await _deposerDocument(context, cubit);
       return;
     }
 
     final source = await _choisirSource(context);
-    if (source == null) return;
+    if (source == null || !context.mounted) return;
 
     // PHOTO : `capturerPhoto`, qui récupère le cliché mis en attente quand
     // Android détruit l'activité pendant la prise de vue — sans quoi la photo
@@ -93,12 +112,138 @@ class _MediathequeViewState extends State<_MediathequeView> with SingleTickerPro
       }
     } else {
       chemin = (await ImagePicker().pickVideo(source: source))?.path;
+      if (chemin != null) {
+        // Refusée AVANT l'envoi si elle dépasse le plafond du serveur : sinon
+        // l'utilisateur attend la fin d'un long envoi pour apprendre l'échec.
+        if (!context.mounted) return;
+        if (!await _videoAcceptable(context, chemin)) return;
+      }
     }
     if (chemin == null) return;
 
     await cubit.deposer(
       cheminFichier: chemin,
       type: onglet == 0 ? DocumentType.photo : DocumentType.autre,
+    );
+  }
+
+  /// Dépôt d'un document (PDF, Word, Excel, PowerPoint, DWG) choisi dans les
+  /// fichiers de l'appareil.
+  ///
+  /// `FileType.any` plutôt qu'un filtre par extension : Android ne connaît pas
+  /// de type MIME pour certains formats métier (DWG) et les grise alors dans
+  /// le sélecteur, sans explication. Le format est donc contrôlé APRÈS le
+  /// choix, avec un message qui dit ce qui est accepté.
+  Future<void> _deposerDocument(BuildContext context, DocumentsListCubit cubit) async {
+    final choix = await FilePicker.platform.pickFiles(type: FileType.any, withData: false);
+    final fichier = choix?.files.singleOrNull;
+    final chemin = fichier?.path;
+    if (fichier == null || chemin == null || !context.mounted) return;
+
+    final l10n = context.l10n;
+    if (!FormatsDocument.estDocumentAccepte(fichier.name)) {
+      AppAlert.error(context, message: l10n.documentFormatNonSupporte);
+      return;
+    }
+    if (fichier.size > FormatsDocument.tailleMaxDocument) {
+      AppAlert.error(
+        context,
+        message: l10n.documentFichierTropVolumineux(_plafondLisible(context, FormatsDocument.tailleMaxDocument)),
+      );
+      return;
+    }
+
+    final type = await _choisirTypeDocument(context);
+    if (type == null) return;
+
+    // Le nom d'origine part avec le fichier : le sélecteur travaille sur une
+    // copie en cache, dont le nom n'a rien à faire dans la GED.
+    await cubit.deposer(cheminFichier: chemin, type: type, nomFichier: fichier.name);
+  }
+
+  Future<bool> _videoAcceptable(BuildContext context, String chemin) async {
+    final int taille;
+    try {
+      taille = await File(chemin).length();
+    } on FileSystemException {
+      // Taille illisible : le serveur tranchera.
+      return true;
+    }
+    if (taille <= FormatsDocument.tailleMaxVideo) return true;
+    if (context.mounted) {
+      AppAlert.error(
+        context,
+        message: context.l10n.documentFichierTropVolumineux(
+          _plafondLisible(context, FormatsDocument.tailleMaxVideo),
+        ),
+      );
+    }
+    return false;
+  }
+
+  String _plafondLisible(BuildContext context, int octets) =>
+      context.l10n.documentTailleMo('${octets ~/ (1024 * 1024)}');
+
+  /// Nature métier du document déposé : c'est elle qui s'affiche sous son nom
+  /// et sert au filtre de la GED, sur le web comme ici.
+  Future<DocumentType?> _choisirTypeDocument(BuildContext context) {
+    final l10n = context.l10n;
+    const types = [
+      DocumentType.contrat,
+      DocumentType.doe,
+      DocumentType.pv,
+      DocumentType.compteRendu,
+      DocumentType.rapport,
+      DocumentType.notice,
+      DocumentType.plan,
+      DocumentType.autre,
+    ];
+
+    return showModalBottomSheet<DocumentType>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (sheetContext) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 8),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+                child: Text(
+                  l10n.documentTypeChoixTitre,
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.textPrimary),
+                ),
+              ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final type in types)
+                      ListTile(
+                        leading: const Icon(Icons.description_outlined, color: AppColors.primary),
+                        title: Text(type.label(l10n)),
+                        onTap: () => Navigator.of(sheetContext).pop(type),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -136,6 +281,13 @@ class _MediathequeViewState extends State<_MediathequeView> with SingleTickerPro
     );
   }
 
+  /// Icône du bouton d'ajout : elle dit ce que le bouton va ouvrir.
+  IconData get _iconeAjout => switch (_onglet) {
+        0 => Icons.add_a_photo_outlined,
+        1 => Icons.video_call_outlined,
+        _ => Icons.upload_file_rounded,
+      };
+
   @override
   Widget build(BuildContext context) {
     final role = context.select((AuthBloc b) => b.state.utilisateur?.role);
@@ -158,6 +310,7 @@ class _MediathequeViewState extends State<_MediathequeView> with SingleTickerPro
       },
       builder: (context, state) {
         final enDepot = state.depotStatus == DepotStatus.enCours;
+        final progression = state.depotProgression;
 
         return Scaffold(
           // Blanc, comme Réserves et Plans. Les grilles et listes reposent,
@@ -172,14 +325,22 @@ class _MediathequeViewState extends State<_MediathequeView> with SingleTickerPro
                   elevation: 6,
                   shape: const StadiumBorder(),
                   icon: enDepot
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                            value: progression,
+                            strokeWidth: 2.2,
+                            color: Colors.white,
+                          ),
                         )
-                      : const Icon(Icons.add_a_photo_outlined),
+                      : Icon(_iconeAjout),
                   label: Text(
-                    enDepot ? l10n.documentEnvoiEnCours : l10n.commonAdd,
+                    !enDepot
+                        ? l10n.commonAdd
+                        : progression == null
+                            ? l10n.documentEnvoiEnCours
+                            : l10n.documentEnvoiProgression((progression * 100).floor()),
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 )
@@ -362,7 +523,10 @@ class _Vignette extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => _ouvrirDocument(context, document),
+      // Photo : aperçu plein écran dans l'application. Vidéo : lecteur du
+      // téléphone — voir `voirDocument`.
+      onTap: () => voirDocument(context, document),
+      onLongPress: () => afficherActionsDocument(context, document),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: Stack(
@@ -404,6 +568,11 @@ class _Vignette extends StatelessWidget {
                 ),
               ),
             ),
+            Positioned(
+              top: 6,
+              right: 6,
+              child: _BoutonActions(document: document, surVignette: true),
+            ),
           ],
         ),
       ),
@@ -411,7 +580,7 @@ class _Vignette extends StatelessWidget {
   }
 }
 
-/// Liste des documents « bureautiques » — PDF, DWG, tableurs…
+/// Liste des documents « bureautiques » — PDF, Word, Excel, DWG…
 class _ListeDocuments extends StatelessWidget {
   final List<ChantierDocument> items;
   const _ListeDocuments({required this.items});
@@ -448,16 +617,29 @@ class _LigneDocument extends StatelessWidget {
   final ChantierDocument document;
   const _LigneDocument({required this.document});
 
-  /// Icône et teinte déduites de l'EXTENSION : le `mime_type` est renseigné
-  /// par la détection de magic bytes côté back et vaut souvent
-  /// `application/octet-stream` pour les formats métier (DWG, IFC).
+  /// Icône et teinte déduites de l'EXTENSION : le `mime_type` peut valoir
+  /// `application/octet-stream` pour les formats métier (DWG, IFC) déposés
+  /// avant que le serveur ne le déduise du contenu.
   ({IconData icon, Color couleur}) get _apparence {
-    final nom = document.nomFichier.toLowerCase();
-    if (nom.endsWith('.pdf')) return (icon: Icons.picture_as_pdf_rounded, couleur: AppColors.danger);
-    if (nom.endsWith('.dwg') || nom.endsWith('.dxf')) return (icon: Icons.architecture_rounded, couleur: AppColors.info);
-    if (nom.endsWith('.xlsx') || nom.endsWith('.csv')) return (icon: Icons.table_chart_rounded, couleur: AppColors.success);
-    if (nom.endsWith('.doc') || nom.endsWith('.docx')) return (icon: Icons.article_rounded, couleur: AppColors.info);
-    return (icon: Icons.insert_drive_file_rounded, couleur: AppColors.neutral);
+    switch (document.extension) {
+      case 'pdf':
+        return (icon: Icons.picture_as_pdf_rounded, couleur: AppColors.danger);
+      case 'dwg':
+      case 'dxf':
+        return (icon: Icons.architecture_rounded, couleur: AppColors.info);
+      case 'xls':
+      case 'xlsx':
+      case 'csv':
+        return (icon: Icons.table_chart_rounded, couleur: AppColors.success);
+      case 'doc':
+      case 'docx':
+        return (icon: Icons.article_rounded, couleur: AppColors.info);
+      case 'ppt':
+      case 'pptx':
+        return (icon: Icons.slideshow_rounded, couleur: AppColors.warning);
+      default:
+        return (icon: Icons.insert_drive_file_rounded, couleur: AppColors.neutral);
+    }
   }
 
   @override
@@ -467,7 +649,7 @@ class _LigneDocument extends StatelessWidget {
     final tailleLisible = document.tailleLisible(l10n);
     final details = [
       document.type.label(l10n),
-      if (tailleLisible != null) tailleLisible,
+      ?tailleLisible,
       if (document.createdAt != null) DateFormat('dd/MM/yyyy').format(document.createdAt!),
     ].join(' · ');
 
@@ -476,9 +658,10 @@ class _LigneDocument extends StatelessWidget {
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: () => _ouvrirDocument(context, document),
+        onTap: () => voirDocument(context, document),
+        onLongPress: () => afficherActionsDocument(context, document),
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.fromLTRB(14, 14, 6, 14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             boxShadow: [
@@ -513,7 +696,7 @@ class _LigneDocument extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textMuted),
+              _BoutonActions(document: document),
             ],
           ),
         ),
@@ -522,76 +705,29 @@ class _LigneDocument extends StatelessWidget {
   }
 }
 
-/// Ouverture d'un fichier.
-///
-/// `/uploads/*` exige le jeton d'authentification : un lien direct confié au
-/// navigateur système répondrait 401. Les octets transitent donc par le Dio
-/// applicatif, sont écrits dans un dossier temporaire, puis confiés à
-/// l'application système capable de les lire — voir [OuvertureFichier].
-///
-/// Un indicateur modal couvre l'attente : sur un chantier, un PDF de plusieurs
-/// mégaoctets en 3G prend plusieurs secondes, et un écran qui ne réagit pas
-/// donne l'impression que le tap n'a pas été pris en compte.
-Future<void> _ouvrirDocument(BuildContext context, ChantierDocument document) async {
-  final l10n = context.l10n;
-  final messenger = ScaffoldMessenger.of(context);
-  final navigator = Navigator.of(context, rootNavigator: true);
-
-  showDialog<void>(
-    context: context,
-    barrierDismissible: false,
-    builder: (_) => const _DialogueTelechargement(),
-  );
-
-  final resultat = await sl<OuvertureFichier>().ouvrir(
-    url: document.fichierUrl,
-    nomFichier: document.nomFichier,
-  );
-
-  navigator.pop(); // referme l'indicateur
-  if (!context.mounted) return;
-
-  resultat.fold(
-    (failure) => AppAlert.error(context, title: document.nomFichier, message: failure.errorMessage),
-    (issue) {
-      // Fichier bien téléchargé mais illisible par l'appareil (un DWG sur un
-      // téléphone nu) : ce n'est pas une panne réseau, le message doit le dire.
-      if (issue == ResultatOuverture.aucuneApplication) {
-        messenger.showSnackBar(SnackBar(content: Text(l10n.documentAucuneApplication)));
-      }
-    },
-  );
-}
-
-/// Indicateur d'attente pendant le téléchargement.
-class _DialogueTelechargement extends StatelessWidget {
-  const _DialogueTelechargement();
+/// Bouton « ⋮ » : Voir, Télécharger, Ouvrir avec une autre application.
+class _BoutonActions extends StatelessWidget {
+  final ChantierDocument document;
+  final bool surVignette;
+  const _BoutonActions({required this.document, this.surVignette = false});
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2.4, color: AppColors.primary),
-            ),
-            const SizedBox(width: 16),
-            Flexible(
-              child: Text(
-                context.l10n.documentOuvertureEnCours,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ],
-        ),
-      ),
+    final bouton = IconButton(
+      tooltip: context.l10n.documentPlusActions,
+      onPressed: () => afficherActionsDocument(context, document),
+      icon: const Icon(Icons.more_vert_rounded),
+      iconSize: 20,
+      color: surVignette ? Colors.white : AppColors.textMuted,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+    );
+    if (!surVignette) return bouton;
+
+    // Pastille sombre : le bouton doit rester lisible sur une photo claire.
+    return DecoratedBox(
+      decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.45), shape: BoxShape.circle),
+      child: bouton,
     );
   }
 }

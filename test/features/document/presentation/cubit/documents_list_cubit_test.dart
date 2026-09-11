@@ -94,6 +94,8 @@ void main() {
             chantierId: _chantierId,
             cheminFichier: _chemin,
             type: DocumentType.photo,
+            nomFichier: any(named: 'nomFichier'),
+            onProgression: any(named: 'onProgression'),
           )).thenAnswer((_) async => Right(_document('neuf', type: DocumentType.photo)));
       return build();
     },
@@ -124,6 +126,8 @@ void main() {
             chantierId: _chantierId,
             cheminFichier: _chemin,
             type: DocumentType.photo,
+            nomFichier: any(named: 'nomFichier'),
+            onProgression: any(named: 'onProgression'),
           )).thenAnswer((_) async => const Left(NetworkFailure()));
       return build();
     },
@@ -138,6 +142,40 @@ void main() {
           .having((s) => s.depotStatus, 'depotStatus', DepotStatus.erreur)
           .having((s) => s.depotErreur, 'depotErreur', isNotNull)
           .having((s) => s.items.length, 'items.length', 1),
+    ],
+  );
+
+  blocTest<DocumentsListCubit, DocumentsListState>(
+    'deposer() transmet le nom d’origine et publie la progression, une fois par pourcent',
+    build: () {
+      when(() => ajouterDocument(
+            chantierId: _chantierId,
+            cheminFichier: _chemin,
+            type: DocumentType.doe,
+            nomFichier: 'DOE lot 2.pdf',
+            onProgression: any(named: 'onProgression'),
+          )).thenAnswer((invocation) async {
+        final signaler = invocation.namedArguments[#onProgression] as void Function(double)?;
+        signaler?.call(0.25);
+        signaler?.call(0.251); // même pourcentage : aucune nouvelle émission
+        signaler?.call(1.0);
+        return Right(_document('neuf', type: DocumentType.doe));
+      });
+      return build();
+    },
+    seed: () => const DocumentsListState(status: DocumentsListStatus.succes),
+    act: (cubit) => cubit.deposer(
+      cheminFichier: _chemin,
+      type: DocumentType.doe,
+      nomFichier: 'DOE lot 2.pdf',
+    ),
+    expect: () => [
+      isA<DocumentsListState>().having((s) => s.depotStatus, 'depotStatus', DepotStatus.enCours),
+      isA<DocumentsListState>().having((s) => s.depotProgression, 'depotProgression', 0.25),
+      isA<DocumentsListState>().having((s) => s.depotProgression, 'depotProgression', 1.0),
+      isA<DocumentsListState>()
+          .having((s) => s.depotStatus, 'depotStatus', DepotStatus.succes)
+          .having((s) => s.depotProgression, 'depotProgression', isNull),
     ],
   );
 }

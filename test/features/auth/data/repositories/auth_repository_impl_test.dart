@@ -105,8 +105,28 @@ void main() {
   });
 
   group('logout', () {
+    test('envoie le refresh token au serveur pour qu’il soit RÉVOQUÉ', () async {
+      // Sans lui, `/auth/logout` répondait « succès » sans rien révoquer : le
+      // jeton restait utilisable sept jours après la déconnexion.
+      when(() => tokenService.getRefreshToken()).thenAnswer((_) async => 'refresh-123');
+      when(() => remoteDataSource.logout(refreshToken: any(named: 'refreshToken')))
+          .thenAnswer((_) async {});
+      when(() => tokenService.clearToken()).thenAnswer((_) async {});
+      when(() => userCache.clear()).thenAnswer((_) async {});
+
+      await repository.logout();
+
+      verify(() => remoteDataSource.logout(refreshToken: 'refresh-123')).called(1);
+      verifyInOrder([
+        () => tokenService.getRefreshToken(),
+        () => tokenService.clearToken(),
+      ]);
+    });
+
     test('vide le stockage local MÊME si la révocation réseau échoue', () async {
-      when(() => remoteDataSource.logout()).thenThrow(Exception('réseau down'));
+      when(() => tokenService.getRefreshToken()).thenAnswer((_) async => 'refresh-123');
+      when(() => remoteDataSource.logout(refreshToken: any(named: 'refreshToken')))
+          .thenThrow(Exception('réseau down'));
       when(() => tokenService.clearToken()).thenAnswer((_) async {});
       when(() => userCache.clear()).thenAnswer((_) async {});
 
@@ -121,7 +141,9 @@ void main() {
     // laissait chantiers, réserves ET file d'attente du compte précédent
     // lisibles et synchronisables par le compte suivant.
     test('purge les données hors ligne AVANT d\'effacer le jeton', () async {
-      when(() => remoteDataSource.logout()).thenAnswer((_) async {});
+      when(() => tokenService.getRefreshToken()).thenAnswer((_) async => null);
+      when(() => remoteDataSource.logout(refreshToken: any(named: 'refreshToken')))
+          .thenAnswer((_) async {});
       when(() => tokenService.clearToken()).thenAnswer((_) async {});
       when(() => userCache.clear()).thenAnswer((_) async {});
 

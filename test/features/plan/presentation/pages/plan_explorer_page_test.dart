@@ -2,20 +2,29 @@ import 'dart:convert';
 
 import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:suivie_chantier_mobile/core/config/user_role.dart';
 import 'package:suivie_chantier_mobile/core/errors/failure.dart';
 import 'package:suivie_chantier_mobile/features/plan/domain/entities/plan.dart';
 import 'package:suivie_chantier_mobile/features/plan/domain/usecases/get_plan_detail.dart';
+import 'package:suivie_chantier_mobile/features/plan/domain/usecases/get_plans_chantier.dart';
 import 'package:suivie_chantier_mobile/features/plan/domain/usecases/get_plans_racines.dart';
 import 'package:suivie_chantier_mobile/features/plan/domain/usecases/get_sous_plans.dart';
 import 'package:suivie_chantier_mobile/features/plan/presentation/pages/plan_explorer_page.dart';
+import 'package:suivie_chantier_mobile/features/plan/presentation/widgets/contexte_plan.dart';
 import 'package:suivie_chantier_mobile/features/plan/presentation/widgets/plan_interactif.dart';
+import 'package:suivie_chantier_mobile/features/reserve/domain/entities/chantier_structure.dart';
+import 'package:suivie_chantier_mobile/features/reserve/domain/usecases/get_chantier_structure.dart';
 import 'package:suivie_chantier_mobile/injection_container.dart';
 
 import '../../../../helpers/balayage_responsive.dart';
 import '../../../../helpers/pompe_page.dart';
+
+class _MockStructure extends Mock implements GetChantierStructure {}
+
+class _MockPlansChantier extends Mock implements GetPlansChantier {}
 
 class _MockRacines extends Mock implements GetPlansRacines {}
 
@@ -46,11 +55,15 @@ void main() {
   late _MockRacines getRacines;
   late _MockSousPlans getSousPlans;
   late _MockDetail getDetail;
+  late _MockStructure getStructure;
+  late _MockPlansChantier getPlansChantier;
 
   void desinscrire() {
     if (sl.isRegistered<GetPlansRacines>()) sl.unregister<GetPlansRacines>();
     if (sl.isRegistered<GetSousPlans>()) sl.unregister<GetSousPlans>();
     if (sl.isRegistered<GetPlanDetail>()) sl.unregister<GetPlanDetail>();
+    if (sl.isRegistered<GetChantierStructure>()) sl.unregister<GetChantierStructure>();
+    if (sl.isRegistered<GetPlansChantier>()) sl.unregister<GetPlansChantier>();
     if (sl.isRegistered<Dio>()) sl.unregister<Dio>();
   }
 
@@ -81,6 +94,17 @@ void main() {
     sl.registerLazySingleton<GetSousPlans>(() => getSousPlans);
     sl.registerLazySingleton<GetPlanDetail>(() => getDetail);
     sl.registerSingleton<Dio>(dio);
+
+    // Par défaut, un chantier SANS structure : les tests de la descente par
+    // sous-plans n'en dépendent pas. Ceux de l'arborescence la redéfinissent.
+    getStructure = _MockStructure();
+    getPlansChantier = _MockPlansChantier();
+    when(() => getStructure(any()))
+        .thenAnswer((_) async => const Right<Failure, ChantierStructure>(ChantierStructure()));
+    when(() => getPlansChantier(any()))
+        .thenAnswer((_) async => const Right<Failure, List<Plan>>([]));
+    sl.registerLazySingleton<GetChantierStructure>(() => getStructure);
+    sl.registerLazySingleton<GetPlansChantier>(() => getPlansChantier);
   });
 
   tearDown(desinscrire);
@@ -202,8 +226,11 @@ void main() {
       await tester.tap(find.text('A1'));
       await pomperAvecReseau(tester);
 
-      expect(find.text('A1.1'), findsOneWidget);
-      expect(find.text('A1.2'), findsOneWidget);
+      // `skipOffstage: false` : la fiche du plan ouvert précède désormais ses
+      // sous-plans dans le panneau, qui DÉFILE — le second peut se trouver
+      // sous le pli. Ce qui se vérifie ici, c'est qu'ils y sont, tous deux.
+      expect(find.text('A1.1', skipOffstage: false), findsOneWidget);
+      expect(find.text('A1.2', skipOffstage: false), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -420,6 +447,272 @@ void main() {
 
       final vue = tester.widget<PlanInteractif>(find.byType(PlanInteractif));
       expect(vue.onPointAppuye, isNotNull);
+    });
+  });
+
+  group('le plan global mène aux bâtiments, niveaux et appartements', () {
+    // La demande du client : ouvrir le plan GLOBAL montre, sous le plan, les
+    // bâtiments ; chaque bâtiment ses sections et ses niveaux, chaque niveau
+    // les plans de ses appartements — comme l'écran « Envoi de plans ». Et
+    // ouvrir le plan d'un appartement montre, sous lui, où il se trouve.
+    //
+    // Ces plans ne sont PAS des sous-plans du plan global : ils sont
+    // rattachés à la structure, sans parent. Le serveur les renvoyait donc
+    // tous à plat parmi les « racines ».
+
+    const structure = ChantierStructure(batiments: [
+      BatimentStructure(id: 'b1', nom: 'Bâtiment A', etages: [
+        EtageStructure(id: 'e1', nom: 'R+1', niveau: 1, zones: [
+          ZoneStructure(id: 'z1', nom: 'A001'),
+          ZoneStructure(id: 'z2', nom: 'A002'),
+        ]),
+        // Cote négative : rangé sous SOUS-SOLS, pas sous ÉTAGES.
+        EtageStructure(id: 'e0', nom: 'SS1', niveau: -1),
+      ]),
+      BatimentStructure(id: 'b2', nom: 'Bâtiment B'),
+    ]);
+
+    const global = Plan(
+      id: 'g',
+      chantierId: 'c1',
+      nom: 'Plan de masse',
+      fichierUrl: 'https://exemple.test/g.png',
+    );
+    const planA001 = Plan(
+      id: 'p-a001',
+      chantierId: 'c1',
+      nom: 'Plan A001',
+      fichierUrl: 'https://exemple.test/a001.png',
+      batiment: PlanNiveauRef(id: 'b1', nom: 'Bâtiment A'),
+      etage: PlanNiveauRef(id: 'e1', nom: 'R+1'),
+      zone: PlanNiveauRef(id: 'z1', nom: 'A001'),
+      // Servis par `GET /chantiers/:id/plans` (`_compterEnfants`).
+      nombreReserves: 3,
+      nombreReservesATraiter: 2,
+    );
+
+    void chantier({List<Plan> racinesServies = const [global, planA001]}) {
+      racines(racinesServies);
+      detailRend({'g': global, 'p-a001': planA001});
+      when(() => getStructure(any()))
+          .thenAnswer((_) async => const Right<Failure, ChantierStructure>(structure));
+      when(() => getPlansChantier(any()))
+          .thenAnswer((_) async => const Right<Failure, List<Plan>>([global, planA001]));
+    }
+
+    /// Appuie sur un élément du panneau — amené à l'écran d'abord, le panneau
+    /// défile — et laisse l'`ExpansionTile` finir de s'ouvrir.
+    Future<void> appuyer(WidgetTester tester, String texte) async {
+      await tester.ensureVisible(find.text(texte));
+      await tester.pump();
+      await tester.tap(find.text(texte));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    Future<void> ouvrirAppartementDepuisLeGlobal(WidgetTester tester) async {
+      await pomperPage(tester, page, role: UserRole.chefProjet);
+      await pomperAvecReseau(tester);
+      await tester.tap(find.text('Plan de masse'));
+      await pomperAvecReseau(tester);
+      await appuyer(tester, 'Bâtiment A');
+      await appuyer(tester, 'R+1');
+      await appuyer(tester, 'Plan A001');
+      await pomperAvecReseau(tester);
+    }
+
+    testWidgets('la liste de départ ne montre QUE les plans globaux', (tester) async {
+      chantier();
+
+      await pomperPage(tester, page, role: UserRole.chefProjet);
+      await pomperAvecReseau(tester);
+
+      expect(find.text('Plan de masse'), findsOneWidget);
+      // Le plan d'appartement n'est plus mêlé aux plans globaux.
+      expect(find.text('Plan A001'), findsNothing);
+      // La tuile annonce vers quoi elle mène.
+      expect(find.textContaining('2 bâtiments'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('ouvrir le plan global montre ses bâtiments, puis leurs niveaux et appartements',
+        (tester) async {
+      chantier();
+
+      await pomperPage(tester, page, role: UserRole.chefProjet);
+      await pomperAvecReseau(tester);
+      await tester.tap(find.text('Plan de masse'));
+      await pomperAvecReseau(tester);
+
+      // Le plan global EN HAUT, où l'on peut toujours poser une réserve…
+      expect(find.byType(PlanInteractif), findsOneWidget);
+      expect(find.text('Créer une réserve'), findsOneWidget);
+      // … et ses bâtiments EN BAS.
+      expect(find.text('Bâtiment A'), findsOneWidget);
+      expect(find.text('Bâtiment B'), findsOneWidget);
+
+      await appuyer(tester, 'Bâtiment A');
+      expect(find.text('SOUS-SOLS'), findsOneWidget);
+      expect(find.text('ÉTAGES'), findsOneWidget);
+      expect(find.text('TOITURE'), findsOneWidget);
+      expect(find.text('SS1'), findsOneWidget);
+
+      await appuyer(tester, 'R+1');
+      expect(find.text('A001'), findsOneWidget);
+      expect(find.text('A002'), findsOneWidget);
+      expect(find.text('Plan A001'), findsOneWidget);
+      // Le compteur : le total, et ce qui reste à lever.
+      expect(find.text('3 réserves · 2 à traiter'), findsOneWidget);
+      // A002 n'a pas de plan : l'écran le dit plutôt que de le taire.
+      expect(find.text('Aucun plan pour cet appartement'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('ouvrir le plan d’un appartement montre OÙ il se trouve', (tester) async {
+      chantier();
+
+      await ouvrirAppartementDepuisLeGlobal(tester);
+
+      // Le plan de l'appartement s'ouvre en haut, titre en gras…
+      expect(find.byType(PlanInteractif), findsOneWidget);
+      expect(find.text('Plan A001'), findsOneWidget);
+      expect(find.text('Les Cedres › Bâtiment A › R+1 › A001'), findsOneWidget);
+      // … et en bas : chantier, bâtiment, niveau, appartement.
+      expect(find.text('Les Cedres'), findsOneWidget);
+      expect(find.text('Bâtiment A'), findsOneWidget);
+      expect(find.text('R+1 · Étages'), findsOneWidget);
+      expect(find.text('A001'), findsOneWidget);
+      // Un appartement n'a pas de sous-section : plus d'arborescence.
+      expect(find.text('Bâtiment B'), findsNothing);
+      // Et on y pose une réserve comme sur le plan global.
+      expect(find.text('Créer une réserve'), findsOneWidget);
+      final vue = tester.widget<PlanInteractif>(find.byType(PlanInteractif));
+      expect(vue.onPointAppuye, isNotNull);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('le retour ramène au plan global, arborescence restée dépliée', (tester) async {
+      chantier();
+
+      await ouvrirAppartementDepuisLeGlobal(tester);
+      await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+      await pomperAvecReseau(tester);
+
+      expect(find.text('Plan de masse'), findsOneWidget);
+      // Rien à redéplier : on reprend là où on s'était arrêté.
+      expect(find.text('R+1'), findsOneWidget);
+      expect(find.text('Plan A001'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('sans plan global, les bâtiments restent atteignables', (tester) async {
+      // Un chantier dont on n'a déposé que des plans d'appartement : les
+      // retirer de la liste de départ ne doit pas les rendre introuvables.
+      chantier(racinesServies: const [planA001]);
+
+      await pomperPage(tester, page, role: UserRole.chefProjet);
+      await pomperAvecReseau(tester);
+
+      expect(find.text("Aucun plan global n'est rattaché à ce chantier."), findsOneWidget);
+      await appuyer(tester, 'Bâtiment A');
+      await appuyer(tester, 'R+1');
+      await appuyer(tester, 'Plan A001');
+      await pomperAvecReseau(tester);
+
+      expect(find.byType(PlanInteractif), findsOneWidget);
+      expect(find.text('R+1 · Étages'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('structure indisponible : le plan reste utilisable, le panneau propose de réessayer',
+        (tester) async {
+      chantier();
+      when(() => getStructure(any())).thenAnswer(
+        (_) async => const Left<Failure, ChantierStructure>(ServerFailure(errorMessage: 'Hors ligne')),
+      );
+
+      await pomperPage(tester, page, role: UserRole.chefProjet);
+      await pomperAvecReseau(tester);
+      await tester.tap(find.text('Plan de masse'));
+      await pomperAvecReseau(tester);
+
+      expect(find.byType(PlanInteractif), findsOneWidget);
+      expect(find.text('Créer une réserve'), findsOneWidget);
+      expect(find.text("Les bâtiments du chantier n'ont pas pu être chargés."), findsOneWidget);
+
+      when(() => getStructure(any()))
+          .thenAnswer((_) async => const Right<Failure, ChantierStructure>(structure));
+      await appuyer(tester, 'Réessayer');
+      await pomperAvecReseau(tester);
+
+      expect(find.text('Bâtiment A'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('rangement des plans', () {
+    Plan plan(
+      String id, {
+      String nom = 'plan.pdf',
+      int version = 1,
+      bool courant = true,
+      String? zone,
+      String? parent,
+    }) =>
+        Plan(
+          id: id,
+          chantierId: 'c1',
+          nom: nom,
+          fichierUrl: '',
+          version: version,
+          estVersionCourante: courant,
+          parentId: parent,
+          zone: zone == null ? null : PlanNiveauRef(id: zone, nom: zone),
+        );
+
+    test('une seule version par plan : la courante', () {
+      final courants = plansCourants([
+        plan('v1', version: 1, courant: false, zone: 'z1'),
+        plan('v2', version: 2, zone: 'z1'),
+      ]);
+      expect(courants.map((p) => p.id), ['v2']);
+    });
+
+    test('sans version désignée, la plus récente', () {
+      final courants = plansCourants([
+        plan('v1', version: 1, courant: false, zone: 'z1'),
+        plan('v3', version: 3, courant: false, zone: 'z1'),
+      ]);
+      expect(courants.map((p) => p.id), ['v3']);
+    });
+
+    test('deux appartements peuvent avoir chacun un « plan.pdf »', () {
+      // Le dépôt nomme le plan d'après son fichier : regrouper sur le nom
+      // seul ferait disparaître l'un des deux.
+      final courants = plansCourants([plan('a', zone: 'z1'), plan('b', zone: 'z2')]);
+      expect(courants.map((p) => p.id), unorderedEquals(['a', 'b']));
+    });
+
+    test('les plans de détail restent sous leur parent', () {
+      final courants = plansCourants([plan('a', zone: 'z1'), plan('d', nom: 'cuisine', zone: 'z1', parent: 'a')]);
+      expect(courants.map((p) => p.id), ['a']);
+    });
+
+    test('le compteur « à traiter » est lu du serveur, et reste NUL s’il est absent', () {
+      Plan lu(Map<String, dynamic> extra) =>
+          Plan.fromJson({'id': 'p', 'nom': 'A001', 'nombre_reserves': 5, ...extra});
+
+      expect(lu({'nombre_reserves_a_traiter': 2}).nombreReservesATraiter, 2);
+      expect(lu({'nombre_reserves_a_traiter': 0}).nombreReservesATraiter, 0);
+      // Un serveur pas encore à jour : on ne prétend pas que tout est levé.
+      expect(lu(const {}).nombreReservesATraiter, isNull);
+      expect(lu(const {}).nombreReserves, 5);
+    });
+
+    test('la portée se lit du rattachement le plus précis', () {
+      expect(porteeDu(plan('g')), PorteePlan.global);
+      expect(porteeDu(plan('a', zone: 'z1')), PorteePlan.appartement);
+      expect(porteeDu(plan('d', zone: 'z1', parent: 'a')), PorteePlan.detail);
     });
   });
 }

@@ -296,6 +296,14 @@ class Plan extends Equatable {
   final int nombreSousPlans;
   final int nombreReserves;
 
+  /// Parmi [nombreReserves], celles qui restent À TRAITER — tout sauf
+  /// validée et clôturée (`plan.service.js#_compterEnfants`).
+  ///
+  /// NUL, et non 0, quand le serveur ne le sert pas (version antérieure,
+  /// détail d'un plan) : un « 0 à traiter » inventé passerait pour une bonne
+  /// nouvelle.
+  final int? nombreReservesATraiter;
+
   const Plan({
     required this.id,
     required this.chantierId,
@@ -316,6 +324,7 @@ class Plan extends Equatable {
     this.statut = 'actif',
     this.nombreSousPlans = 0,
     this.nombreReserves = 0,
+    this.nombreReservesATraiter,
     this.typePlan,
     this.datePlan,
     this.estVersionCourante = true,
@@ -342,6 +351,7 @@ class Plan extends Equatable {
       estVersionCourante: json['is_current'] as bool? ?? true,
       nombreSousPlans: (json['nombre_sous_plans'] as num?)?.toInt() ?? 0,
       nombreReserves: (json['nombre_reserves'] as num?)?.toInt() ?? 0,
+      nombreReservesATraiter: (json['nombre_reserves_a_traiter'] as num?)?.toInt(),
       createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'] as String) : null,
       chantierNom: chantier?['nom'] as String?,
       reserves: json['reserves'] is List
@@ -385,7 +395,8 @@ class Plan extends Equatable {
   List<Object?> get props => [
         id, chantierId, nom, version, fichierUrl, format, nombrePages, fichierNom, createdAt,
         chantierNom, reserves, batiment, etage, zone, hotspots, parentId, statut,
-        nombreSousPlans, nombreReserves, typePlan, datePlan, estVersionCourante,
+        nombreSousPlans, nombreReserves, nombreReservesATraiter, typePlan, datePlan,
+        estVersionCourante,
       ];
 }
 

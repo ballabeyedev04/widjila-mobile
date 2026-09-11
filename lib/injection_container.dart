@@ -16,6 +16,7 @@ import 'core/offline/file_attente.dart';
 import 'core/offline/session_locale.dart';
 import 'core/offline/stockage_medias.dart';
 import 'core/offline/synchronisation_service.dart';
+import 'core/offline/tirage_reserves.dart';
 import 'core/services/locale_controller.dart';
 import 'core/services/ouverture_fichier.dart';
 import 'core/services/preferences_notification.dart';
@@ -59,6 +60,14 @@ import 'features/referentiel/domain/usecases/get_codes_niveau.dart';
 import 'features/chantier/domain/usecases/creer_structure.dart';
 import 'features/chantier/presentation/cubit/demandes_chantier_cubit.dart';
 import 'features/chantier/presentation/cubit/creer_chantier_cubit.dart';
+import 'features/chantier/domain/usecases/membres_chantier.dart';
+import 'features/chantier/presentation/cubit/membres_chantier_cubit.dart';
+import 'features/chantier/presentation/cubit/structure_chantier_cubit.dart';
+import 'features/reserve/data/datasources/pieces_jointes_remote_datasource.dart';
+import 'features/reserve/data/repositories/pieces_jointes_repository_impl.dart';
+import 'features/reserve/domain/repositories/pieces_jointes_repository.dart';
+import 'features/reserve/presentation/cubit/pieces_jointes_cubit.dart';
+import 'features/account/data/datasources/support_remote_datasource.dart';
 
 // Réserve
 import 'features/reserve/data/datasources/reserve_remote_datasource.dart';
@@ -228,6 +237,22 @@ Future<void> init() async {
         reserves: sl(),
         cache: sl(),
         medias: sl(),
+        // Envois de rapport déposés hors ligne (cahier des charges Rapports
+        // § 22). Résolu à la PREMIÈRE exécution : l'enregistrement du
+        // datasource plus bas suffit.
+        rapports: sl(),
+        // Pour ne pas déclarer « à jour » une réserve dont un autre
+        // changement hors ligne attend encore son tour (audit synchronisation).
+        file: sl(),
+      ));
+
+  // Tirage INCRÉMENTAL des changements serveur (modifications ET
+  // suppressions) vers le cache local — `GET /sync/reserves`. Sans lui, une
+  // réserve supprimée ailleurs réapparaissait hors ligne.
+  sl.registerLazySingleton(() => TirageReserves(
+        base: sl(),
+        cache: sl(),
+        lireLot: (curseur) => sl<ReserveRemoteDataSource>().syncReserves(curseur: curseur),
       ));
 
   sl.registerLazySingleton(() => SynchronisationService(
@@ -238,6 +263,10 @@ Future<void> init() async {
         // Contrepartie de `executer` : défait l'écriture locale d'une action
         // que le serveur a définitivement refusée.
         annuler: (action) => sl<ExecuteurActionsHorsLigne>().annuler(action),
+        // Après une passe d'envoi aboutie : ramener ce qui a changé ailleurs.
+        tirer: () async {
+          await sl<TirageReserves>().tirer();
+        },
       ));
 
   //================================================
@@ -294,6 +323,49 @@ Future<void> init() async {
   sl.registerLazySingleton(() => CreerZone(sl()));
   sl.registerLazySingleton(() => ModifierZone(sl()));
   sl.registerLazySingleton(() => SupprimerZone(sl()));
+  sl.registerLazySingleton(() => ModifierBatiment(sl()));
+  sl.registerLazySingleton(() => SupprimerBatiment(sl()));
+  sl.registerLazySingleton(() => ModifierEtage(sl()));
+  sl.registerLazySingleton(() => SupprimerEtage(sl()));
+  // Structure du chantier — `GetChantierStructure` appartient au module
+  // Réserve, enregistré plus bas : l'ordre n'importe pas pour une fabrique.
+  sl.registerFactoryParam<StructureChantierCubit, String, void>(
+    (chantierId, _) => StructureChantierCubit(
+      chantierId: chantierId,
+      getStructure: sl(),
+      creerBatimentUsecase: sl(),
+      modifierBatimentUsecase: sl(),
+      supprimerBatimentUsecase: sl(),
+      creerEtageUsecase: sl(),
+      modifierEtageUsecase: sl(),
+      supprimerEtageUsecase: sl(),
+      creerZoneUsecase: sl(),
+      modifierZoneUsecase: sl(),
+      supprimerZoneUsecase: sl(),
+    ),
+  );
+  // Membres du chantier.
+  sl.registerLazySingleton(() => GetMembresChantier(sl()));
+  sl.registerLazySingleton(() => GetCandidatsMembres(sl()));
+  sl.registerLazySingleton(() => AffecterMembres(sl()));
+  sl.registerLazySingleton(() => RetirerMembreChantier(sl()));
+  sl.registerFactoryParam<MembresChantierCubit, String, void>(
+    (chantierId, _) => MembresChantierCubit(
+      chantierId: chantierId,
+      getMembres: sl(),
+      getCandidats: sl(),
+      affecterMembresUsecase: sl(),
+      retirerMembreUsecase: sl(),
+    ),
+  );
+  // Pièces jointes des réserves.
+  sl.registerLazySingleton<PiecesJointesRemoteDataSource>(() => PiecesJointesRemoteDataSourceImpl(dio: sl()));
+  sl.registerLazySingleton<PiecesJointesRepository>(() => PiecesJointesRepositoryImpl(sl()));
+  sl.registerFactoryParam<PiecesJointesCubit, String, void>(
+    (reserveId, _) => PiecesJointesCubit(reserveId: reserveId, repository: sl()),
+  );
+  // « Contacter le support ».
+  sl.registerLazySingleton(() => SupportRemoteDataSource(dio: sl()));
   sl.registerFactory(() => DemandesChantierCubit(getChantiers: sl()));
   // `GetMembres` appartient au module Organisation, enregistre plus bas :
   // `sl()` le resout a la CONSTRUCTION du cubit, donc apres l'initialisation.
@@ -489,12 +561,30 @@ Future<void> init() async {
 
   // ── Rapports ───────────────────────────────────────────────────────────────
   sl.registerLazySingleton<RapportRemoteDataSource>(() => RapportRemoteDataSourceImpl(dio: sl()));
-  sl.registerLazySingleton<RapportRepository>(() => RapportRepositoryImpl(sl()));
+  sl.registerLazySingleton<RapportRepository>(
+    () => RapportRepositoryImpl(sl(), fileAttente: sl(), detecteur: sl()),
+  );
   sl.registerLazySingleton(() => GetRapports(sl()));
   sl.registerLazySingleton(() => GenererRapport(sl()));
   sl.registerLazySingleton(() => SupprimerRapport(sl()));
   sl.registerLazySingleton(() => PreparerEnvoiRapport(sl()));
   sl.registerLazySingleton(() => EnvoyerRapport(sl()));
+  // Module Rapports du cahier des charges — configuration, génération,
+  // partage, historique.
+  sl.registerLazySingleton(() => CreerRapport(sl()));
+  sl.registerLazySingleton(() => ModifierRapport(sl()));
+  sl.registerLazySingleton(() => GetDetailRapport(sl()));
+  sl.registerLazySingleton(() => GenererRapportConfigure(sl()));
+  sl.registerLazySingleton(() => GenererRapportsParEntreprise(sl()));
+  sl.registerLazySingleton(() => CalculerResumeRapport(sl()));
+  sl.registerLazySingleton(() => GetHistoriqueRapport(sl()));
+  sl.registerLazySingleton(() => GetPartagesRapport(sl()));
+  sl.registerLazySingleton(() => PartagerRapport(sl()));
+  sl.registerLazySingleton(() => RevoquerPartageRapport(sl()));
+  sl.registerLazySingleton(() => DupliquerRapport(sl()));
+  sl.registerLazySingleton(() => ArchiverRapport(sl()));
+  sl.registerLazySingleton(() => GetProjetsRapport(sl()));
+  sl.registerLazySingleton(() => GetOptionsFiltresRapport(sl()));
 
   sl.registerLazySingleton<DocumentRemoteDataSource>(() => DocumentRemoteDataSourceImpl(dio: sl()));
   sl.registerLazySingleton<DocumentRepository>(() => DocumentRepositoryImpl(sl()));

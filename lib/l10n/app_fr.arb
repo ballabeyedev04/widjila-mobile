@@ -196,7 +196,7 @@
       }
     }
   },
-  "planViewerFormatNonSupporte": "Ce format ne s'ouvre pas encore sur mobile. Consultez-le depuis l'espace web.",
+  "planViewerFormatNonSupporte": "Ce format ne s'affiche pas dans l'application. Ouvrez-le avec une application du téléphone capable de le lire.",
   "planViewerIndisponible": "Plan indisponible",
   "planViewerReperes": "{count, plural, one{{count} repère} other{{count} repères}}",
   "@planViewerReperes": {
@@ -408,6 +408,16 @@
   "profilTitre": "Profil",
   "profilDeconnexion": "Déconnexion",
   "profilConfirmerDeconnexion": "Voulez-vous vraiment vous déconnecter ?",
+  "deconnexionTravailNonEnvoyeTitre": "Travail non envoyé",
+  "deconnexionTravailNonEnvoyeMessage": "{nombre, plural, =1{1 action faite hors ligne n’a pas encore été envoyée au serveur.} other{{nombre} actions faites hors ligne n’ont pas encore été envoyées au serveur.}} Si vous vous déconnectez maintenant, elles seront définitivement perdues. Retrouvez du réseau et attendez la fin de la synchronisation.",
+  "@deconnexionTravailNonEnvoyeMessage": {
+    "placeholders": {
+      "nombre": {
+        "type": "int"
+      }
+    }
+  },
+  "deconnexionTravailNonEnvoyeConfirmer": "Se déconnecter et perdre",
   "profilTelephone": "Téléphone",
   "profilFonction": "Fonction",
   "commonAutre": "Autre",
@@ -605,7 +615,6 @@
   "documentEnvoiEnCours": "Envoi…",
   "documentFichierAjoute": "Fichier ajouté.",
   "documentEnvoiEchec": "Le fichier n'a pas pu être envoyé.",
-  "documentAjoutDepuisWeb": "L'ajout de documents (PDF, DWG…) se fait depuis l'espace web. Les photos et vidéos, elles, s'ajoutent ici.",
   "documentPrendrePhoto": "Prendre avec la caméra",
   "documentChoisirGalerie": "Choisir dans la galerie",
   "documentAucunePhoto": "Aucune photo",
@@ -613,8 +622,131 @@
   "documentAucuneVideo": "Aucune vidéo",
   "documentAucuneVideoDescription": "Filmez une anomalie ou importez une vidéo existante.",
   "documentAucunDocument": "Aucun document",
-  "documentAucunDocumentDescription": "Contrats, DOE, PV et plans déposés sur ce chantier apparaîtront ici.",
-  "documentTelechargementBientot": "Le téléchargement des fichiers depuis le mobile arrive bientôt. En attendant, ouvrez ce document depuis l'espace web.",
+  "documentAucunDocumentDescription": "Contrats, DOE, PV, comptes rendus… Ajoutez-les avec le bouton ci-dessous : PDF, Word, Excel, PowerPoint ou DWG.",
+  "documentTypeChoixTitre": "Quel type de document ?",
+  "documentFormatNonSupporte": "Format non pris en charge. Formats acceptés : PDF, Word, Excel, PowerPoint et DWG.",
+  "documentFichierTropVolumineux": "Fichier trop volumineux : {taille} maximum.",
+  "@documentFichierTropVolumineux": {
+    "placeholders": {
+      "taille": {
+        "type": "String"
+      }
+    }
+  },
+  "documentEnvoiProgression": "Envoi… {pourcent} %",
+  "@documentEnvoiProgression": {
+    "placeholders": {
+      "pourcent": {
+        "type": "int"
+      }
+    }
+  },
+  "documentActionVoir": "Voir",
+  "documentActionTelecharger": "Télécharger",
+  "documentActionOuvrirAvec": "Ouvrir avec une autre application",
+  "documentPlusActions": "Plus d'actions",
+  "documentTelechargementEnCours": "Téléchargement…",
+  "documentEnregistre": "Fichier enregistré sur votre appareil.",
+  "documentEnregistrementEchec": "Le fichier n'a pas pu être enregistré.",
+  "documentApercuIndisponible": "Pas d'aperçu pour ce format. Ouvrez-le avec une autre application ou téléchargez-le.",
+  "documentApercuImpossible": "Impossible d'afficher ce fichier. Ouvrez-le avec une autre application ou téléchargez-le.",
+  "commonSupprimerNom": "Supprimer « {nom} » ?",
+  "@commonSupprimerNom": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
+  "chantierDetailStructureSousTitre": "Bâtiments, niveaux et appartements",
+  "chantierDetailMembresSousTitre": "Équipe affectée à ce chantier",
+  "structureAucunBatiment": "Aucun bâtiment",
+  "structureAucunBatimentDescription": "Décrivez le chantier : ses bâtiments, puis leurs niveaux et leurs appartements.",
+  "structureAjouterBatiment": "Ajouter un bâtiment",
+  "structureAjouterNiveau": "Ajouter un niveau",
+  "structureAjouterAppartement": "Ajouter un appartement",
+  "structureRenommer": "Renommer",
+  "structureNomBatiment": "Nom du bâtiment",
+  "structureNomNiveau": "Nom du niveau",
+  "structureNomAppartement": "Nom de l'appartement",
+  "structureNomRequis": "Le nom est requis.",
+  "structureSousSols": "Sous-sols",
+  "structureEtages": "Étages",
+  "structureToiture": "Toiture",
+  "structureTypeSousSol": "Sous-sol",
+  "structureTypeEtage": "Étage",
+  "structureTypeToiture": "Toiture",
+  "structureResume": "Niveaux : {niveaux} · Appartements : {appartements}",
+  "@structureResume": {
+    "placeholders": {
+      "niveaux": {
+        "type": "int"
+      },
+      "appartements": {
+        "type": "int"
+      }
+    }
+  },
+  "structureAucunNiveau": "Aucun niveau pour ce bâtiment.",
+  "structureAucunAppartement": "Aucun appartement",
+  "structureSupprimerTexte": "La suppression est refusée tant que des réserves y sont rattachées.",
+  "structureEnregistre": "Structure mise à jour.",
+  "structureLots": "Lots",
+  "membresChantierTitre": "Membres du chantier",
+  "membresChantierAucun": "Aucun membre affecté",
+  "membresChantierAucunDescription": "Affectez les membres de votre organisation qui interviennent sur ce chantier.",
+  "membresChantierAffecter": "Affecter des membres",
+  "membresChantierAffecterBouton": "Affecter ({count})",
+  "@membresChantierAffecterBouton": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "membresChantierRoleChantier": "Rôle sur ce chantier (facultatif)",
+  "membresChantierRoleChantierHint": "Ex. : responsable du lot gros œuvre",
+  "membresChantierAucunCandidat": "Tous les membres actifs de l'organisation sont déjà affectés à ce chantier.",
+  "membresChantierRetirerTitre": "Retirer {nom} du chantier ?",
+  "@membresChantierRetirerTitre": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
+  "membresChantierRetirerTexte": "Ce chantier n'apparaîtra plus dans ses affectations. Son historique reste intact.",
+  "membresChantierRetirer": "Retirer",
+  "membresChantierAffectes": "Membres affectés au chantier.",
+  "membresChantierRetire": "Membre retiré du chantier.",
+  "pieceJointeTitre": "Pièces jointes ({count})",
+  "@pieceJointeTitre": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pieceJointeAucune": "Aucune pièce jointe",
+  "pieceJointeChoisirFichier": "Choisir un fichier (PDF, Word, Excel…)",
+  "pieceJointeAjoutee": "Pièce jointe ajoutée.",
+  "pieceJointeSupprimee": "Pièce jointe supprimée.",
+  "pieceJointeFormatNonSupporte": "Format non pris en charge. Formats acceptés : PDF, Word, Excel, PowerPoint, DWG et images.",
+  "supportTitre": "Contacter le support",
+  "supportDescription": "Décrivez votre question ou votre problème. La réponse vous parviendra par email, à {email}.",
+  "@supportDescription": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "supportSujet": "Sujet",
+  "supportMessage": "Message",
+  "supportSujetRequis": "Indiquez un sujet (3 caractères minimum).",
+  "supportMessageRequis": "Décrivez votre demande (10 caractères minimum).",
+  "supportEnvoyer": "Envoyer",
+  "supportEnvoye": "Message envoyé. Le support vous répondra par email.",
   "notificationRechercheHint": "Rechercher une notification…",
   "notificationFiltreToutes": "Toutes ({count})",
   "@notificationFiltreToutes": {
@@ -864,7 +996,7 @@
   "settingsExporterBouton": "Exporter mes données",
   "settingsExporterSucces": "Export préparé.",
   "settingsExporterResumeIntro": "Aperçu de vos données :",
-  "settingsExporterNote": "Pour télécharger le fichier complet, utilisez l'espace web (Mon profil > Confidentialité).",
+  "settingsExporterNote": "« Télécharger » enregistre le fichier complet (JSON) sur votre appareil.",
   "settingsExportReservesCreees": "Réserves créées",
   "settingsExportReservesAssignees": "Réserves assignées",
   "settingsExportCommentaires": "Commentaires",
@@ -895,7 +1027,6 @@
   "settingsAProposCgu": "Conditions générales d'utilisation",
   "settingsAProposConfidentialite": "Politique de confidentialité",
   "settingsAProposSupport": "Contacter le support",
-  "settingsAProposBientotDisponible": "Bientôt disponible",
   "dashboardParametres": "Paramètres",
   "partenaireFournisseur": "Fournisseur",
   "dashboardMenuTooltip": "Menu",
@@ -1294,6 +1425,234 @@
   "rapportEnvoiReussi": "Rapport envoyé.",
   "rapportEnvoiAvertissement": "Le rapport partira avec le PDF en pièce jointe. Vérifiez les destinataires avant d’envoyer.",
   "rapportEnvoiDecocher": "Décochez une adresse pour l’exclure de cet envoi.",
+  "rapportModeleGlobal": "Rapport global du chantier",
+  "rapportModeleBatiment": "Rapport par bâtiment",
+  "rapportModeleEtageZone": "Rapport par étage / zone",
+  "rapportModeleEntreprise": "Rapport par entreprise",
+  "rapportModeleCorpsEtat": "Rapport par corps d’état",
+  "rapportModeleATraiter": "Rapport des réserves à traiter",
+  "rapportModeleLevees": "Rapport des réserves levées",
+  "rapportModeleOpr": "Rapport OPR / réception",
+  "rapportModeleGlobalDesc": "Toutes les réserves du chantier, groupées par localisation.",
+  "rapportModeleBatimentDesc": "Les réserves d’un bâtiment, groupées par étage.",
+  "rapportModeleEtageZoneDesc": "Les réserves d’un ou plusieurs niveaux, ou d’appartements précis.",
+  "rapportModeleEntrepriseDesc": "Les réserves d’une entreprise, prêtes à lui être transmises.",
+  "rapportModeleCorpsEtatDesc": "Les réserves d’un ou plusieurs métiers.",
+  "rapportModeleATraiterDesc": "Les réserves non levées, classées par échéance.",
+  "rapportModeleLeveesDesc": "État initial, photo avant, photo après, contrôle et validation.",
+  "rapportModeleOprDesc": "Le procès-verbal des opérations préalables à la réception.",
+  "rapportStatutATraiter": "À traiter",
+  "rapportStatutEnCours": "En cours",
+  "rapportStatutAControler": "À contrôler",
+  "rapportStatutLevee": "Levée",
+  "rapportStatutCloturee": "Clôturée",
+  "rapportGraviteCritique": "Critique",
+  "rapportGraviteMajeure": "Majeure",
+  "rapportGraviteMineure": "Mineure",
+  "rapportFormatPdf": "PDF",
+  "rapportFormatExcel": "Excel",
+  "rapportEtatBrouillon": "Brouillon",
+  "rapportEtatEnAttente": "En attente",
+  "rapportEtatGeneration": "Génération en cours",
+  "rapportEtatGenere": "Généré",
+  "rapportEtatEnvoye": "Envoyé",
+  "rapportEtatEchec": "Échec",
+  "rapportEtatArchive": "Archivé",
+  "rapportSectionSummary": "Synthèse",
+  "rapportSectionSummaryAide": "Totaux par statut, par gravité et par entreprise.",
+  "rapportSectionPlans": "Plans",
+  "rapportSectionPlansAide": "L’extrait du plan avec la pastille de chaque réserve.",
+  "rapportSectionPhotos": "Photos",
+  "rapportSectionPhotosAide": "Les photographies de chaque réserve.",
+  "rapportSectionLocation": "Localisation",
+  "rapportSectionLocationAide": "Bâtiment, étage et appartement de chaque réserve.",
+  "rapportSectionHistory": "Historique",
+  "rapportSectionHistoryAide": "Les changements de statut de chaque réserve.",
+  "rapportNouveau": "Nouveau rapport",
+  "rapportModifier": "Modifier le rapport",
+  "rapportEtapeProjet": "Projet",
+  "rapportEtapeModele": "Modèle",
+  "rapportEtapeFiltres": "Filtres",
+  "rapportEtapeSections": "Sections",
+  "rapportEtapeApercu": "Aperçu",
+  "rapportChoisirProjet": "Choisissez le projet",
+  "rapportAucunProjet": "Aucun projet accessible.",
+  "rapportChoisirModele": "Choisissez un modèle",
+  "rapportNomChamp": "Nom du rapport",
+  "rapportNomAide": "Laissez vide pour reprendre le nom du modèle.",
+  "rapportFiltreBatiment": "Bâtiment",
+  "rapportFiltreNiveau": "Niveau",
+  "rapportFiltreZone": "Appartement / zone",
+  "rapportFiltreEntreprise": "Entreprise",
+  "rapportFiltreCorpsEtat": "Corps d’état",
+  "rapportFiltreStatut": "Statut",
+  "rapportFiltreGravite": "Gravité",
+  "rapportFiltrePeriode": "Période",
+  "rapportFiltreFormat": "Format",
+  "rapportFiltreTous": "Tous",
+  "rapportFiltreToutes": "Toutes",
+  "rapportFiltreRequis": "Obligatoire pour ce modèle",
+  "rapportPeriodeDebut": "Date de début",
+  "rapportPeriodeFin": "Date de fin",
+  "rapportPeriodeEffacer": "Effacer la période",
+  "rapportRequisBatiment": "Choisissez au moins un bâtiment pour ce modèle.",
+  "rapportRequisEtageZone": "Choisissez au moins un niveau ou une zone pour ce modèle.",
+  "rapportRequisEntreprise": "Choisissez au moins une entreprise pour ce modèle.",
+  "rapportRequisCorpsEtat": "Choisissez au moins un corps d’état pour ce modèle.",
+  "rapportFormatRequis": "Choisissez au moins un format.",
+  "rapportSuivant": "Suivant",
+  "rapportPrecedent": "Précédent",
+  "rapportChargementOptions": "Chargement des listes du chantier…",
+  "rapportOptionsIndisponibles": "Les listes du chantier n’ont pas pu être chargées.",
+  "rapportAucunBatiment": "Aucun bâtiment sur ce chantier.",
+  "rapportAucuneEntreprise": "Aucune entreprise dans l’annuaire du chantier.",
+  "rapportAucunCorpsEtat": "Aucun corps d’état disponible.",
+  "rapportResumeChargement": "Calcul du périmètre…",
+  "rapportResumeReserves": "{nombre} réserve(s) dans ce périmètre",
+  "@rapportResumeReserves": {
+    "placeholders": {
+      "nombre": { "type": "int" }
+    }
+  },
+  "rapportResumeEntreprises": "{nombre} entreprise(s) concernée(s)",
+  "@rapportResumeEntreprises": {
+    "placeholders": {
+      "nombre": { "type": "int" }
+    }
+  },
+  "rapportResumeVide": "Aucune réserve ne correspond à ces filtres : le rapport serait vide.",
+  "rapportResumeIndisponible": "Le périmètre n’a pas pu être calculé.",
+  "rapportPrevisualiserBouton": "Prévisualiser le PDF",
+  "rapportGenererBouton": "Générer le rapport",
+  "rapportGenerationLongue": "La génération peut prendre une minute sur un gros chantier.",
+  "rapportEnregistrerBrouillon": "Enregistrer le brouillon",
+  "rapportBrouillonEnregistre": "Brouillon enregistré.",
+  "rapportPrevisualisationTitre": "Prévisualisation",
+  "rapportDetailTitre": "Rapport",
+  "rapportVersion": "Version {version}",
+  "@rapportVersion": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "rapportGenereLe": "Généré le {date}",
+  "@rapportGenereLe": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "rapportCreeLe": "Créé le {date}",
+  "@rapportCreeLe": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "rapportNbReserves": "{nombre} réserve(s)",
+  "@rapportNbReserves": {
+    "placeholders": {
+      "nombre": { "type": "int" }
+    }
+  },
+  "rapportPourEntreprise": "Pour {entreprise}",
+  "@rapportPourEntreprise": {
+    "placeholders": {
+      "entreprise": { "type": "String" }
+    }
+  },
+  "rapportNonGenere": "Ce rapport n’a pas encore été généré.",
+  "rapportEchecMotif": "La génération a échoué : {motif}",
+  "@rapportEchecMotif": {
+    "placeholders": {
+      "motif": { "type": "String" }
+    }
+  },
+  "rapportDiffuseAvertissement": "Ce rapport a été diffusé. Le régénérer créera une nouvelle version ; celle-ci restera consultable.",
+  "rapportArchiveInfo": "Version archivée — conservée dans l’historique.",
+  "rapportSectionFichiers": "Fichiers",
+  "rapportSectionDiffusion": "Diffusion",
+  "rapportSectionActions": "Actions",
+  "rapportActionVoirPdf": "Voir le PDF",
+  "rapportActionTelechargerPdf": "Télécharger le PDF",
+  "rapportActionTelechargerExcel": "Télécharger l’Excel",
+  "rapportActionEnvoyer": "Envoyer par e-mail",
+  "rapportActionPartager": "Partager par lien",
+  "rapportActionModifier": "Modifier et régénérer",
+  "rapportActionGenerer": "Générer maintenant",
+  "rapportActionRegenerer": "Régénérer",
+  "rapportActionDupliquer": "Dupliquer",
+  "rapportActionParEntreprise": "Générer les rapports par entreprise",
+  "rapportActionArchiver": "Archiver",
+  "rapportActionSupprimer": "Supprimer",
+  "rapportHistoriqueTitre": "Historique",
+  "rapportHistoriqueVide": "Aucun événement pour l’instant.",
+  "rapportPartagesTitre": "Liens de partage",
+  "rapportPartagesVide": "Aucun lien de partage.",
+  "rapportPartageActif": "Actif",
+  "rapportPartageInactif": "Inactif",
+  "rapportPartageAcces": "{nombre} consultation(s)",
+  "@rapportPartageAcces": {
+    "placeholders": {
+      "nombre": { "type": "int" }
+    }
+  },
+  "rapportPartageRevoquer": "Révoquer",
+  "rapportPartageRevoque": "Lien révoqué.",
+  "rapportPartageExpireLe": "Expire le {date}",
+  "@rapportPartageExpireLe": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "rapportPartageSansExpiration": "Sans expiration",
+  "rapportPartageProtege": "Connexion exigée",
+  "rapportPartageTitre": "Partager par lien sécurisé",
+  "rapportPartageDuree": "Durée de validité",
+  "rapportPartage7j": "7 jours",
+  "rapportPartage30j": "30 jours",
+  "rapportPartageIllimite": "Sans limite",
+  "rapportPartageAuth": "Exiger une connexion",
+  "rapportPartageAuthAide": "Seuls les comptes de votre organisation pourront l’ouvrir.",
+  "rapportPartageCreer": "Créer le lien",
+  "rapportPartageCopier": "Copier le lien",
+  "rapportPartageCopie": "Lien copié.",
+  "rapportPartageUneFois": "Ce lien n’est affiché qu’une fois : copiez-le maintenant.",
+  "rapportDuplique": "Rapport dupliqué.",
+  "rapportArchiveOk": "Rapport archivé.",
+  "rapportArchiverConfirmer": "Archiver ce rapport ? Il restera consultable dans l’historique.",
+  "rapportSupprimerConfirmer": "Supprimer ce rapport ?",
+  "rapportParEntrepriseConfirmer": "Un rapport distinct sera généré pour chaque entreprise, avec ses seules réserves. Continuer ?",
+  "rapportParEntrepriseResultat": "{nombre} rapport(s) généré(s), un par entreprise.",
+  "@rapportParEntrepriseResultat": {
+    "placeholders": {
+      "nombre": { "type": "int" }
+    }
+  },
+  "rapportParEntrepriseSans": "{nombre} réserve(s) sans entreprise n’ont été incluses dans aucun rapport.",
+  "@rapportParEntrepriseSans": {
+    "placeholders": {
+      "nombre": { "type": "int" }
+    }
+  },
+  "rapportNouvelleVersion": "Nouvelle version générée.",
+  "rapportAnnuler": "Annuler",
+  "rapportConfirmer": "Confirmer",
+  "rapportEnvoiMode": "Forme de l’envoi",
+  "rapportEnvoiModePieceJointe": "PDF en pièce jointe",
+  "rapportEnvoiModeLien": "Lien sécurisé",
+  "rapportEnvoiModeLienConseille": "Conseillé : le PDF pèse {taille} Mo.",
+  "@rapportEnvoiModeLienConseille": {
+    "placeholders": {
+      "taille": { "type": "String" }
+    }
+  },
+  "rapportEnvoiAjouter": "Ajouter un destinataire",
+  "rapportEnvoiAjoutes": "Ajoutés par vous",
+  "rapportEnvoiMessage": "Message",
+  "rapportEnvoiHorsLigne": "Envoi mis en file d’attente : il partira dès le retour du réseau.",
+  "rapportEnvoiNonGenere": "Générez le rapport avant de l’envoyer.",
+  "rapportEnvoiAvertissementLien": "Le rapport partira sous forme d’un lien sécurisé, valable 30 jours. Vérifiez les destinataires avant d’envoyer.",
+  "syncTypeEnvoyerRapport": "Envoi d’un rapport",
+  "dashboardNouveauRapportAide": "Choisissez le projet, le modèle et les filtres, puis générez le PDF.",
   "chantierDetailInspectionsSousTitre": "Visites, points de controle et convocations",
   "chantierDetailRapportsSousTitre": "Generer et consulter les rapports PDF",
   "chantierDetailPlansSousTitre": "Plans du chantier et annotations",
@@ -1425,5 +1784,29 @@
       }
     }
   },
-  "planContinuerSansPlan": "Continuer sans plan"
+  "planContinuerSansPlan": "Continuer sans plan",
+  "planCtxLocalisation": "Localisation",
+  "planCtxChantier": "Chantier",
+  "planCtxBatiment": "Bâtiment",
+  "planCtxNiveau": "Niveau",
+  "planCtxAppartement": "Appartement",
+  "planCtxDetails": "Détails du plan",
+  "planCtxFichier": "Fichier",
+  "planCtxVersion": "Format et version",
+  "planCtxType": "Type",
+  "planCtxDatePlan": "Date du plan",
+  "planCtxDepose": "Déposé le",
+  "planCtxPages": "Pages",
+  "planCtxPlanBatiment": "Plan du bâtiment",
+  "planCtxPlanNiveau": "Plan du niveau",
+  "planCtxAutresPlans": "Autres plans",
+  "planCtxEnAttente": "En attente de validation",
+  "planCtxErreur": "Les bâtiments du chantier n'ont pas pu être chargés.",
+  "planCtxAgrandir": "Agrandir le panneau",
+  "planCtxReduire": "Réduire le panneau",
+  "planExplorerNBatiments": "{count, plural, one{{count} bâtiment} other{{count} bâtiments}}",
+  "@planExplorerNBatiments": { "placeholders": { "count": { "type": "int" } } },
+  "planCtxNATraiter": "{count, plural, one{{count} à traiter} other{{count} à traiter}}",
+  "@planCtxNATraiter": { "placeholders": { "count": { "type": "int" } } },
+  "planCtxToutesLevees": "toutes levées"
 }

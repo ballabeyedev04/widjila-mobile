@@ -9,6 +9,7 @@ import '../../../../core/offline/classification_erreur.dart';
 import '../../../referentiel/domain/entities/code_niveau.dart';
 import '../../../reserve/domain/entities/chantier_structure.dart';
 import '../../domain/entities/chantier.dart';
+import '../../domain/entities/membre_chantier.dart';
 import '../../domain/repositories/chantier_repository.dart';
 import '../datasources/chantier_remote_datasource.dart';
 
@@ -98,20 +99,35 @@ class ChantierRepositoryImpl implements ChantierRepository {
     }
   }
 
+  /// Écriture sans repli hors ligne : une modification ne se devine pas
+  /// depuis un cache, et prétendre qu'elle a réussi ferait perdre la saisie.
+  Future<Either<Failure, T>> _ecrire<T>(Future<T> Function() action) async {
+    try {
+      return Right(await action());
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
+
   @override
   Future<Either<Failure, BatimentStructure>> creerBatiment(
     String chantierId, {
     required String nom,
     String? code,
-  }) async {
-    try {
-      return Right(await remoteDataSource.creerBatiment(chantierId, nom: nom, code: code));
-    } catch (e) {
-      // Aucun repli hors ligne : une création ne se devine pas depuis un
-      // cache, et prétendre qu'elle a réussi ferait perdre la saisie.
-      return Left(exceptionToFailure(e));
-    }
-  }
+  }) =>
+      _ecrire(() => remoteDataSource.creerBatiment(chantierId, nom: nom, code: code));
+
+  @override
+  Future<Either<Failure, BatimentStructure>> modifierBatiment(
+    String chantierId,
+    String batimentId, {
+    required String nom,
+  }) =>
+      _ecrire(() => remoteDataSource.modifierBatiment(chantierId, batimentId, nom: nom));
+
+  @override
+  Future<Either<Failure, void>> supprimerBatiment(String chantierId, String batimentId) =>
+      _ecrire(() => remoteDataSource.supprimerBatiment(chantierId, batimentId));
 
   @override
   Future<Either<Failure, EtageStructure>> creerEtage(
@@ -122,53 +138,29 @@ class ChantierRepositoryImpl implements ChantierRepository {
     String? codeNiveau,
     String? description,
     int? niveau,
-  }) async {
-    try {
-      return Right(await remoteDataSource.creerEtage(
-        chantierId,
-        batimentId,
-        nom: nom,
-        typeNiveau: typeNiveau,
-        codeNiveau: codeNiveau,
-        description: description,
-        niveau: niveau,
-      ));
-    } catch (e) {
-      return Left(exceptionToFailure(e));
-    }
-  }
+  }) =>
+      _ecrire(() => remoteDataSource.creerEtage(
+            chantierId,
+            batimentId,
+            nom: nom,
+            typeNiveau: typeNiveau,
+            codeNiveau: codeNiveau,
+            description: description,
+            niveau: niveau,
+          ));
 
   @override
-  Future<Either<Failure, ZoneStructure>> modifierZone(
+  Future<Either<Failure, EtageStructure>> modifierEtage(
     String chantierId,
     String batimentId,
-    String etageId,
-    String zoneId, {
+    String etageId, {
     required String nom,
-  }) async {
-    try {
-      return Right(await remoteDataSource.modifierZone(
-        chantierId, batimentId, etageId, zoneId, nom: nom,
-      ));
-    } catch (e) {
-      return Left(exceptionToFailure(e));
-    }
-  }
+  }) =>
+      _ecrire(() => remoteDataSource.modifierEtage(chantierId, batimentId, etageId, nom: nom));
 
   @override
-  Future<Either<Failure, void>> supprimerZone(
-    String chantierId,
-    String batimentId,
-    String etageId,
-    String zoneId,
-  ) async {
-    try {
-      await remoteDataSource.supprimerZone(chantierId, batimentId, etageId, zoneId);
-      return const Right(null);
-    } catch (e) {
-      return Left(exceptionToFailure(e));
-    }
-  }
+  Future<Either<Failure, void>> supprimerEtage(String chantierId, String batimentId, String etageId) =>
+      _ecrire(() => remoteDataSource.supprimerEtage(chantierId, batimentId, etageId));
 
   @override
   Future<Either<Failure, ZoneStructure>> creerZone(
@@ -177,19 +169,47 @@ class ChantierRepositoryImpl implements ChantierRepository {
     String etageId, {
     required String nom,
     String? type,
-  }) async {
-    try {
-      return Right(await remoteDataSource.creerZone(
-        chantierId,
-        batimentId,
-        etageId,
-        nom: nom,
-        type: type,
-      ));
-    } catch (e) {
-      return Left(exceptionToFailure(e));
-    }
-  }
+  }) =>
+      _ecrire(() => remoteDataSource.creerZone(chantierId, batimentId, etageId, nom: nom, type: type));
+
+  @override
+  Future<Either<Failure, ZoneStructure>> modifierZone(
+    String chantierId,
+    String batimentId,
+    String etageId,
+    String zoneId, {
+    required String nom,
+  }) =>
+      _ecrire(() => remoteDataSource.modifierZone(chantierId, batimentId, etageId, zoneId, nom: nom));
+
+  @override
+  Future<Either<Failure, void>> supprimerZone(
+    String chantierId,
+    String batimentId,
+    String etageId,
+    String zoneId,
+  ) =>
+      _ecrire(() => remoteDataSource.supprimerZone(chantierId, batimentId, etageId, zoneId));
+
+  @override
+  Future<Either<Failure, List<MembreChantier>>> getMembresChantier(String chantierId) =>
+      _ecrire(() => remoteDataSource.getMembresChantier(chantierId));
+
+  @override
+  Future<Either<Failure, List<MembreChantier>>> getCandidatsMembres(String chantierId) =>
+      _ecrire(() => remoteDataSource.getCandidatsMembres(chantierId));
+
+  @override
+  Future<Either<Failure, void>> affecterMembres(
+    String chantierId, {
+    required List<String> membreIds,
+    String? roleChantier,
+  }) =>
+      _ecrire(() => remoteDataSource.affecterMembres(chantierId, membreIds: membreIds, roleChantier: roleChantier));
+
+  @override
+  Future<Either<Failure, void>> retirerMembre(String chantierId, String membreId) =>
+      _ecrire(() => remoteDataSource.retirerMembre(chantierId, membreId));
 
   @override
   Future<Either<Failure, Chantier>> getChantierDetail(String id) async {

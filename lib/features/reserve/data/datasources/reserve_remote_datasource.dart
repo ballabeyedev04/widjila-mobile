@@ -1,4 +1,7 @@
 import 'package:dio/dio.dart';
+import '../../../../core/network/cache_reponses_get.dart';
+import '../../../../core/network/options_envoi_fichier.dart';
+import '../../../../core/offline/tirage_reserves.dart';
 import '../../../../core/network/dio_exception_mapper.dart';
 import '../../domain/entities/chantier_structure.dart';
 import '../../domain/entities/reserve.dart';
@@ -97,6 +100,11 @@ abstract class ReserveRemoteDataSource {
   Future<ChantierStructure> getStructure(String chantierId);
 
   Future<ReserveEvolution> getEvolution(String chantierId);
+
+  /// `GET /sync/reserves` — une page du tirage INCRÉMENTAL : réserves
+  /// modifiées et supprimées depuis [curseur] (`null` : depuis l'origine).
+  /// Voir `TirageReserves`.
+  Future<LotSyncReserves> syncReserves({String? curseur, int limite = 200});
 }
 
 class ReserveRemoteDataSourceImpl implements ReserveRemoteDataSource {
@@ -374,7 +382,13 @@ class ReserveRemoteDataSourceImpl implements ReserveRemoteDataSource {
         'type': type,
         'fichier': await MultipartFile.fromFile(cheminFichier),
       });
-      final response = await dio.post('/reserves/$reserveId/medias', data: formData);
+      // Une vidéo de réserve peut peser jusqu'à 100 Mo : les 30 s par défaut
+      // la faisaient échouer à coup sûr (voir `optionsEnvoiFichier`).
+      final response = await dio.post(
+        '/reserves/$reserveId/medias',
+        data: formData,
+        options: optionsEnvoiFichier(),
+      );
       final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
       return ReserveMedia.fromJson(data['media'] as Map<String, dynamic>);
     } on DioException catch (e) {
@@ -388,6 +402,22 @@ class ReserveRemoteDataSourceImpl implements ReserveRemoteDataSource {
       final response = await dio.get('/chantiers/$chantierId');
       final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
       return ChantierStructure.fromJson(data['chantier'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<LotSyncReserves> syncReserves({String? curseur, int limite = 200}) async {
+    try {
+      final response = await dio.get(
+        '/sync/reserves',
+        queryParameters: {'curseur': ?curseur, 'limite': limite},
+        // Jamais servi par le cache des GET (30 s) : deux tirages rapprochés
+        // avec le même curseur doivent voir ce qui a changé entre-temps.
+        options: Options(extra: {CacheReponsesGet.ignorerCache: true}),
+      );
+      return LotSyncReserves.fromJson(_data(response));
     } on DioException catch (e) {
       throw mapDioException(e);
     }

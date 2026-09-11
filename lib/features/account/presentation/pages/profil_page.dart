@@ -13,8 +13,9 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../l10n/l10n_extension.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
-import '../../../auth/presentation/bloc/auth_event.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
+import '../../../auth/presentation/widgets/garde_deconnexion.dart';
+import '../../../../core/offline/file_attente.dart';
 import '../../../organisation/domain/entities/organisation.dart';
 import '../../../organisation/presentation/cubit/mon_organisation_cubit.dart';
 import 'modifier_organisation_sheet.dart';
@@ -70,7 +71,9 @@ class _ProfilVue extends StatelessWidget {
       ),
     );
     if (confirme == true && context.mounted) {
-      context.read<AuthBloc>().add(const AuthLogoutRequested());
+      // Du travail fait hors ligne pas encore envoyé serait détruit par la
+      // purge de déconnexion : la garde le dit avant, et laisse choisir.
+      await deconnecterAvecGarde(context, file: sl<FileAttente>());
     }
   }
 

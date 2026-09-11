@@ -22,7 +22,9 @@ import '../../../../injection_container.dart';
 import '../../../../l10n/l10n_extension.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
-import '../../../auth/presentation/bloc/auth_event.dart';
+import '../../../auth/presentation/widgets/garde_deconnexion.dart';
+import '../../../../core/offline/file_attente.dart';
+import 'dart:async' show unawaited;
 import '../../../notification/presentation/cubit/notifications_cubit.dart';
 import '../../../chantier/domain/entities/chantier.dart';
 import '../../../../core/widgets/status_badge.dart';
@@ -37,6 +39,7 @@ import '../cubit/dashboard_cubit.dart';
 import '../cubit/dashboard_state.dart';
 import '../widgets/derniers_plans.dart';
 import '../../../../core/network/forcer_reseau.dart';
+import '../../../rapport/domain/entities/rapport.dart';
 
 /// Largeur à partir de laquelle le tableau de bord bascule sur une mise en
 /// page à deux colonnes (tablette / desktop) plutôt qu'empilée (téléphone).
@@ -488,7 +491,9 @@ class _MenuCompte extends StatelessWidget {
           case 'parametres':
             context.go(AppRoutes.parametres);
           case 'deconnexion':
-            context.read<AuthBloc>().add(const AuthLogoutRequested());
+            // Aucune confirmation ici jusqu'à présent : un geste dans ce menu
+            // détruisait sans un mot le travail hors ligne pas encore envoyé.
+            unawaited(deconnecterAvecGarde(context, file: sl<FileAttente>()));
         }
       },
       itemBuilder: (context) => [
@@ -596,6 +601,10 @@ class _CorpsTableauDeBord extends StatelessWidget {
                 _TitreSection(context.l10n.dashboardApercuGeneral),
                 const SizedBox(height: 12),
                 _GrilleApercu(stats: stats, role: role, colonnes: 2),
+                if (role?.peutPiloter ?? false) ...[
+                  const SizedBox(height: 12),
+                  const _CarteNouveauRapport(),
+                ],
                 const SizedBox(height: 18),
                 const _ReservesRecentes(),
                 if (stats.parChantier.isNotEmpty) ...[
@@ -635,6 +644,10 @@ class _CorpsTableauDeBord extends StatelessWidget {
                 _TitreSection(context.l10n.dashboardApercuGeneral),
                 const SizedBox(height: 12),
                 _GrilleApercu(stats: stats, role: role, colonnes: 4),
+                if (role?.peutPiloter ?? false) ...[
+                  const SizedBox(height: 12),
+                  const _CarteNouveauRapport(),
+                ],
                 const SizedBox(height: 24),
                 const _ReservesRecentes(),
                 if (stats.parChantier.isNotEmpty) ...[
@@ -945,6 +958,72 @@ class _LigneSeverite extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// « + Nouveau rapport » depuis le tableau de bord — le point de départ du
+/// parcours du § 3 du cahier des charges Rapports :
+///
+///   Tableau de bord → Rapports → + Nouveau rapport → Choisir le projet → …
+///
+/// L'assistant s'ouvre SANS chantier : il commence donc par l'étape
+/// « Choisir le projet ». Le rapport généré s'ouvre ensuite directement.
+/// Réservé au pilotage, comme la génération côté serveur.
+class _CarteNouveauRapport extends StatelessWidget {
+  const _CarteNouveauRapport();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () async {
+          final rapport = await context.push<Rapport>(AppRoutes.rapportNouveauGlobal);
+          if (rapport != null && context.mounted) {
+            context.push('/chantiers/${rapport.chantierId}/rapports/${rapport.id}');
+          }
+        },
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.picture_as_pdf_rounded, color: AppColors.primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.rapportNouveau, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 2),
+                    Text(
+                      l10n.dashboardNouveauRapportAide,
+                      style: const TextStyle(fontSize: 12, color: AppColors.textMuted, height: 1.3),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -53,19 +53,51 @@ class DocumentsListCubit extends Cubit<DocumentsListState> {
   /// Dépose un fichier dans la médiathèque du chantier. Le document créé est
   /// inséré en tête de liste sans recharger : le back renvoie l'objet complet,
   /// une seconde requête n'apprendrait rien de plus.
-  Future<void> deposer({required String cheminFichier, required DocumentType type}) async {
+  ///
+  /// [nomFichier] : nom d'origine, quand le chemin est celui d'une copie en
+  /// cache (sélecteur de fichiers).
+  Future<void> deposer({
+    required String cheminFichier,
+    required DocumentType type,
+    String? nomFichier,
+  }) async {
     // Verrou de double soumission : la désactivation du bouton ne prend effet
     // qu'à la frame suivante, deux appuis dans la même frame passeraient donc
     // au travers et téléverseraient le fichier deux fois.
     if (state.depotStatus == DepotStatus.enCours) return;
-    emit(state.copyWith(depotStatus: DepotStatus.enCours, effacerDepotErreur: true));
-    final result = await ajouterDocument(chantierId: chantierId, cheminFichier: cheminFichier, type: type);
+    emit(state.copyWith(
+      depotStatus: DepotStatus.enCours,
+      effacerDepotErreur: true,
+      effacerDepotProgression: true,
+    ));
+
+    // Une émission par point de pourcentage au plus : Dio signale chaque
+    // paquet envoyé, soit des milliers d'appels pour une vidéo.
+    var dernierPourcent = -1;
+    final result = await ajouterDocument(
+      chantierId: chantierId,
+      cheminFichier: cheminFichier,
+      type: type,
+      nomFichier: nomFichier,
+      onProgression: (progression) {
+        final borne = progression.clamp(0.0, 1.0);
+        final pourcent = (borne * 100).floor();
+        if (isClosed || pourcent == dernierPourcent) return;
+        dernierPourcent = pourcent;
+        emit(state.copyWith(depotProgression: borne));
+      },
+    );
     if (isClosed) return;
     result.fold(
-      (failure) => emit(state.copyWith(depotStatus: DepotStatus.erreur, depotErreur: failure.errorMessage)),
+      (failure) => emit(state.copyWith(
+        depotStatus: DepotStatus.erreur,
+        depotErreur: failure.errorMessage,
+        effacerDepotProgression: true,
+      )),
       (document) => emit(state.copyWith(
         depotStatus: DepotStatus.succes,
         items: [document, ...state.items],
+        effacerDepotProgression: true,
       )),
     );
   }

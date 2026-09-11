@@ -296,7 +296,7 @@ class ReserveRepositoryImpl implements ReserveRepository {
     final id = _uuid.v4();
 
     if (!_detecteur.estEnLigne) {
-      return Right(await _creerHorsLigne(
+      return _ouEchec(() => _creerHorsLigne(
         id: id,
         chantierId: chantierId, titre: titre, description: description, priorite: priorite,
         categorie: categorie, batimentId: batimentId, etageId: etageId, zoneId: zoneId, lotId: lotId,
@@ -320,7 +320,7 @@ class ReserveRepositoryImpl implements ReserveRepository {
       return Right(result);
     } on NetworkException catch (_) {
       // Cas RÉEL : voir la note dans `_replisiSansReseau`.
-      return Right(await _creerHorsLigne(
+      return _ouEchec(() => _creerHorsLigne(
         id: id,
         chantierId: chantierId, titre: titre, description: description, priorite: priorite,
         categorie: categorie, batimentId: batimentId, etageId: etageId, zoneId: zoneId, lotId: lotId,
@@ -331,7 +331,7 @@ class ReserveRepositoryImpl implements ReserveRepository {
       ));
     } on DioException catch (e) {
       if (estCoupureReseau(e)) {
-        return Right(await _creerHorsLigne(
+        return _ouEchec(() => _creerHorsLigne(
           id: id,
           chantierId: chantierId, titre: titre, description: description, priorite: priorite,
           categorie: categorie, batimentId: batimentId, etageId: etageId, zoneId: zoneId, lotId: lotId,
@@ -347,6 +347,20 @@ class ReserveRepositoryImpl implements ReserveRepository {
     }
   }
 
+  /// Exécute une écriture HORS LIGNE et en rend l'issue, sans jamais lever.
+  ///
+  /// L'ancienne version laissait l'exception d'un dépôt raté (disque plein,
+  /// base verrouillée) remonter NUE jusqu'au cubit, qui ne l'attendait pas :
+  /// l'écran restait sur son indicateur, sans erreur ni résultat. Un échec
+  /// doit être DIT — c'est un `Left`, jamais un faux succès.
+  Future<Either<Failure, Reserve>> _ouEchec(Future<Reserve> Function() ecriture) async {
+    try {
+      return Right(await ecriture());
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
+
   /// Construit une réserve LOCALE (id généré côté client — voir
   /// `backend/.../reserve.validation.js`), la place en cache marquée
   /// « en attente », et dépose l'action correspondante dans la file. L'écran
@@ -354,6 +368,10 @@ class ReserveRepositoryImpl implements ReserveRepository {
   /// répondu : il peut naviguer sur son détail, lui attacher une photo, tout
   /// de suite — la file respecte l'ordre de création, la photo ne partira
   /// jamais avant la réserve.
+  ///
+  /// L'écriture en cache et le dépôt sont ATOMIQUES (une seule transaction,
+  /// voir `FileAttente.deposer`) : une réserve « en attente » sans action pour
+  /// l'envoyer ne peut plus exister.
   Future<Reserve> _creerHorsLigne({
     /// Fourni par [creerReserve], JAMAIS généré ici : c'est le partage de cet
     /// id entre la tentative en ligne et le repli qui garantit l'idempotence
@@ -400,9 +418,10 @@ class ReserveRepositoryImpl implements ReserveRepository {
       lot: lotId != null ? ReserveLocalisationRef(id: lotId, nom: '') : null,
     );
 
-    await _cache.enregistrer(reserve, enAttente: true);
     await _fileAttente.deposer(
       type: TypeAction.creerReserve,
+      // Écriture locale et dépôt dans la MÊME transaction : tout ou rien.
+      avecEcriture: (txn) => _cache.enregistrer(reserve, enAttente: true, executeur: txn),
       charge: {
         'id': id,
         'chantierId': chantierId,
@@ -479,12 +498,16 @@ class ReserveRepositoryImpl implements ReserveRepository {
       ));
     }
     final maj = actuelle.copierAvecStatut(statut);
-    await _cache.enregistrer(maj, enAttente: true);
-    await _fileAttente.deposer(
-      type: TypeAction.changerStatutReserve,
-      charge: {'reserveId': reserveId, 'statut': statut.raw, 'motif': motif},
-    );
-    return Right(maj);
+    return _ouEchec(() async {
+      // Statut provisoire et action dans la MÊME transaction : un statut
+      // affiché « en attente » a toujours une action pour le porter.
+      await _fileAttente.deposer(
+        type: TypeAction.changerStatutReserve,
+        charge: {'reserveId': reserveId, 'statut': statut.raw, 'motif': motif},
+        avecEcriture: (txn) => _cache.enregistrer(maj, enAttente: true, executeur: txn),
+      );
+      return maj;
+    });
   }
 
   @override
@@ -534,13 +557,28 @@ class ReserveRepositoryImpl implements ReserveRepository {
     required String type,
   }) async {
     final idAction = _uuid.v4();
-    final cheminDurable = await _medias.copier(cheminFichier, idAction);
+    final String cheminDurable;
+    try {
+      cheminDurable = await _medias.copier(cheminFichier, idAction);
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
 
-    await _fileAttente.deposer(
-      type: TypeAction.ajouterPhotoReserve,
-      charge: {'reserveId': reserveId, 'type': type},
-      cheminFichier: cheminDurable,
-    );
+    try {
+      await _fileAttente.deposer(
+        type: TypeAction.ajouterPhotoReserve,
+        charge: {'reserveId': reserveId, 'type': type},
+        cheminFichier: cheminDurable,
+        // Le nom de la copie EST l'identifiant de l'action : une photo sur le
+        // disque se relie toujours à sa ligne de file.
+        id: idAction,
+      );
+    } catch (e) {
+      // Sans action pour l'envoyer, la copie deviendrait un fichier ORPHELIN :
+      // une photo géolocalisée qui ne serait jamais ni envoyée ni effacée.
+      await _medias.supprimer(cheminDurable);
+      return Left(exceptionToFailure(e));
+    }
 
     return Right(ReserveMedia(
       id: idAction,

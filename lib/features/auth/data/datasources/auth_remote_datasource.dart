@@ -43,7 +43,7 @@ abstract class AuthRemoteDataSource {
 
   /// Idem : message de confirmation renvoyé par le backend.
   Future<String> resetPassword({required String email, required String otp, required String nouveauMotDePasse});
-  Future<void> logout();
+  Future<void> logout({String? refreshToken});
   Future<UserModel> getMe();
 }
 
@@ -128,10 +128,18 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   }
 
   @override
-  Future<void> logout() async {
+  Future<void> logout({String? refreshToken}) async {
     // Best-effort — voir AuthRepositoryImpl.logout() : l'échec réseau ne
     // doit jamais bloquer la déconnexion locale.
-    await dio.post(Env.authLogout, options: Options(extra: {'skipAuthInterceptor': true}));
+    //
+    // Le refresh token part DANS LE CORPS : le mobile n'a pas le cookie
+    // httpOnly du web, et sans lui le serveur ne révoquait rien — le jeton
+    // restait utilisable sept jours après la déconnexion.
+    await dio.post(
+      Env.authLogout,
+      data: {if (refreshToken != null && refreshToken.isNotEmpty) 'refreshToken': refreshToken},
+      options: Options(extra: {'skipAuthInterceptor': true}),
+    );
   }
 
   @override

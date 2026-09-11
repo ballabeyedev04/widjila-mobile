@@ -183,8 +183,22 @@ class _ChantierDetailView extends StatelessWidget {
                       '/chantiers/${c.id}/rapports?nom=${Uri.encodeComponent(c.nom)}',
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  const _SectionsAVenir(),
+                  const SizedBox(height: 10),
+                  // Structure et membres étaient annoncés « Prochainement » :
+                  // ce sont désormais de vraies sections, comme les autres.
+                  _SectionCard(
+                    icon: Icons.apartment_outlined,
+                    titre: l10n.chantierSectionStructure,
+                    sousTitre: l10n.chantierDetailStructureSousTitre,
+                    onTap: () => context.push('/chantiers/${c.id}/structure'),
+                  ),
+                  const SizedBox(height: 10),
+                  _SectionCard(
+                    icon: Icons.group_outlined,
+                    titre: l10n.membresChantierTitre,
+                    sousTitre: l10n.chantierDetailMembresSousTitre,
+                    onTap: () => context.push('/chantiers/${c.id}/membres'),
+                  ),
                 ],
                 ),
                 ),
@@ -200,9 +214,7 @@ class _ChantierDetailView extends StatelessWidget {
   }
 }
 
-/// Bouton d'accès à une section complète du chantier (carte cliquable) —
-/// utilisé pour « Réserves » et, au fur et à mesure de leur implémentation,
-/// les autres sections actuellement listées dans `_SectionsAVenir`.
+/// Bouton d'accès à une section complète du chantier (carte cliquable).
 class _SectionCard extends StatelessWidget {
   final IconData icon;
   final String titre;
@@ -250,54 +262,6 @@ class _SectionCard extends StatelessWidget {
               const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Structure/Plans/Inspections/Rapports/Membres — prévus en phase 2/3 (voir
-/// le plan communiqué). Placeholder honnête plutôt qu'un onglet qui semble
-/// fonctionnel mais ne l'est pas. « Réserves », « Tableau de bord » et
-/// « Documents » sont sortis de cette liste : ce sont désormais de vraies
-/// sections (`_SectionCard` ci-dessus).
-class _SectionsAVenir extends StatelessWidget {
-  const _SectionsAVenir();
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final sections = [
-      (l10n.chantierSectionStructure, Icons.apartment_outlined),
-      (l10n.dashboardApercuMembres, Icons.group_outlined),
-    ];
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.neutralBg,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(l10n.commonProchainement, style: const TextStyle(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 4),
-            Text(
-              l10n.chantierSectionsAVenirTexte,
-              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final s in sections)
-                  Chip(avatar: Icon(s.$2, size: 16), label: Text(s.$1), backgroundColor: Colors.white),
-              ],
-            ),
-          ],
         ),
       ),
     );

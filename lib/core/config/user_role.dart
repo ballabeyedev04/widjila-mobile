@@ -241,6 +241,12 @@ extension UserRoleX on UserRole {
   bool get peutIntervenirSurReserves =>
       peutPiloter || estTitulaire || this == UserRole.pilote;
 
+  /// Affecte des membres à un chantier et les en retire — miroir de
+  /// `requireRole('ChefProjet', 'MaitreOeuvre', TITULAIRE)` sur
+  /// `POST|DELETE /chantiers/:id/membres` (`chantier.route.js`).
+  bool get peutAffecterMembresChantier =>
+      this == UserRole.chefProjet || this == UserRole.maitreOeuvre || estTitulaire;
+
   /// SOUS_TRAITANT (backend) : accès restreint aux réserves qui lui sont
   /// assignées — ne crée pas, ne gère pas les affectations. À utiliser pour
   /// filtrer les actions proposées (voir reserve_statut_policy.dart), jamais

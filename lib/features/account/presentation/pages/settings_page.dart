@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +12,7 @@ import '../../../../core/offline/base_locale.dart';
 import '../../../../core/offline/cache_chantiers.dart';
 import '../../../../core/offline/cache_reserves.dart';
 import '../../../../core/services/locale_controller.dart';
+import '../../../../core/services/ouverture_fichier.dart';
 import '../../../../core/services/verrou_biometrique.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_alert.dart';
@@ -24,6 +28,7 @@ import '../cubit/settings_cubit.dart';
 import '../widgets/section_notifications.dart';
 import 'changer_mot_de_passe_sheet.dart';
 import '../cubit/settings_state.dart';
+import '../widgets/contacter_support_sheet.dart';
 import '../widgets/mfa_setup_sheet.dart';
 import '../../../../core/network/forcer_reseau.dart';
 
@@ -732,9 +737,34 @@ class _SectionRgpd extends StatelessWidget {
           ],
         ),
         actions: [
+          TextButton.icon(
+            onPressed: () => _enregistrerExport(dialogContext, donnees),
+            icon: const Icon(Icons.download_rounded, size: 18),
+            label: Text(l10n.documentActionTelecharger),
+          ),
           FilledButton(onPressed: () => Navigator.of(dialogContext).pop(), child: Text(l10n.commonOk)),
         ],
       ),
+    );
+  }
+
+  /// Le fichier COMPLET de l'export — le même JSON que l'espace web propose
+  /// (`admin/src/pages/account/Profile.jsx`) —, enregistré à l'endroit choisi
+  /// par l'utilisateur. Le mobile renvoyait jusqu'ici vers l'espace web pour
+  /// l'obtenir, alors qu'il avait déjà reçu toutes les données.
+  Future<void> _enregistrerExport(BuildContext context, Map<String, dynamic> donnees) async {
+    final l10n = context.l10n;
+    final json = const JsonEncoder.withIndent('  ').convert(donnees);
+    final resultat = await sl<OuvertureFichier>().enregistrer(
+      octets: Uint8List.fromList(utf8.encode(json)),
+      nomFichier: 'mes-donnees.json',
+    );
+    if (!context.mounted) return;
+    resultat.fold(
+      (_) => AppAlert.error(context, message: l10n.documentEnregistrementEchec),
+      (enregistre) {
+        if (enregistre) AppAlert.success(context, message: l10n.documentEnregistre);
+      },
     );
   }
 
@@ -874,12 +904,14 @@ class _SectionAPropos extends StatelessWidget {
           titre: l10n.settingsAProposConfidentialite,
           onTap: () => _ouvrirLien(context, Env.politiqueConfidentialiteUrl),
         ),
-        // Pas d'adresse ou d'URL de support réelle configurée pour l'instant
-        // (voir `Env` — seules CGU/politique de confidentialité y figurent) :
-        // affiché de façon non interactive plutôt qu'un lien mort, dans le
-        // même esprit que les autres contenus différés de l'app (voir
-        // `documents_list_page.dart#_ouvrirDocument`).
-        _LigneAPropos(icone: Icons.support_agent_outlined, titre: l10n.settingsAProposSupport),
+        // Formulaire dans l'application : le serveur transmet la demande au
+        // support par email (`POST /support/messages`), sans exposer
+        // d'adresse — il n'y en avait aucune de configurée côté mobile.
+        _LigneAPropos(
+          icone: Icons.support_agent_outlined,
+          titre: l10n.settingsAProposSupport,
+          onTap: () => ouvrirContactSupport(context),
+        ),
       ],
     );
   }
@@ -898,10 +930,7 @@ class _LigneAPropos extends StatelessWidget {
         Icon(icone, size: 18, color: AppColors.textMuted),
         const SizedBox(width: 10),
         Expanded(child: Text(titre, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-        if (onTap != null)
-          const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textMuted)
-        else
-          Text(context.l10n.settingsAProposBientotDisponible, style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
+        if (onTap != null) const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textMuted),
       ],
     );
 

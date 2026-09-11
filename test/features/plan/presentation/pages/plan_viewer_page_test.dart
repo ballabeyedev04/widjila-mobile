@@ -11,15 +11,22 @@ import 'package:suivie_chantier_mobile/core/errors/failure.dart';
 import 'package:suivie_chantier_mobile/core/widgets/error_view.dart';
 import 'package:suivie_chantier_mobile/features/plan/domain/entities/plan.dart';
 import 'package:suivie_chantier_mobile/features/plan/domain/usecases/get_plan_detail.dart';
+import 'package:suivie_chantier_mobile/features/plan/domain/usecases/get_plans_chantier.dart';
 import 'package:suivie_chantier_mobile/features/plan/presentation/cubit/plan_detail_cubit.dart';
 import 'package:suivie_chantier_mobile/features/plan/presentation/pages/plan_viewer_page.dart';
 import 'package:suivie_chantier_mobile/features/plan/presentation/widgets/fiche_reserve_sheet.dart';
 import 'package:suivie_chantier_mobile/features/plan/presentation/widgets/plan_interactif.dart';
+import 'package:suivie_chantier_mobile/features/reserve/domain/entities/chantier_structure.dart';
 import 'package:suivie_chantier_mobile/features/reserve/domain/entities/reserve.dart';
+import 'package:suivie_chantier_mobile/features/reserve/domain/usecases/get_chantier_structure.dart';
 import 'package:suivie_chantier_mobile/injection_container.dart';
 
 import '../../../../helpers/balayage_responsive.dart';
 import '../../../../helpers/pompe_page.dart';
+
+class _MockStructure extends Mock implements GetChantierStructure {}
+
+class _MockPlansChantier extends Mock implements GetPlansChantier {}
 
 class _MockDetail extends Mock implements GetPlanDetail {}
 
@@ -43,15 +50,29 @@ final Uint8List _png = base64Decode(
 /// sont tous facultatifs. Un plan déposé sans métadonnée doit s'ouvrir.
 void main() {
   late _MockDetail getDetail;
+  late _MockStructure getStructure;
+  late _MockPlansChantier getPlansChantier;
 
   void desinscrire() {
     if (sl.isRegistered<PlanDetailCubit>()) sl.unregister<PlanDetailCubit>();
+    if (sl.isRegistered<GetChantierStructure>()) sl.unregister<GetChantierStructure>();
+    if (sl.isRegistered<GetPlansChantier>()) sl.unregister<GetPlansChantier>();
   }
 
   setUp(() {
     getDetail = _MockDetail();
+    getStructure = _MockStructure();
+    getPlansChantier = _MockPlansChantier();
+    // Par défaut, un chantier SANS structure : le panneau des bâtiments le
+    // dit, et le reste de la visionneuse n'en dépend pas.
+    when(() => getStructure(any()))
+        .thenAnswer((_) async => const Right<Failure, ChantierStructure>(ChantierStructure()));
+    when(() => getPlansChantier(any()))
+        .thenAnswer((_) async => const Right<Failure, List<Plan>>([]));
     desinscrire();
     sl.registerFactory<PlanDetailCubit>(() => PlanDetailCubit(getPlanDetail: getDetail));
+    sl.registerLazySingleton<GetChantierStructure>(() => getStructure);
+    sl.registerLazySingleton<GetPlansChantier>(() => getPlansChantier);
   });
 
   tearDown(desinscrire);
@@ -390,5 +411,92 @@ void main() {
             reason: 'débordement de mise en page sur $format');
       });
     }
+  });
+
+  group('le panneau bas situe le plan dans le chantier', () {
+    // Même règle que l'explorateur : sous le plan GLOBAL, les bâtiments ;
+    // sous le plan d'un APPARTEMENT, où il se trouve.
+    late _MockDio dio;
+
+    setUp(() {
+      dio = _MockDio();
+      if (sl.isRegistered<Dio>()) sl.unregister<Dio>();
+      sl.registerSingleton<Dio>(dio);
+      when(() => dio.get<List<int>>(any(), options: any(named: 'options'))).thenAnswer(
+        (_) async => Response<List<int>>(
+          data: _png,
+          statusCode: 200,
+          requestOptions: RequestOptions(path: '/x'),
+        ),
+      );
+    });
+
+    tearDown(() {
+      if (sl.isRegistered<Dio>()) sl.unregister<Dio>();
+    });
+
+    const structure = ChantierStructure(batiments: [
+      BatimentStructure(id: 'b1', nom: 'Bâtiment A', etages: [
+        EtageStructure(id: 'e1', nom: 'R+1', niveau: 1, zones: [ZoneStructure(id: 'z1', nom: 'A001')]),
+      ]),
+      BatimentStructure(id: 'b2', nom: 'Bâtiment B'),
+    ]);
+
+    const global = Plan(
+      id: 'g',
+      chantierId: 'c1',
+      nom: 'Plan de masse',
+      chantierNom: 'Les Cedres',
+      fichierUrl: 'https://exemple.test/g.png',
+    );
+    const planA001 = Plan(
+      id: 'p-a001',
+      chantierId: 'c1',
+      nom: 'Plan A001',
+      chantierNom: 'Les Cedres',
+      fichierUrl: 'https://exemple.test/a001.png',
+      batiment: PlanNiveauRef(id: 'b1', nom: 'Bâtiment A'),
+      etage: PlanNiveauRef(id: 'e1', nom: 'R+1'),
+      zone: PlanNiveauRef(id: 'z1', nom: 'A001'),
+    );
+
+    Future<void> ouvrir(WidgetTester tester, Plan plan) async {
+      when(() => getDetail(any())).thenAnswer((_) async => Right<Failure, Plan>(plan));
+      when(() => getStructure(any()))
+          .thenAnswer((_) async => const Right<Failure, ChantierStructure>(structure));
+      when(() => getPlansChantier(any()))
+          .thenAnswer((_) async => const Right<Failure, List<Plan>>([global, planA001]));
+
+      await pomperPage(tester, page);
+      for (var i = 0; i < 2; i++) {
+        await tester.runAsync(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 80));
+        });
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    }
+
+    testWidgets('sous le plan GLOBAL : les bâtiments du chantier', (tester) async {
+      await ouvrir(tester, global);
+
+      expect(find.text('Bâtiment A'), findsOneWidget);
+      expect(find.text('Bâtiment B'), findsOneWidget);
+      expect(find.text('Créer une réserve'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('sous le plan d’un APPARTEMENT : chantier, bâtiment, niveau', (tester) async {
+      await ouvrir(tester, planA001);
+
+      expect(find.text('Les Cedres › Bâtiment A › R+1 › A001'), findsOneWidget);
+      expect(find.text('Les Cedres'), findsOneWidget);
+      expect(find.text('Bâtiment A'), findsOneWidget);
+      expect(find.text('R+1 · Étages'), findsOneWidget);
+      expect(find.text('A001'), findsOneWidget);
+      expect(find.text('Bâtiment B'), findsNothing);
+      expect(find.text('Créer une réserve'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

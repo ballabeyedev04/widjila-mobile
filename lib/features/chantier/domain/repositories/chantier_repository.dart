@@ -3,6 +3,7 @@ import '../../../../core/errors/failure.dart';
 import '../../../referentiel/domain/entities/code_niveau.dart';
 import '../../../reserve/domain/entities/chantier_structure.dart';
 import '../entities/chantier.dart';
+import '../entities/membre_chantier.dart';
 
 /// Page de résultats — miroir du contrat de pagination backend
 /// (`middlewares/pagination.middleware.js`) : `{ items, total }`.
@@ -64,6 +65,16 @@ abstract class ChantierRepository {
     String? code,
   });
 
+  /// Renomme un bâtiment.
+  Future<Either<Failure, BatimentStructure>> modifierBatiment(
+    String chantierId,
+    String batimentId, {
+    required String nom,
+  });
+
+  /// Supprime un bâtiment. Le serveur refuse tant qu'une réserve y pointe.
+  Future<Either<Failure, void>> supprimerBatiment(String chantierId, String batimentId);
+
   /// Ajoute un niveau à un bâtiment.
   Future<Either<Failure, EtageStructure>> creerEtage(
     String chantierId,
@@ -74,6 +85,17 @@ abstract class ChantierRepository {
     String? description,
     int? niveau,
   });
+
+  /// Renomme un niveau.
+  Future<Either<Failure, EtageStructure>> modifierEtage(
+    String chantierId,
+    String batimentId,
+    String etageId, {
+    required String nom,
+  });
+
+  /// Supprime un niveau. Le serveur refuse tant qu'une réserve y pointe.
+  Future<Either<Failure, void>> supprimerEtage(String chantierId, String batimentId, String etageId);
 
   /// Ajoute un appartement (zone) à un niveau.
   Future<Either<Failure, ZoneStructure>> creerZone(
@@ -100,4 +122,20 @@ abstract class ChantierRepository {
     String etageId,
     String zoneId,
   );
+
+  /// Membres affectés au chantier.
+  Future<Either<Failure, List<MembreChantier>>> getMembresChantier(String chantierId);
+
+  /// Membres actifs de l'organisation pas encore affectés au chantier.
+  Future<Either<Failure, List<MembreChantier>>> getCandidatsMembres(String chantierId);
+
+  /// Affecte des membres au chantier, avec un rôle sur le chantier facultatif.
+  Future<Either<Failure, void>> affecterMembres(
+    String chantierId, {
+    required List<String> membreIds,
+    String? roleChantier,
+  });
+
+  /// Retire un membre du chantier.
+  Future<Either<Failure, void>> retirerMembre(String chantierId, String membreId);
 }

@@ -159,6 +159,7 @@ String _typeLibelle(AppLocalizations l10n, TypeAction type) => switch (type) {
       TypeAction.creerReserve => l10n.syncTypeCreerReserve,
       TypeAction.changerStatutReserve => l10n.syncTypeChangerStatut,
       TypeAction.ajouterPhotoReserve => l10n.syncTypeAjouterPhoto,
+      TypeAction.envoyerRapport => l10n.syncTypeEnvoyerRapport,
     };
 
 /// « Nom de la tâche » — plus parlant que le seul type d'opération : une
@@ -178,6 +179,8 @@ String _nomAffiche(AppLocalizations l10n, ActionEnAttente tache) {
       return l10n.syncNomChangerStatut(statutLabel);
     case TypeAction.ajouterPhotoReserve:
       return l10n.syncNomPhoto;
+    case TypeAction.envoyerRapport:
+      return l10n.syncTypeEnvoyerRapport;
   }
 }
 

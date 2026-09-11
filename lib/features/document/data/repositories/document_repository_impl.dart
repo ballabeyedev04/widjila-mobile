@@ -28,9 +28,17 @@ class DocumentRepositoryImpl implements DocumentRepository {
     required String chantierId,
     required String cheminFichier,
     required DocumentType type,
+    String? nomFichier,
+    void Function(double progression)? onProgression,
   }) async {
     try {
-      final result = await remoteDataSource.ajouterDocument(chantierId: chantierId, cheminFichier: cheminFichier, type: type);
+      final result = await remoteDataSource.ajouterDocument(
+        chantierId: chantierId,
+        cheminFichier: cheminFichier,
+        type: type,
+        nomFichier: nomFichier,
+        onProgression: onProgression,
+      );
       return Right(result);
     } catch (e) {
       return Left(exceptionToFailure(e));

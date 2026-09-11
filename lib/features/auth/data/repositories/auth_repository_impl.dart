@@ -180,7 +180,9 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<void> logout() async {
     try {
-      await remoteDataSource.logout();
+      // Lu AVANT l'effacement plus bas : c'est lui que le serveur révoque.
+      final refreshToken = await tokenService.getRefreshToken();
+      await remoteDataSource.logout(refreshToken: refreshToken);
     } catch (_) {
       // Best-effort — la révocation côté serveur ne doit jamais empêcher la
       // déconnexion locale (cohérent avec l'admin web, voir api.js).

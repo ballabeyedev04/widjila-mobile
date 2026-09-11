@@ -13,6 +13,9 @@ import 'package:suivie_chantier_mobile/features/reserve/domain/repositories/rese
 import 'package:suivie_chantier_mobile/features/reserve/domain/usecases/ajouter_media_reserve.dart';
 import 'package:suivie_chantier_mobile/features/reserve/domain/usecases/changer_statut_reserve.dart';
 import 'package:suivie_chantier_mobile/features/reserve/domain/usecases/get_reserve_detail.dart';
+import 'package:suivie_chantier_mobile/features/reserve/domain/entities/piece_jointe.dart';
+import 'package:suivie_chantier_mobile/features/reserve/domain/repositories/pieces_jointes_repository.dart';
+import 'package:suivie_chantier_mobile/features/reserve/presentation/cubit/pieces_jointes_cubit.dart';
 import 'package:suivie_chantier_mobile/features/reserve/presentation/cubit/reserve_detail_cubit.dart';
 import 'package:suivie_chantier_mobile/features/reserve/presentation/pages/reserve_detail_page.dart';
 import 'package:suivie_chantier_mobile/injection_container.dart';
@@ -27,6 +30,8 @@ class _MockChangerStatut extends Mock implements ChangerStatutReserve {}
 class _MockAjouterMedia extends Mock implements AjouterMediaReserve {}
 
 class _MockRepo extends Mock implements ReserveRepository {}
+
+class _MockPiecesRepo extends Mock implements PiecesJointesRepository {}
 
 /// La fiche d'une réserve.
 ///
@@ -45,6 +50,7 @@ void main() {
 
   void desinscrire() {
     if (sl.isRegistered<ReserveDetailCubit>()) sl.unregister<ReserveDetailCubit>();
+    if (sl.isRegistered<PiecesJointesCubit>()) sl.unregister<PiecesJointesCubit>();
   }
 
   late _MockRepo repo;
@@ -69,6 +75,17 @@ void main() {
         repository: repo,
         reserveId: reserveId,
       ),
+    );
+
+    // La fiche porte désormais sa section « Pièces jointes », qui charge sa
+    // propre liste : une réserve sans pièce jointe est le cas courant.
+    // Enregistrée APRÈS `desinscrire()`, qui la retirerait sinon.
+    final pieces = _MockPiecesRepo();
+    when(() => pieces.lister(any())).thenAnswer(
+      (_) async => const Right<Failure, List<PieceJointe>>([]),
+    );
+    sl.registerFactoryParam<PiecesJointesCubit, String, void>(
+      (reserveId, _) => PiecesJointesCubit(reserveId: reserveId, repository: pieces),
     );
   });
 

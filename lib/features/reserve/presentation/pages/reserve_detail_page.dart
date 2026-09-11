@@ -22,6 +22,7 @@ import '../cubit/reserve_detail_cubit.dart';
 import '../cubit/reserve_detail_state.dart';
 import '../widgets/reserve_collaboration.dart';
 import '../widgets/reserve_statut_badge.dart';
+import '../widgets/section_pieces_jointes.dart';
 import 'affecter_reserve_sheet.dart';
 import 'modifier_reserve_sheet.dart';
 import 'qr_reserve_sheet.dart';
@@ -441,6 +442,9 @@ class _DetailBody extends StatelessWidget {
                 },
               ),
             ),
+
+          const SizedBox(height: 24),
+          SectionPiecesJointes(reserveId: reserve.id),
 
           const SizedBox(height: 24),
           _TitreSection(l10n.reserveAffectationsTitre),

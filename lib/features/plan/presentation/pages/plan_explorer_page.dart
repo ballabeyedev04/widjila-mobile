@@ -20,6 +20,7 @@ import '../../domain/entities/plan.dart';
 import '../../domain/usecases/get_plan_detail.dart';
 import '../../domain/usecases/get_plans_racines.dart';
 import '../../domain/usecases/get_sous_plans.dart';
+import '../widgets/contexte_plan.dart';
 import '../widgets/fiche_reserve_sheet.dart';
 import '../widgets/nouvelle_reserve_sheet.dart';
 import '../widgets/plan_interactif.dart';
@@ -107,16 +108,48 @@ class _PlanExplorerPageState extends State<PlanExplorerPage> {
   bool _chargement = true;
   String? _erreur;
 
+  /// La structure du chantier et ses plans — ce qui range, sous le plan
+  /// global, les bâtiments, leurs niveaux et leurs appartements.
+  ///
+  /// Chargée UNE fois pour tout le parcours : elle ne dépend d'aucun plan, et
+  /// la redemander à chaque plan ouvert ferait patienter le panneau à chaque
+  /// descente.
+  EtatContexte _contexte = const EtatContexte.enChargement();
+
+  /// Ce que l'utilisateur a déplié dans l'arborescence — gardé ici pour
+  /// survivre à l'ouverture d'un plan puis au retour.
+  final EtatDepliage _depliage = EtatDepliage();
+
+  /// Panneau bas agrandi — le choix reste d'un plan à l'autre.
+  bool _panneauAgrandi = false;
+
   Plan? get _planOuvert => _chemin.isEmpty ? null : _chemin.last;
 
   @override
   void initState() {
     super.initState();
+    // En parallèle de la descente : la structure ne dépend d'aucun plan, et
+    // l'attendre retarderait l'affichage du premier.
+    _chargerContexte();
     if (widget.planIdInitial == null) {
       _chargerNiveau();
     } else {
       _ouvrirDirectement(widget.planIdInitial!);
     }
+  }
+
+  /// Charge la structure du chantier et ses plans. Jamais bloquant : un
+  /// échec laisse le plan consultable, seul le panneau le signale.
+  Future<void> _chargerContexte() async {
+    final etat = await chargerContexteChantier(widget.chantierId);
+    if (mounted) setState(() => _contexte = etat);
+  }
+
+  /// « Réessayer » du panneau : repasse par l'état de chargement, pour que
+  /// l'appui ait une réponse visible.
+  Future<void> _rechargerContexte() {
+    setState(() => _contexte = const EtatContexte.enChargement());
+    return _chargerContexte();
   }
 
   /// Place l'explorateur directement SUR un plan donné.
@@ -258,12 +291,31 @@ class _PlanExplorerPageState extends State<PlanExplorerPage> {
   /// Le chantier en tête, puis tous les plans traversés SAUF le dernier, que
   /// le titre affiche déjà juste au-dessus.
   String get _sousTitre {
+    // Un plan de la STRUCTURE se situe par sa place dans le chantier, pas par
+    // les appuis qui y ont mené : « Océania › Bâtiment A › R+1 › A001 » dit
+    // où l'on est, « Océania › plan-de-masse.jpeg » ne le dirait pas.
+    final ouvert = _planOuvert;
+    final lieu = ouvert == null ? const <String>[] : lieuDuPlan(ouvert);
+    if (lieu.isNotEmpty) {
+      return [if (widget.chantierNom != null) widget.chantierNom!, ...lieu].join(' › ');
+    }
+
     final chemin = <String>[
       if (widget.chantierNom != null) widget.chantierNom!,
       for (final p in _chemin) p.nom,
     ];
     if (chemin.length > 1) chemin.removeLast();
     return chemin.join(' › ');
+  }
+
+  /// Chemin affiché dans le formulaire de réserve : la localisation, puis le
+  /// plan sur lequel on a appuyé.
+  String _cheminLisible(Plan ouvert) {
+    final lieu = lieuDuPlan(ouvert);
+    return [
+      widget.chantierNom,
+      ...(lieu.isEmpty ? _chemin.map((p) => p.nom) : [...lieu, ouvert.nom]),
+    ].whereType<String>().join(' › ');
   }
 
   String get _titre =>
@@ -318,13 +370,17 @@ class _PlanExplorerPageState extends State<PlanExplorerPage> {
       key: ValueKey(ouvert.id),
       plan: _detail ?? ouvert,
       chantierId: widget.chantierId,
-      cheminLisible: [widget.chantierNom, ..._chemin.map((p) => p.nom)]
-          .whereType<String>()
-          .join(' › '),
+      chantierNom: widget.chantierNom,
+      cheminLisible: _cheminLisible(ouvert),
       sousPlans: _niveau,
       pointageAutorise: peutCreer,
       onOuvrirSousPlan: _ouvrir,
       onReserveCreee: _rechargerReserves,
+      contexte: _contexte,
+      onRechargerContexte: _rechargerContexte,
+      depliage: _depliage,
+      panneauAgrandi: _panneauAgrandi,
+      onBasculerPanneau: () => setState(() => _panneauAgrandi = !_panneauAgrandi),
     );
   }
 
@@ -340,25 +396,63 @@ class _PlanExplorerPageState extends State<PlanExplorerPage> {
       );
     }
 
+    // Seuls les plans GLOBAUX ici. Le serveur appelle « racines » tous les
+    // plans sans parent — donc aussi ceux de chaque bâtiment, niveau et
+    // appartement déposés par « Envoi de plans », qui s'affichaient à plat à
+    // côté du plan global sans rien pour les situer. Ils s'atteignent
+    // désormais PAR lui, rangés sous leur bâtiment.
+    final globaux = [
+      for (final p in _niveau)
+        if (porteeDu(p) == PorteePlan.global) p,
+    ];
     final estTablette = MediaQuery.sizeOf(context).width >= seuilTablette;
 
     return RefreshIndicator(
-      onRefresh: _chargerNiveau,
+      onRefresh: () async {
+        await Future.wait<void>([_chargerNiveau(), _chargerContexte()]);
+      },
       color: AppColors.primary,
       child: ListView(
         padding: EdgeInsets.fromLTRB(estTablette ? 24 : 16, 16, estTablette ? 24 : 16, 24),
         children: [
-          Text(
-            l10n.planExplorerPlansGlobaux.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.7,
-              color: AppColors.textSecondary,
+          if (globaux.isNotEmpty) ...[
+            TitreContexte(l10n.planExplorerPlansGlobaux),
+            const SizedBox(height: 10),
+            _GrillePlans(
+              plans: globaux,
+              nombreBatiments: _contexte.contexte?.batiments.length ?? 0,
+              onOuvrir: _ouvrir,
             ),
-          ),
-          const SizedBox(height: 10),
-          _GrillePlans(plans: _niveau, onOuvrir: _ouvrir),
+          ] else ...[
+            // Des plans rattachés, mais pas de plan d'ensemble : on ne les
+            // cache pas pour autant — la structure y mène directement.
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.infoBg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, size: 17, color: AppColors.info),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      l10n.planNavAucunPlanGlobal,
+                      style: const TextStyle(fontSize: 12.5, color: AppColors.info),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            ArborescenceBatiments(
+              etat: _contexte,
+              onReessayer: _rechargerContexte,
+              onOuvrirPlan: _ouvrir,
+              depliage: _depliage,
+            ),
+          ],
         ],
       ),
     );
@@ -435,9 +529,17 @@ class _Bandeau extends StatelessWidget {
 /// Grille de plans — une tuile par plan, avec l'APERÇU RÉEL du document.
 class _GrillePlans extends StatelessWidget {
   final List<Plan> plans;
+
+  /// Bâtiments du chantier — ce vers quoi mène un plan global. 0 tant que la
+  /// structure n'est pas chargée : la tuile n'annonce alors rien de faux.
+  final int nombreBatiments;
   final void Function(Plan) onOuvrir;
 
-  const _GrillePlans({required this.plans, required this.onOuvrir});
+  const _GrillePlans({
+    required this.plans,
+    required this.nombreBatiments,
+    required this.onOuvrir,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -451,7 +553,14 @@ class _GrillePlans extends StatelessWidget {
           crossAxisSpacing: 12,
           mainAxisExtent: _hauteurTuile(context),
         ),
-        children: [for (final p in plans) _TuilePlan(plan: p, onOuvrir: () => onOuvrir(p))],
+        children: [
+          for (final p in plans)
+            _TuilePlan(
+              plan: p,
+              nombreBatiments: porteeDu(p) == PorteePlan.global ? nombreBatiments : 0,
+              onOuvrir: () => onOuvrir(p),
+            ),
+        ],
       ),
     );
   }
@@ -477,20 +586,27 @@ double _hauteurTuile(BuildContext context) {
 /// page — avec cache de session, une seule requête par fichier.
 class _TuilePlan extends StatelessWidget {
   final Plan plan;
+
+  /// Bâtiments auxquels ce plan mène — non nul pour un plan global seulement.
+  final int nombreBatiments;
   final VoidCallback onOuvrir;
 
-  const _TuilePlan({required this.plan, required this.onOuvrir});
+  const _TuilePlan({required this.plan, required this.nombreBatiments, required this.onOuvrir});
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
 
-    // Ce que la tuile ANNONCE : où elle mène, et ce qu'elle porte. Les deux
-    // compteurs viennent du serveur — le client ne voit qu'un cran
-    // d'arborescence et ne pourrait pas les déduire.
+    // Ce que la tuile ANNONCE : où elle mène, et ce qu'elle porte. Les
+    // compteurs viennent du serveur et de la structure du chantier — le
+    // client ne voit qu'un cran d'arborescence et ne pourrait pas les
+    // déduire.
+    final reserves = resumeReserves(context, plan);
     final meta = <String>[
+      if (nombreBatiments > 0) l10n.planExplorerNBatiments(nombreBatiments),
       if (plan.aDesSousPlans) l10n.planExplorerNSousPlans(plan.nombreSousPlans),
-      if (plan.nombreReserves > 0) l10n.planExplorerNReserves(plan.nombreReserves),
+      if (reserves != null) reserves.total,
+      if (reserves?.suite != null) reserves!.suite!,
       if (plan.version > 1) 'v${plan.version}',
     ].join(' · ');
 
@@ -599,21 +715,40 @@ Future<Uint8List> _telecharger(String url) async {
 class _VuePlanOuvert extends StatefulWidget {
   final Plan plan;
   final String chantierId;
+  final String? chantierNom;
   final String cheminLisible;
   final List<Plan> sousPlans;
   final bool pointageAutorise;
+
+  /// Ouvre un plan au-dessus de celui-ci — sous-plan de détail, ou plan
+  /// atteint par l'arborescence des bâtiments. Les deux EMPILENT : la flèche
+  /// de retour ramène au plan d'où l'on vient.
   final void Function(Plan) onOuvrirSousPlan;
   final Future<void> Function() onReserveCreee;
+
+  /// Structure du chantier et ses plans — voir [PanneauContextePlan].
+  final EtatContexte contexte;
+  final VoidCallback onRechargerContexte;
+  final EtatDepliage depliage;
+
+  final bool panneauAgrandi;
+  final VoidCallback onBasculerPanneau;
 
   const _VuePlanOuvert({
     super.key,
     required this.plan,
     required this.chantierId,
+    required this.chantierNom,
     required this.cheminLisible,
     required this.sousPlans,
     required this.pointageAutorise,
     required this.onOuvrirSousPlan,
     required this.onReserveCreee,
+    required this.contexte,
+    required this.onRechargerContexte,
+    required this.depliage,
+    required this.panneauAgrandi,
+    required this.onBasculerPanneau,
   });
 
   @override
@@ -808,6 +943,16 @@ class _VuePlanOuvertState extends State<_VuePlanOuvert> {
           _PanneauBas(
             sousPlans: widget.sousPlans,
             reserves: reserves,
+            contexte: PanneauContextePlan(
+              plan: widget.plan,
+              chantierNom: widget.chantierNom,
+              etat: widget.contexte,
+              onReessayer: widget.onRechargerContexte,
+              onOuvrirPlan: widget.onOuvrirSousPlan,
+              depliage: widget.depliage,
+            ),
+            agrandi: widget.panneauAgrandi,
+            onBasculerTaille: widget.onBasculerPanneau,
           // Proposé à CHAQUE niveau, pas seulement sur une feuille : un défaut
           // de façade se relève sur le plan du bâtiment, un défaut de palier
           // sur celui de l'étage. Limiter la création au dernier niveau
@@ -947,6 +1092,18 @@ class _PanneauBas extends StatelessWidget {
   /// passe alors en pleine largeur, en tête du panneau.
   final bool creationMiseEnAvant;
 
+  /// Ce qui dépend de la PORTÉE du plan — les bâtiments sous un plan global,
+  /// la localisation sous celui d'un appartement. Voir [PanneauContextePlan].
+  ///
+  /// En TÊTE du panneau : c'est ce que le client vient y chercher en ouvrant
+  /// le plan global. Les bâtiments y restent repliés, une ligne chacun, et ne
+  /// repoussent donc pas les réserves hors de vue.
+  final Widget contexte;
+
+  /// Panneau agrandi par sa poignée — voir [PoigneePanneau].
+  final bool agrandi;
+  final VoidCallback onBasculerTaille;
+
   const _PanneauBas({
     required this.sousPlans,
     required this.reserves,
@@ -954,6 +1111,9 @@ class _PanneauBas extends StatelessWidget {
     required this.onOuvrirReserve,
     required this.onCreerReserve,
     required this.creationMiseEnAvant,
+    required this.contexte,
+    required this.agrandi,
+    required this.onBasculerTaille,
   });
 
   @override
@@ -966,7 +1126,10 @@ class _PanneauBas extends StatelessWidget {
       constraints: BoxConstraints(
         maxHeight: hauteurPanneauBas(
           context,
-          part: 0.38,
+          // Agrandi, le panneau monte jusqu'au plafond commun de 70 % : il
+          // porte alors l'arborescence d'un bâtiment déplié.
+          part: agrandi ? 0.7 : 0.38,
+          plafond: agrandi ? double.infinity : 340,
           contenuIncompressible: onCreerReserve == null ? 24 : 75,
         ),
       ),
@@ -986,15 +1149,7 @@ class _PanneauBas extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(top: 10, bottom: 10),
-              decoration: BoxDecoration(
-                color: AppColors.border,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+            PoigneePanneau(agrandi: agrandi, onBasculer: onBasculerTaille),
             if (onCreerReserve != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
@@ -1021,6 +1176,8 @@ class _PanneauBas extends StatelessWidget {
                 shrinkWrap: true,
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 children: [
+                  contexte,
+                  const SizedBox(height: 14),
                   if (sousPlans.isNotEmpty) ...[
                     _TitreSection(l10n.planExplorerSousPlans, sousPlans.length),
                     const SizedBox(height: 8),
@@ -1078,9 +1235,11 @@ class _LigneSousPlan extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final reserves = resumeReserves(context, plan);
     final meta = <String>[
       if (plan.aDesSousPlans) l10n.planExplorerNSousPlans(plan.nombreSousPlans),
-      if (plan.nombreReserves > 0) l10n.planExplorerNReserves(plan.nombreReserves),
+      if (reserves != null) reserves.total,
+      if (reserves?.suite != null) reserves!.suite!,
     ].join(' · ');
 
     return Material(
