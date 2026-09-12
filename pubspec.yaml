@@ -149,6 +149,13 @@ dependencies:
   fl_chart: ^0.69.2
 
   # Divers
+  # Reste en 8.x tant que le projet est sur Flutter 3.44 : la 10.2 suppose
+  # qu'AGP 9 compile le Kotlin lui-même (`android.builtInKotlin=true`), mode
+  # que Flutter 3.44 ne permet pas (voir android/gradle.properties) — son
+  # PackageInfoPlugin.kt n'est alors plus compilé et le build release casse
+  # (« cannot find symbol PackageInfoPlugin », constaté le 2026-09-11).
+  # Monter en 10.2 en même temps que Flutter, avec file_picker 12 et
+  # flutter_secure_storage 10 (win32 6).
   package_info_plus: ^8.1.2
   url_launcher: ^6.1.14
   country_picker: ^2.0.28
@@ -189,7 +196,13 @@ dependencies:
   # qui avait fait échouer le build (voir la note sur awesome_dialog).
   pdfx: ^2.11.0
   geolocator: ^14.0.2
-  speech_to_text: ^7.4.0
+  # 7.5.0-beta.1 : seule version qui n'applique plus elle-même le plugin
+  # Kotlin Gradle (avertissement « plugins that apply KGP » de Flutter). Son
+  # journal ne contient que cette migration et le minimum Flutter 3.44 /
+  # Dart 3.12 — aucun changement fonctionnel ; son Kotlin est bien compilé en
+  # release (vérifié le 2026-09-11). Repasser sur la 7.5.0 stable dès sa
+  # publication.
+  speech_to_text: ^7.5.0-beta.1
 
 dev_dependencies:
   flutter_test:
