@@ -66,7 +66,16 @@ dependencies:
   # sert pas directement.
   cupertino_icons: ^1.0.8
   dio: ^5.8.0+1
-  connectivity_plus: ^7.3.1
+  # Plafonné en 6.x : à partir de 7.x, le code iOS référence
+  # `NWPath.isUltraConstrained` (connectivité satellite), une API du SDK
+  # iOS 26 absente de Xcode 16.4 ⇒ échec de compilation (« has no member
+  # 'isUltraConstrained' »), même si l'appel est protégé par
+  # `#available(iOS 26.0, *)` (le symbole doit exister au moment de
+  # compiler, indépendamment de la garde d'exécution). 6.1.5 est la même
+  # version déjà validée (build iOS réussi) sur le projet SIGN. À relever
+  # une fois la machine de build passée à un Xcode fournissant le SDK
+  # iOS 26.
+  connectivity_plus: ^6.1.5
 
   # Stockage / session
   shared_preferences: ^2.5.5
