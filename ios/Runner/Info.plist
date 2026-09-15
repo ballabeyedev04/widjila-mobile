@@ -4,6 +4,11 @@
 <dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Widjila utilise votre position pour renseigner les coordonnées du chantier lorsque vous déposez une demande. Vous pouvez aussi les saisir à la main.</string>
+	<!-- Exigée par App Store Connect (avertissement 90683) parce que geolocator
+	     référence l'API « Always » dans son binaire, même si l'app ne demande que
+	     « When In Use ». Même texte : l'usage réel ne change pas. -->
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Widjila utilise votre position pour renseigner les coordonnées du chantier lorsque vous déposez une demande. Vous pouvez aussi les saisir à la main.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
@@ -76,5 +81,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- Chiffrement standard (TLS système) uniquement, aucun algorithme
+	     propriétaire : exempté de la conformité export. Sans cette clé, chaque
+	     build reste bloqué en « Conformité manquante » sur App Store Connect
+	     jusqu'à réponse manuelle. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
