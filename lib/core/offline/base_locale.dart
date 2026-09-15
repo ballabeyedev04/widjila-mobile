@@ -127,7 +127,12 @@ class BaseLocale {
         -- 'attente' | 'echec_definitif'. Un échec RÉSEAU ne change pas le
         -- statut (on retentera), seul un refus métier du serveur le fait.
         statut TEXT NOT NULL DEFAULT 'attente',
-        derniere_erreur TEXT
+        derniere_erreur TEXT,
+        -- Entité visée par l'action (v2). Doit figurer ICI et pas seulement
+        -- dans _migrer : onCreate ne rejoue jamais les migrations, donc une
+        -- installation neuve n'aurait pas la colonne et _ajouterIndexV2
+        -- échouerait à l'ouverture — la base hors ligne serait inutilisable.
+        cle_entite TEXT
       )
     ''');
 
