@@ -17,12 +17,20 @@ class MarqueurPlan {
   final Color couleur;
   final bool actif;
 
+  /// Numéro de la réserve SUR CE PLAN, tel que le serveur l'a attribué —
+  /// affiché en pastille sur le repère. Nul pour le point provisoire et pour
+  /// une réserve que le serveur n'a pas encore numérotée (créée hors ligne) :
+  /// le repère se dessine alors sans pastille plutôt qu'avec un numéro
+  /// inventé ici, qui serait faux dès la synchronisation.
+  final int? numero;
+
   const MarqueurPlan({
     required this.id,
     required this.x,
     required this.y,
     this.couleur = AppColors.primary,
     this.actif = false,
+    this.numero,
   });
 }
 
@@ -503,8 +511,27 @@ class _Bouton extends StatelessWidget {
 /// Pastille d'une réserve. Ancrée par sa POINTE (bas-centre) sur le point
 /// enregistré : c'est la pointe qui désigne le défaut, pas le centre de la
 /// goutte.
+///
+/// Le NUMÉRO de la réserve sur le plan s'affiche dans une petite pastille
+/// blanche accrochée en haut à droite de la goutte — la goutte rouge reste
+/// telle quelle, le numéro s'y ajoute. Blanc cerclé de la couleur du statut,
+/// chiffre sombre : lisible sur un plan clair comme sur une façade orange,
+/// sans masquer ni la goutte ni ce qu'il y a dessous.
+///
+/// La boîte du repère est un peu plus large que la goutte pour CONTENIR la
+/// pastille : un enfant qui déborde de sa boîte n'est plus atteint par les
+/// appuis, et un numéro sur lequel on ne peut pas appuyer serait un piège.
+/// Toute la boîte ouvre donc la même réserve.
+///
+/// Le repère vit dans le conteneur transformé du plan : il suit exactement
+/// le zoom et le déplacement, la pastille avec lui.
 class _Repere extends StatelessWidget {
   static const double _taillePastille = 30;
+  static const double _tailleNumero = 16;
+
+  /// Boîte englobante : la goutte + la pastille de numéro qui la chevauche.
+  static const double _largeurBoite = _taillePastille + _tailleNumero * 0.6;
+  static const double _hauteurBoite = _taillePastille + _tailleNumero * 0.55;
 
   final MarqueurPlan marqueur;
   final Size taille;
@@ -514,30 +541,105 @@ class _Repere extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      left: marqueur.x / 100 * taille.width - _taillePastille / 2,
-      top: marqueur.y / 100 * taille.height - _taillePastille,
+    final numero = marqueur.numero;
+    final ancreX = marqueur.x / 100 * taille.width;
+    final ancreY = marqueur.y / 100 * taille.height;
+
+    // La goutte est centrée horizontalement dans la boîte et collée en bas :
+    // sa pointe tombe sur (ancreX, ancreY) quelle que soit la pastille.
+    final goutte = Container(
       width: _taillePastille,
       height: _taillePastille,
+      decoration: BoxDecoration(
+        color: marqueur.couleur,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: marqueur.actif ? AppColors.accent : Colors.white,
+          width: marqueur.actif ? 3 : 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: const Icon(Icons.place_rounded, size: 16, color: Colors.white),
+    );
+
+    return Positioned(
+      left: ancreX - _largeurBoite / 2,
+      top: ancreY - _hauteurBoite,
+      width: _largeurBoite,
+      height: _hauteurBoite,
       child: GestureDetector(
         onTap: onAppui,
-        child: Container(
-          decoration: BoxDecoration(
-            color: marqueur.couleur,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: marqueur.actif ? AppColors.accent : Colors.white,
-              width: marqueur.actif ? 3 : 2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.25),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
+        behavior: HitTestBehavior.opaque,
+        child: Semantics(
+          button: true,
+          label: numero == null ? null : context.l10n.planRepereNumero(numero),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                left: (_largeurBoite - _taillePastille) / 2,
+                bottom: 0,
+                child: goutte,
               ),
+              if (numero != null)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: _PastilleNumero(numero: numero, couleur: marqueur.couleur, actif: marqueur.actif),
+                ),
             ],
           ),
-          child: const Icon(Icons.place_rounded, size: 16, color: Colors.white),
+        ),
+      ),
+    );
+  }
+}
+
+/// Le petit numéro accroché à la goutte : un disque blanc cerclé de la
+/// couleur du statut, qui s'allonge en gélule au-delà de deux chiffres pour
+/// que « 124 » reste entier sans grossir la pastille des autres.
+class _PastilleNumero extends StatelessWidget {
+  final int numero;
+  final Color couleur;
+  final bool actif;
+
+  const _PastilleNumero({required this.numero, required this.couleur, required this.actif});
+
+  @override
+  Widget build(BuildContext context) {
+    const hauteur = _Repere._tailleNumero;
+    return Container(
+      height: hauteur,
+      constraints: const BoxConstraints(minWidth: hauteur),
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(hauteur / 2),
+        border: Border.all(color: actif ? AppColors.accent : couleur, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 3,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Text(
+        '$numero',
+        maxLines: 1,
+        style: const TextStyle(
+          fontSize: 9,
+          height: 1,
+          fontWeight: FontWeight.w800,
+          color: AppColors.textPrimary,
+          letterSpacing: -0.2,
         ),
       ),
     );

@@ -10,6 +10,7 @@ import 'package:suivie_chantier_mobile/core/widgets/error_view.dart';
 import 'package:suivie_chantier_mobile/core/widgets/liste_chrome.dart';
 import 'package:suivie_chantier_mobile/core/widgets/loading_list.dart';
 import 'package:suivie_chantier_mobile/features/dashboard/domain/entities/dashboard_stats.dart';
+import 'package:suivie_chantier_mobile/features/dashboard/domain/usecases/get_dashboard_evolution.dart';
 import 'package:suivie_chantier_mobile/features/dashboard/domain/usecases/get_dashboard_stats.dart';
 import 'package:suivie_chantier_mobile/features/dashboard/presentation/cubit/dashboard_cubit.dart';
 import 'package:suivie_chantier_mobile/features/dashboard/presentation/pages/dashboard_page.dart';
@@ -29,6 +30,8 @@ import '../../../../helpers/balayage_responsive.dart';
 import '../../../../helpers/pompe_page.dart';
 
 class _MockStats extends Mock implements GetDashboardStats {}
+
+class _MockEvolution extends Mock implements GetDashboardEvolution {}
 
 class _MockToutesReserves extends Mock implements GetToutesReserves {}
 
@@ -56,6 +59,7 @@ class _MockUploader extends Mock implements UploaderPlan {}
 /// chantier, attendre une affectation, ou si l'application est en panne.
 void main() {
   late _MockStats getStats;
+  late _MockEvolution getEvolution;
 
   void desinscrire() {
     if (sl.isRegistered<DashboardCubit>()) sl.unregister<DashboardCubit>();
@@ -68,6 +72,11 @@ void main() {
 
   setUp(() {
     getStats = _MockStats();
+    getEvolution = _MockEvolution();
+    // Par defaut, une courbe vide : les tests qui la regardent la remplacent.
+    when(getEvolution.call).thenAnswer(
+      (_) async => const Right<Failure, DashboardEvolution>(DashboardEvolution()),
+    );
 
     final toutesReserves = _MockToutesReserves();
     when(() => toutesReserves(
@@ -88,7 +97,9 @@ void main() {
     when(tousPlans.call).thenAnswer((_) async => const Right<Failure, List<Plan>>([]));
 
     desinscrire();
-    sl.registerFactory<DashboardCubit>(() => DashboardCubit(getDashboardStats: getStats));
+    sl.registerFactory<DashboardCubit>(
+      () => DashboardCubit(getDashboardStats: getStats, getDashboardEvolution: getEvolution),
+    );
     sl.registerLazySingleton<GetToutesReserves>(() => toutesReserves);
     sl.registerLazySingleton<GetReserveStatutsCountGlobal>(() => countGlobal);
     sl.registerFactory<PlansListCubit>(() => PlansListCubit(
@@ -327,9 +338,185 @@ void main() {
     for (final echelle in [1.0, 1.3, 1.6]) {
       testWidgets('les cartes tiennent a une echelle de $echelle', (tester) async {
         await pomperAvecEchelle(tester, echelle);
-
         expect(tester.takeException(), isNull,
             reason: 'debordement a une echelle de texte de $echelle');
+      });
+    }
+  });
+
+  group('statuts du client — cartes, legende, graphiques', () {
+    // Les huit cartes, le donut et ses legendes, la courbe et la repartition
+    // par chantier : tout ce que la recette a demande. Chaque chiffre affiche
+    // est celui du serveur (mocke ici), jamais un calcul de l'ecran.
+    final stats = DashboardStats(
+      chantiers: 2,
+      plans: 1,
+      reserves: const ReservesStats(total: 12, ouvertes: 7, validees: 5, refusees: 1, enRetard: 2),
+      parStatut: const {
+        ReserveStatut.creee: 2,
+        ReserveStatut.aSurveiller: 3,
+        ReserveStatut.aEcheance: 1,
+        ReserveStatut.traitee: 1,
+        ReserveStatut.validee: 1,
+        ReserveStatut.levee: 4,
+      },
+      parChantier: const [
+        DashboardChantierResume(id: 'c1', nom: 'Tour A', statut: ChantierStatut.enCours, reservesTotal: 9, reservesOuvertes: 5),
+        DashboardChantierResume(id: 'c2', nom: 'Tour B', statut: ChantierStatut.enCours, reservesTotal: 3, reservesOuvertes: 2),
+      ],
+    );
+
+    const evolution = DashboardEvolution(series: [
+      DashboardEvolutionPoint(mois: '2026-07', creees: 3, traitees: 0, levees: 0),
+      DashboardEvolutionPoint(mois: '2026-08', creees: 5, traitees: 2, levees: 1),
+      DashboardEvolutionPoint(mois: '2026-09', creees: 4, traitees: 3, levees: 4),
+    ]);
+
+    Future<void> monter(WidgetTester tester, {Size taille = const Size(390, 844)}) async {
+      when(getStats.call).thenAnswer((_) async => Right<Failure, DashboardStats>(stats));
+      when(getEvolution.call).thenAnswer((_) async => const Right<Failure, DashboardEvolution>(evolution));
+      await pomperPage(tester, const DashboardPage(), role: UserRole.entreprise, taille: taille);
+      await tester.pumpAndSettle();
+    }
+
+    IconButton fleche(WidgetTester tester, IconData icone) =>
+        tester.widget<IconButton>(find.ancestor(of: find.byIcon(icone), matching: find.byType(IconButton)));
+
+    testWidgets('les cartes portent les chiffres du serveur, statuts du client compris', (tester) async {
+      await monter(tester);
+
+      final rangee = find.byKey(const Key('rangee-kpi'));
+      expect(rangee, findsOneWidget);
+
+      // Les quatre d'origine, visibles d'emblee.
+      expect(find.descendant(of: rangee, matching: find.text('12')), findsOneWidget); // total
+      expect(find.descendant(of: rangee, matching: find.text('5')), findsOneWidget); // levees = validee + levee
+
+      // Les cartes du client sont dans la liste (construites a la demande :
+      // on defile jusqu'a chacune, la liste ne garde que ce qui est visible).
+      Future<void> voir(String libelle) async {
+        await tester.scrollUntilVisible(
+          find.descendant(of: rangee, matching: find.text(libelle)),
+          80,
+          scrollable: find.descendant(of: rangee, matching: find.byType(Scrollable)),
+        );
+        expect(find.descendant(of: rangee, matching: find.text(libelle)), findsOneWidget);
+      }
+
+      await voir('À surveiller');
+      expect(find.descendant(of: rangee, matching: find.text('3')), findsOneWidget); // a surveiller
+      await voir('À échéance');
+      await voir('Traitées');
+      await voir('Refusées');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('les fleches font defiler la rangee, et se desactivent en bout de course', (tester) async {
+      await monter(tester);
+
+      final droite = find.byTooltip('Cartes suivantes');
+      final gauche = find.byTooltip('Cartes précédentes');
+      expect(droite, findsOneWidget);
+      expect(gauche, findsOneWidget);
+
+      // Au depart : on ne peut qu'avancer.
+      expect(fleche(tester, Icons.chevron_left_rounded).onPressed, isNull);
+      expect(fleche(tester, Icons.chevron_right_rounded).onPressed, isNotNull);
+
+      final scrollable = find.descendant(of: find.byKey(const Key('rangee-kpi')), matching: find.byType(Scrollable));
+      final avant = tester.widget<Scrollable>(scrollable).controller!.offset;
+
+      await tester.tap(droite);
+      await tester.pumpAndSettle();
+
+      final apres = tester.widget<Scrollable>(scrollable).controller!.offset;
+      expect(apres, greaterThan(avant));
+      // On peut maintenant reculer.
+      expect(fleche(tester, Icons.chevron_left_rounded).onPressed, isNotNull);
+
+      await tester.tap(gauche);
+      await tester.pumpAndSettle();
+      expect(tester.widget<Scrollable>(scrollable).controller!.offset, lessThan(apres));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('la legende du donut nomme chaque statut du client, meme a zero', (tester) async {
+      await monter(tester);
+
+      // Presents dans les donnees.
+      expect(find.text('3 (25%)'), findsOneWidget); // a surveiller
+      expect(find.text('4 (33%)'), findsOneWidget); // levee
+      // Absents des donnees, mais suivis par le client : la ligne existe, a zero.
+      expect(find.text('Refusée'), findsWidgets);
+      expect(find.text('0 (0%)'), findsAtLeastNWidgets(2)); // en retard, refusee
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('la courbe d evolution et ses legendes viennent du serveur', (tester) async {
+      await monter(tester);
+
+      await tester.drag(find.byType(Scrollable).last, const Offset(0, -900));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Évolution des réserves'), findsOneWidget);
+      expect(find.text('Créées'), findsOneWidget);
+      expect(find.text('Traitées'), findsWidgets);
+      verify(getEvolution.call).called(1);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('la repartition par chantier reprend stats.parChantier', (tester) async {
+      await monter(tester);
+
+      await tester.drag(find.byType(Scrollable).last, const Offset(0, -1400));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Réserves par chantier'), findsOneWidget);
+      expect(find.text('5 / 9'), findsOneWidget);
+      expect(find.text('2 / 3'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('courbe en erreur : la carte le dit, le reste de l ecran tient', (tester) async {
+      when(getStats.call).thenAnswer((_) async => Right<Failure, DashboardStats>(stats));
+      when(getEvolution.call).thenAnswer(
+        (_) async => const Left<Failure, DashboardEvolution>(ServerFailure(errorMessage: 'boom')),
+      );
+      await pomperPage(tester, const DashboardPage(), role: UserRole.entreprise);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('rangee-kpi')), findsOneWidget);
+      await tester.drag(find.byType(Scrollable).last, const Offset(0, -900));
+      await tester.pumpAndSettle();
+      expect(find.text("Impossible de charger l'évolution."), findsOneWidget);
+      expect(find.byType(ErrorView), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('courbe sans aucune valeur : un message, pas un graphique vide', (tester) async {
+      when(getStats.call).thenAnswer((_) async => Right<Failure, DashboardStats>(stats));
+      when(getEvolution.call).thenAnswer(
+        (_) async => const Right<Failure, DashboardEvolution>(DashboardEvolution(series: [
+          DashboardEvolutionPoint(mois: '2026-09'),
+        ])),
+      );
+      await pomperPage(tester, const DashboardPage(), role: UserRole.entreprise);
+      await tester.pumpAndSettle();
+
+      await tester.drag(find.byType(Scrollable).last, const Offset(0, -900));
+      await tester.pumpAndSettle();
+      expect(find.text('Aucune donnée pour le moment'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    });
+
+    for (final format in tousLesFormats) {
+      testWidgets('cartes, legendes et graphiques sans debordement sur $format', (tester) async {
+        await monter(tester, taille: format.taille);
+        // Jusqu'en bas : la courbe et la repartition sont sous la ligne de
+        // flottaison sur un telephone.
+        await tester.drag(find.byType(Scrollable).last, const Offset(0, -1600));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'debordement sur $format');
       });
     }
   });

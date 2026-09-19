@@ -4,6 +4,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:suivie_chantier_mobile/core/config/user_role.dart';
 import 'package:suivie_chantier_mobile/core/errors/failure.dart';
 import 'package:suivie_chantier_mobile/core/widgets/error_view.dart';
@@ -64,6 +65,10 @@ void main() {
     );
     when(() => repo.getAffectations(any())).thenAnswer(
       (_) async => const Right<Failure, List<AffectationReserve>>([]),
+    );
+    // Historique vide par défaut ; les tests de la section le remplacent.
+    when(() => repo.getHistorique(any())).thenAnswer(
+      (_) async => const Right<Failure, List<ReserveHistoriqueEntry>>([]),
     );
 
     desinscrire();
@@ -278,5 +283,281 @@ void main() {
 
       expect(find.text('Changer le statut'), findsOneWidget);
     });
+  });
+
+  group('feuille « Nouveau statut » — choix libre', () {
+    // Depuis la recette, un pilote peut poser n'importe quel statut : la
+    // feuille passe de trois entrées à treize. Sur un téléphone de 844 dp de
+    // haut, une colonne fixe débordait et les derniers statuts restaient hors
+    // de portée : la feuille doit défiler.
+    const reserve = Reserve(
+      id: 'r1',
+      numero: 'R-001',
+      chantierId: 'c1',
+      titre: 'Fissure',
+      statut: ReserveStatut.creee,
+    );
+
+    testWidgets('propose les statuts du client, et défile jusqu au dernier', (tester) async {
+      when(() => getDetail(any())).thenAnswer((_) async => const Right<Failure, Reserve>(reserve));
+
+      await pomperPage(tester, page, role: UserRole.chefProjet);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Changer le statut'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nouveau statut'), findsOneWidget);
+      // Les statuts du client sont dans la feuille — badge + libellé, donc deux
+      // textes chacun (construits, même hors
+      // écran : la colonne est dans un défilement, pas dans une liste lazy).
+      for (final libelle in ['À surveiller', 'À échéance', 'Traitée', 'Refusée', 'En retard']) {
+        expect(find.text(libelle), findsNWidgets(2), reason: libelle);
+      }
+      // « Créée » n'est jamais une destination ; « clôturée » non plus depuis
+      // « créée » ; « validée » / « levée » exigent une preuve — aucune ici.
+      // « Créée » n'apparaît qu'une fois : le badge de la fiche, pas une entrée.
+      expect(find.text('Créée'), findsOneWidget);
+      expect(find.text('Clôturée'), findsNothing);
+      expect(find.text('Levée'), findsNothing);
+
+      // Le dernier statut est atteignable : on y défile, puis on l'appuie.
+      await tester.ensureVisible(find.text('En retard').last);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('fiche complète — toutes les informations regroupées', () {
+    testWidgets('modifiée le, sévérité, levée par / le', (tester) async {
+      when(() => getDetail(any())).thenAnswer(
+        (_) async => Right<Failure, Reserve>(
+          Reserve(
+            id: 'r1',
+            numero: 'R-0012',
+            chantierId: 'c1',
+            titre: 'Fissure mur nord',
+            description: 'Fissure traversante.',
+            severite: ReserveSeverite.critique,
+            statut: ReserveStatut.levee,
+            createdAt: DateTime(2026, 9, 1, 8),
+            updatedAt: DateTime(2026, 9, 20, 16, 48),
+            dateLimite: DateTime(2026, 9, 30),
+            chantier: const ReserveLocalisationRef(id: 'c1', nom: 'Résidence Les Jardins'),
+            phase: const ReserveLocalisationRef(id: 'p1', nom: 'Pré-cloisons'),
+            partenaire: const ReserveLocalisationRef(id: 'e1', nom: 'ABC Carrelage'),
+            createur: const ReserveUtilisateurRef(id: 'u1', nom: 'Ouattara', prenom: 'Mohamed'),
+            validateur: const ReserveUtilisateurRef(id: 'u2', nom: 'Dupont', prenom: 'Jean'),
+            dateValidation: DateTime(2026, 9, 20, 16, 48),
+          ),
+        ),
+      );
+
+      await pomperPage(tester, page, role: UserRole.entreprise);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Résidence Les Jardins'), findsOneWidget);
+      expect(find.text('Pré-cloisons'), findsOneWidget);
+      expect(find.text('ABC Carrelage'), findsOneWidget);
+      expect(find.text('Mohamed Ouattara'), findsOneWidget);
+      expect(find.text('Modifiée le'), findsOneWidget);
+      expect(find.text('20/09/2026'), findsWidgets);
+      expect(find.text('Sévérité'), findsOneWidget);
+      expect(find.text('Levée par'), findsOneWidget);
+      expect(find.text('Jean Dupont'), findsOneWidget);
+      expect(find.text('Levée le'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('jamais retouchée : pas de « Modifiée le » redondant', (tester) async {
+      when(() => getDetail(any())).thenAnswer(
+        (_) async => Right<Failure, Reserve>(
+          Reserve(
+            id: 'r1',
+            numero: 'R-0012',
+            chantierId: 'c1',
+            titre: 'Fissure',
+            createdAt: DateTime(2026, 9, 1, 8),
+            updatedAt: DateTime(2026, 9, 1, 8, 0, 3),
+          ),
+        ),
+      );
+
+      await pomperPage(tester, page, role: UserRole.entreprise);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Modifiée le'), findsNothing);
+    });
+  });
+
+  group('historique des changements', () {
+    const reserve = Reserve(
+      id: 'r1',
+      numero: 'R-0012',
+      chantierId: 'c1',
+      titre: 'Fissure',
+      statut: ReserveStatut.levee,
+    );
+
+    // Du plus récent au plus ancien, comme le sert `GET /reserves/:id/historique`.
+    final historique = [
+      ReserveHistoriqueEntry(
+        id: 'h3',
+        action: 'validation',
+        createdAt: DateTime.utc(2026, 9, 20, 16, 48),
+        utilisateur: const ReserveUtilisateurRef(id: 'u1', nom: 'Dupont', prenom: 'Jean'),
+        ancienStatut: ReserveStatut.traitee,
+        nouveauStatut: ReserveStatut.levee,
+      ),
+      ReserveHistoriqueEntry(
+        id: 'h2',
+        action: 'statut',
+        createdAt: DateTime.utc(2026, 9, 19, 9, 15),
+        utilisateur: const ReserveUtilisateurRef(id: 'u2', nom: 'Ndiaye', prenom: 'Marie'),
+        ancienStatut: ReserveStatut.aSurveiller,
+        nouveauStatut: ReserveStatut.traitee,
+      ),
+      ReserveHistoriqueEntry(
+        id: 'hc',
+        action: 'commentaire',
+        createdAt: DateTime.utc(2026, 9, 18, 15),
+        utilisateur: const ReserveUtilisateurRef(id: 'u1', nom: 'Dupont', prenom: 'Jean'),
+      ),
+      ReserveHistoriqueEntry(
+        id: 'h1',
+        action: 'statut',
+        createdAt: DateTime.utc(2026, 9, 18, 14, 32),
+        utilisateur: null, // action du système (traitement des échéances)
+        ancienStatut: ReserveStatut.creee,
+        nouveauStatut: ReserveStatut.aSurveiller,
+      ),
+      ReserveHistoriqueEntry(
+        id: 'h0',
+        action: 'creation',
+        createdAt: DateTime.utc(2026, 9, 15, 8),
+        utilisateur: const ReserveUtilisateurRef(id: 'u3', nom: 'BEYE', prenom: 'Balla'),
+        nouveauStatut: ReserveStatut.creee,
+      ),
+    ];
+
+    Future<void> monter(WidgetTester tester) async {
+      when(() => getDetail(any())).thenAnswer((_) async => const Right<Failure, Reserve>(reserve));
+      await pomperPage(tester, page, role: UserRole.entreprise);
+      await tester.pumpAndSettle();
+      // La section est en bas de la fiche.
+      await tester.scrollUntilVisible(
+        find.text('Historique des changements'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('ancien → nouveau statut, date serveur, nom complet, du plus récent au plus ancien',
+        (tester) async {
+      when(() => repo.getHistorique(any()))
+          .thenAnswer((_) async => Right<Failure, List<ReserveHistoriqueEntry>>(historique));
+
+      await monter(tester);
+      verify(() => repo.getHistorique('r1')).called(1);
+
+      // QUI : le nom complet, jamais un identifiant.
+      expect(find.text('Modifié par : Jean Dupont'), findsWidgets);
+      expect(find.text('Modifié par : Marie Ndiaye'), findsOneWidget);
+      expect(find.text('Modifié par : Balla BEYE'), findsOneWidget);
+      expect(find.text('Modifié par : Système (échéance)'), findsOneWidget);
+      expect(find.textContaining('u1'), findsNothing);
+
+      // QUEL → QUEL : les badges des deux statuts (le nouveau apparaît aussi
+      // comme ancien de la ligne suivante).
+      expect(find.text('Traitée'), findsNWidgets(2));
+      expect(find.text('À surveiller'), findsNWidgets(2));
+      expect(find.text('Statut initial'), findsOneWidget);
+      expect(find.byIcon(Icons.arrow_forward_rounded), findsNWidgets(4));
+
+      // QUAND : la date SERVEUR, rendue en heure locale — jour et heure,
+      // séparés d'un point médian.
+      final local = DateTime.utc(2026, 9, 20, 16, 48).toLocal();
+      final heure = '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+      expect(find.textContaining('sept. 2026 • $heure'), findsOneWidget);
+
+      // ORDRE : la dernière modification (levée) en tête, la création en fin.
+      final yLevee = tester.getTopLeft(find.text('Modifié par : Jean Dupont').first).dy;
+      final yCreation = tester.getTopLeft(find.text('Modifié par : Balla BEYE')).dy;
+      expect(yLevee, lessThan(yCreation));
+
+      // Un commentaire reste dans la chronologie, sans flèche.
+      expect(find.text('Commentaire ajouté'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('sans aucune ligne : un message, pas une zone vide', (tester) async {
+      await monter(tester);
+
+      expect(find.text('Aucun changement de statut enregistré pour cette réserve.'), findsOneWidget);
+      // Rien n'est reconstruit depuis le statut courant (« levée »).
+      expect(find.byIcon(Icons.arrow_forward_rounded), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('erreur API : un message clair et « Réessayer », qui relance la lecture', (tester) async {
+      when(() => repo.getHistorique(any())).thenAnswer(
+        (_) async => const Left<Failure, List<ReserveHistoriqueEntry>>(ServerFailure(errorMessage: 'boom')),
+      );
+
+      await monter(tester);
+
+      expect(find.text("Impossible de charger l'historique."), findsOneWidget);
+      expect(find.byType(ErrorView), findsNothing, reason: 'la fiche reste lisible');
+
+      when(() => repo.getHistorique(any()))
+          .thenAnswer((_) async => Right<Failure, List<ReserveHistoriqueEntry>>(historique));
+      await tester.tap(find.text('Réessayer'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Modifié par : Marie Ndiaye'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('chargement : un squelette tant que le serveur n’a pas répondu', (tester) async {
+      final attente = Completer<Either<Failure, List<ReserveHistoriqueEntry>>>();
+      when(() => repo.getHistorique(any())).thenAnswer((_) => attente.future);
+      when(() => getDetail(any())).thenAnswer((_) async => const Right<Failure, Reserve>(reserve));
+
+      await pomperPage(tester, page, role: UserRole.entreprise);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.scrollUntilVisible(
+        find.text('Historique des changements'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pump();
+
+      expect(find.byType(Shimmer), findsWidgets);
+      expect(tester.takeException(), isNull);
+
+      attente.complete(const Right([]));
+      await tester.pumpAndSettle();
+    });
+
+    for (final format in formatsCritiques) {
+      testWidgets('la chronologie tient sans debordement sur $format', (tester) async {
+        when(() => repo.getHistorique(any()))
+            .thenAnswer((_) async => Right<Failure, List<ReserveHistoriqueEntry>>(historique));
+        when(() => getDetail(any())).thenAnswer((_) async => const Right<Failure, Reserve>(reserve));
+
+        await pomperPage(tester, page, role: UserRole.entreprise, taille: format.taille);
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          find.text('Historique des changements'),
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull, reason: 'debordement sur $format');
+      });
+    }
   });
 }

@@ -37,6 +37,10 @@ import '../../../reserve/presentation/widgets/reserve_statut_donut.dart';
 import '../../domain/entities/dashboard_stats.dart';
 import '../cubit/dashboard_cubit.dart';
 import '../cubit/dashboard_state.dart';
+import '../widgets/carte_evolution.dart';
+import '../widgets/carte_par_chantier.dart';
+import '../widgets/carte_tableau_de_bord.dart';
+import '../widgets/cartes_kpi_defilantes.dart';
 import '../widgets/derniers_plans.dart';
 import '../../../../core/network/forcer_reseau.dart';
 import '../../../rapport/domain/entities/rapport.dart';
@@ -586,7 +590,7 @@ class _CorpsTableauDeBord extends StatelessWidget {
               children: [
                 const _PhraseIntro(),
                 const SizedBox(height: 18),
-                _RangeeKpi(stats: stats),
+                RangeeKpiDefilante(stats: stats),
                 const SizedBox(height: 18),
                 _CarteVueEnsemble(stats: stats),
                 const SizedBox(height: 18),
@@ -594,6 +598,10 @@ class _CorpsTableauDeBord extends StatelessWidget {
                   _CarteSeverite(stats: stats),
                   const SizedBox(height: 18),
                 ],
+                const _CarteEvolutionLiee(),
+                const SizedBox(height: 18),
+                CarteParChantier(chantiers: stats.parChantier),
+                const SizedBox(height: 18),
                 // Les huit derniers plans, entre la vue d'ensemble et
                 // l'apercu general : l'ouverture la plus frequente de
                 // l'application, jusqu'ici a deux ecrans de distance.
@@ -625,7 +633,7 @@ class _CorpsTableauDeBord extends StatelessWidget {
               children: [
                 const _PhraseIntro(),
                 const SizedBox(height: 20),
-                _RangeeKpi(stats: stats),
+                RangeeKpiDefilante(stats: stats),
                 const SizedBox(height: 20),
                 IntrinsicHeight(
                   child: Row(
@@ -638,6 +646,17 @@ class _CorpsTableauDeBord extends StatelessWidget {
                       ],
                     ],
                   ),
+                ),
+                const SizedBox(height: 24),
+                // Les deux graphiques côte à côte : l'évolution dans le temps
+                // et la répartition par chantier se lisent l'un contre l'autre.
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Expanded(child: _CarteEvolutionLiee()),
+                    const SizedBox(width: 18),
+                    Expanded(child: CarteParChantier(chantiers: stats.parChantier)),
+                  ],
                 ),
                 const SizedBox(height: 24),
                 const DerniersPlans(margeBas: 24),
@@ -779,84 +798,26 @@ class _TitreSection extends StatelessWidget {
   }
 }
 
-/// Enveloppe carte commune — coins arrondis, ombre douce, jamais de bordure
-/// dure. Un seul endroit à ajuster pour que toutes les cartes du tableau de
-/// bord restent visuellement cohérentes entre elles.
-class _Carte extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry padding;
-  const _Carte({required this.child, this.padding = const EdgeInsets.all(18)});
+/// Les cartes KPI, l'enveloppe de carte et les graphiques vivent dans
+/// `../widgets/` (`cartes_kpi_defilantes.dart`, `carte_tableau_de_bord.dart`,
+/// `carte_evolution.dart`, `carte_par_chantier.dart`) : testables seuls, et
+/// partagés avec les autres écrans de statistiques.
+typedef _Carte = CarteTableauDeBord;
+
+/// La courbe d'évolution, branchée sur SON état dans le cubit : elle se
+/// redessine quand `/dashboard/evolution` répond, sans reconstruire le reste
+/// de l'écran.
+class _CarteEvolutionLiee extends StatelessWidget {
+  const _CarteEvolutionLiee();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.045), blurRadius: 18, offset: const Offset(0, 6))],
-      ),
-      child: child,
-    );
+    final (status, evolution) =
+        context.select((DashboardCubit c) => (c.state.evolutionStatus, c.state.evolution));
+    return CarteEvolution(status: status, evolution: evolution);
   }
 }
 
-/// Rangée de 4 pastilles KPI (total / ouvertes / levées / en retard) — même
-/// info que l'ancienne version, présentation reprise avec badge icône coloré
-/// plutôt qu'un simple chiffre nu.
-class _RangeeKpi extends StatelessWidget {
-  final DashboardStats stats;
-  const _RangeeKpi({required this.stats});
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final items = [
-      (label: l10n.dashboardKpiTotal, valeur: stats.reserves.total, icone: Icons.inventory_2_outlined, couleur: AppColors.primary),
-      (label: l10n.dashboardKpiOuvertes, valeur: stats.reserves.ouvertes, icone: Icons.hourglass_top_rounded, couleur: AppColors.warning),
-      (label: l10n.dashboardKpiLevees, valeur: stats.reserves.validees, icone: Icons.check_circle_outline_rounded, couleur: AppColors.success),
-      (label: l10n.statutEnRetard, valeur: stats.reserves.enRetard, icone: Icons.error_outline_rounded, couleur: AppColors.danger),
-    ];
-
-    return Row(
-      children: [
-        for (var i = 0; i < items.length; i++) ...[
-          if (i > 0) const SizedBox(width: 10),
-          Expanded(child: _CarteKpi(item: items[i])),
-        ],
-      ],
-    );
-  }
-}
-
-class _CarteKpi extends StatelessWidget {
-  final ({String label, int valeur, IconData icone, Color couleur}) item;
-  const _CarteKpi({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    return _Carte(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(color: item.couleur.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(9)),
-            child: Icon(item.icone, size: 16, color: item.couleur),
-          ),
-          const SizedBox(height: 10),
-          Text('${item.valeur}', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-          const SizedBox(height: 1),
-          Text(item.label, style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis),
-        ],
-      ),
-    );
-  }
-}
 
 class _CarteVueEnsemble extends StatelessWidget {
   final DashboardStats stats;

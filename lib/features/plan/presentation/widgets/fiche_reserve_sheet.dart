@@ -33,23 +33,28 @@ import '../../domain/entities/plan.dart';
 /// couleur de l'étape à laquelle il appartient réellement :
 ///
 ///  - ROUGE, « à traiter » — tout ce qui attend une action de l'entreprise :
-///    créée, affectée, rouverte, refusée (le correctif a été rejeté, il est
-///    donc à refaire) et en retard ;
+///    créée, affectée, à surveiller, à échéance, rouverte, refusée (le
+///    correctif a été rejeté, il est donc à refaire) et en retard ;
 ///  - ORANGE, « en cours » — prise en charge et en cours ;
-///  - BLEU, « à contrôler » — corrigée et à vérifier : l'entreprise a fini,
-///    quelqu'un doit passer voir ;
-///  - VERT, « levée » — validée ;
+///  - BLEU, « à contrôler » — corrigée, traitée et à vérifier : l'entreprise
+///    a fini, quelqu'un doit passer voir ;
+///  - VERT, « levée » — validée ou levée ;
 ///  - GRIS, « clôturée ».
+///
+/// Même rattachement que `rapportReferentiel.js#STATUTS_RAPPORT` côté
+/// serveur : le plan et le rapport colorent une réserve de la même façon.
 Color couleurStatutReserve(ReserveStatut statut) => switch (statut) {
       ReserveStatut.creee ||
       ReserveStatut.affectee ||
+      ReserveStatut.aSurveiller ||
+      ReserveStatut.aEcheance ||
       ReserveStatut.rouverte ||
       ReserveStatut.refusee ||
       ReserveStatut.enRetard =>
         AppColors.danger,
       ReserveStatut.priseEnCharge || ReserveStatut.enCours => AppColors.warning,
-      ReserveStatut.corrigee || ReserveStatut.aVerifier => AppColors.info,
-      ReserveStatut.validee => AppColors.success,
+      ReserveStatut.corrigee || ReserveStatut.traitee || ReserveStatut.aVerifier => AppColors.info,
+      ReserveStatut.validee || ReserveStatut.levee => AppColors.success,
       ReserveStatut.cloturee => AppColors.neutral,
     };
 
@@ -150,9 +155,15 @@ class FicheReserveSheet extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (reserve.numero.isNotEmpty)
+                              // « N° 3 sur ce plan · R-0031 » : le numéro
+                              // du repère qu'on vient d'appuyer d'abord, pour
+                              // confirmer qu'on a ouvert la bonne réserve.
+                              if (reserve.numeroPlan != null || reserve.numero.isNotEmpty)
                                 Text(
-                                  reserve.numero,
+                                  [
+                                    if (reserve.numeroPlan != null) l10n.reserveNumeroSurPlan(reserve.numeroPlan!),
+                                    if (reserve.numero.isNotEmpty) reserve.numero,
+                                  ].join(' · '),
                                   style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w800,

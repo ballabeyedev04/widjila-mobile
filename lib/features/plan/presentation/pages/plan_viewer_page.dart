@@ -424,6 +424,8 @@ class _ContenuState extends State<_Contenu> {
             // réserve, pas à quel point elle est grave.
             couleur: couleurStatutReserve(r.statut),
             actif: _reserveActive == r.id,
+            // Le numéro SUR CE PLAN, tel que le serveur l'a attribué.
+            numero: r.numeroPlan,
           ),
       // En DERNIER, donc au-dessus des autres : c'est le point qu'on regarde.
       if (_pointProvisoire != null)

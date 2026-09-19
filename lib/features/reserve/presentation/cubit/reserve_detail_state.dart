@@ -25,6 +25,14 @@ class ReserveDetailState extends Equatable {
   final bool affectationsChargees;
   final ActionReserveStatus affectationStatus;
 
+  /// Historique des changements — les lignes PERSISTÉES par le serveur
+  /// (`GET /reserves/:id/historique`), du plus récent au plus ancien. Chargé
+  /// en tâche de fond comme le fil de discussion, avec SON état : chargement,
+  /// succès, ou erreur affichée dans la section.
+  final List<ReserveHistoriqueEntry> historique;
+  final ActionReserveStatus historiqueStatus;
+  final String? historiqueErreur;
+
   /// Passe à `true` quand le serveur a accepté la suppression — l'écran doit
   /// alors se refermer, il n'a plus rien à afficher.
   final bool supprimee;
@@ -40,6 +48,9 @@ class ReserveDetailState extends Equatable {
     this.affectations = const [],
     this.affectationsChargees = false,
     this.affectationStatus = ActionReserveStatus.inactif,
+    this.historique = const [],
+    this.historiqueStatus = ActionReserveStatus.inactif,
+    this.historiqueErreur,
     this.supprimee = false,
   });
 
@@ -54,6 +65,9 @@ class ReserveDetailState extends Equatable {
     List<AffectationReserve>? affectations,
     bool? affectationsChargees,
     ActionReserveStatus? affectationStatus,
+    List<ReserveHistoriqueEntry>? historique,
+    ActionReserveStatus? historiqueStatus,
+    String? historiqueErreur,
     bool? supprimee,
   }) {
     return ReserveDetailState(
@@ -67,6 +81,10 @@ class ReserveDetailState extends Equatable {
       affectations: affectations ?? this.affectations,
       affectationsChargees: affectationsChargees ?? this.affectationsChargees,
       affectationStatus: affectationStatus ?? this.affectationStatus,
+      historique: historique ?? this.historique,
+      historiqueStatus: historiqueStatus ?? this.historiqueStatus,
+      // Comme `erreur` : « null = plus d'erreur », jamais « inchangé ».
+      historiqueErreur: historiqueErreur,
       supprimee: supprimee ?? this.supprimee,
     );
   }
@@ -83,6 +101,9 @@ class ReserveDetailState extends Equatable {
         affectations,
         affectationsChargees,
         affectationStatus,
+        historique,
+        historiqueStatus,
+        historiqueErreur,
         supprimee,
       ];
 }

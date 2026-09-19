@@ -354,6 +354,20 @@ class ReserveRepositoryImpl implements ReserveRepository {
   }
 
   @override
+  Future<Either<Failure, List<ReserveHistoriqueEntry>>> getHistorique(String reserveId) async {
+    try {
+      return Right(await remoteDataSource.getHistorique(reserveId));
+    } catch (e) {
+      // Sans réseau, la fiche en cache porte les lignes d'historique reçues
+      // avec elle (`historiques`, ordre chronologique) : on les sert du plus
+      // récent au plus ancien, comme le ferait le serveur.
+      final repli = await _replisiSansReseau(e, () => _cache.lire(reserveId));
+      if (repli != null) return Right(repli.historiques.reversed.toList());
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
   Future<Either<Failure, CommentaireReserve>> ajouterCommentaire({
     required String reserveId,
     required String message,

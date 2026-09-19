@@ -16,6 +16,7 @@ import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 import 'core/offline/offline_bootstrap.dart';
 import 'core/routes/app_router.dart';
 import 'core/services/collecteur_erreurs.dart';
+import 'core/services/feedback_sonore.dart';
 import 'core/services/locale_controller.dart';
 import 'core/services/push_bootstrap.dart';
 import 'core/services/verrou_biometrique.dart';
@@ -113,6 +114,9 @@ void _demarrerAvecSurveillanceCrash(Widget app) {
       // APRÈS `runApp` : la première image est construite et planifiée avant
       // que l'on sollicite le moindre canal de plateforme.
       unawaited(_brancherCrashlytics());
+      // Le son de confirmation, chargé une fois pour toutes : le premier
+      // succès ne doit pas attendre la lecture de l'asset.
+      unawaited(FeedbackSonore.instance.precharger());
     },
     _signalerHorsFramework,
   );

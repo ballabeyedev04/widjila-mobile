@@ -4,36 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../l10n/l10n_extension.dart';
 import '../../domain/entities/reserve.dart';
-
-/// Couleur par statut — même mapping que [ReserveStatutBadge] (donc que
-/// `admin/src/utils/constants.js#STATUTS_RESERVE`), pour que badges et
-/// donut restent visuellement cohérents.
-Color _couleurStatut(ReserveStatut s) {
-  switch (s) {
-    case ReserveStatut.creee:
-      return AppColors.neutral;
-    case ReserveStatut.affectee:
-      return AppColors.info;
-    case ReserveStatut.priseEnCharge:
-      return AppColors.info;
-    case ReserveStatut.enCours:
-      return AppColors.warning;
-    case ReserveStatut.corrigee:
-      return AppColors.primary;
-    case ReserveStatut.aVerifier:
-      return AppColors.warning;
-    case ReserveStatut.validee:
-      return AppColors.success;
-    case ReserveStatut.refusee:
-      return AppColors.danger;
-    case ReserveStatut.rouverte:
-      return AppColors.danger;
-    case ReserveStatut.enRetard:
-      return AppColors.danger;
-    case ReserveStatut.cloturee:
-      return AppColors.neutral;
-  }
-}
+import 'reserve_statut_couleurs.dart';
 
 /// Donut de répartition des réserves par statut. Les chiffres (paramètre
 /// [parStatut]) viennent toujours d'un endpoint back (`/dashboard/...`) —
@@ -46,8 +17,22 @@ class ReserveStatutDonut extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final entrees = parStatut.entries.where((e) => e.value > 0).toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    // Dans l'ORDRE du cycle de vie (celui de l'enum, miroir du serveur), et
+    // non par effectif décroissant : la légende se lit alors comme un
+    // parcours, et un statut garde sa place d'un rafraîchissement à l'autre.
+    //
+    // Le disque ne dessine que ce qui existe ; la légende, elle, montre en
+    // plus les statuts par lesquels le client suit ses réserves
+    // ([statutsSuiviClient]), même à zéro : « 0 À surveiller » est une
+    // information, l'absence de la ligne n'en est pas une.
+    final entrees = [
+      for (final s in ReserveStatut.values)
+        if ((parStatut[s] ?? 0) > 0) MapEntry(s, parStatut[s]!),
+    ];
+    final legende = [
+      for (final s in ReserveStatut.values)
+        if ((parStatut[s] ?? 0) > 0 || statutsSuiviClient.contains(s)) MapEntry(s, parStatut[s] ?? 0),
+    ];
 
     if (total == 0 || entrees.isEmpty) {
       return SizedBox(
@@ -83,7 +68,7 @@ class ReserveStatutDonut extends StatelessWidget {
       runSpacing: 14,
       children: [
         _Disque(entrees: entrees, total: total),
-        _Legende(entrees: entrees, total: total),
+        _Legende(entrees: legende, total: total),
       ],
     );
   }
@@ -112,7 +97,7 @@ class _Disque extends StatelessWidget {
                 for (final e in entrees)
                   PieChartSectionData(
                     value: e.value.toDouble(),
-                    color: _couleurStatut(e.key),
+                    color: couleurStatutGraphique(e.key),
                     radius: 24,
                     showTitle: false,
                   ),
@@ -170,6 +155,10 @@ class _LegendeLigne extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pct = total == 0 ? 0 : (valeur / total * 100).round();
+    // Une ligne a zero reste lisible mais s'efface : elle dit « rien ici »
+    // sans disputer l'attention aux statuts qui comptent vraiment.
+    final vide = valeur == 0;
+    final couleur = couleurStatutGraphique(statut);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       // `min` et non la valeur par defaut : dans un `Wrap`, une rangee qui
@@ -183,7 +172,10 @@ class _LegendeLigne extends StatelessWidget {
           Container(
             width: 9,
             height: 9,
-            decoration: BoxDecoration(color: _couleurStatut(statut), shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: vide ? couleur.withValues(alpha: 0.35) : couleur,
+              shape: BoxShape.circle,
+            ),
           ),
           const SizedBox(width: 8),
           // `Flexible` et non `Expanded` : le libelle prend sa largeur
@@ -194,7 +186,7 @@ class _LegendeLigne extends StatelessWidget {
               statut.label(context.l10n),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 12.5, color: vide ? AppColors.textMuted : AppColors.textSecondary),
             ),
           ),
           const SizedBox(width: 6),
@@ -206,10 +198,10 @@ class _LegendeLigne extends StatelessWidget {
               '$valeur ($pct%)',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+                color: vide ? AppColors.textMuted : AppColors.textPrimary,
               ),
             ),
           ),

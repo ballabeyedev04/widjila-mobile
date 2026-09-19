@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../l10n/l10n_extension.dart';
 import '../errors/error_codes.dart';
+import '../services/feedback_sonore.dart';
 import '../theme/app_colors.dart';
 import 'modale_abonnement.dart';
 
@@ -23,7 +24,14 @@ import 'modale_abonnement.dart';
 /// ```dart
 /// AppAlert.error(context, message: state.erreur!);
 /// AppAlert.success(context, message: 'Réserve créée.');
+/// AppAlert.confirmation(context, message: 'Membre retiré.'); // bandeau bas
 /// ```
+///
+/// SON : `success` et `confirmation` jouent le petit son de succès
+/// (`FeedbackSonore`) en même temps qu'ils affichent. C'est ici, et nulle
+/// part dans les écrans, que le son se déclenche : une confirmation affichée
+/// vaut un son, et le son n'existe que là où le code a déjà établi que
+/// l'action a réussi. `error` ne joue rien.
 enum _AppAlertType { succes, erreur }
 
 class AppAlert {
@@ -36,6 +44,7 @@ class AppAlert {
     String? bouton,
   }) {
     final l10n = context.l10n;
+    FeedbackSonore.instance.succes();
     return _show(
       context,
       type: _AppAlertType.succes,
@@ -68,6 +77,34 @@ class AppAlert {
       title: title ?? l10n.alertErrorTitle,
       message: messageLisible(l10n, message),
       bouton: bouton ?? l10n.commonOk,
+    );
+  }
+
+  /// Confirmation LÉGÈRE : le bandeau bas (`SnackBar`) qu'utilisent déjà les
+  /// gestes secondaires — membre affecté, pièce jointe ajoutée, brouillon
+  /// enregistré… — quand une carte modale serait disproportionnée. Même
+  /// bandeau qu'avant (thème, position, durée inchangés), plus le son de
+  /// succès.
+  ///
+  /// À appeler seulement une fois le succès ÉTABLI — jamais pour « envoi en
+  /// cours » ni « mis en file d'attente », qui ne sont pas des succès.
+  ///
+  /// [messenger] : à passer quand le `context` risque d'être démonté après un
+  /// `await` (feuille fermée) — l'appelant l'a alors capturé avant.
+  static void confirmation(
+    BuildContext context, {
+    required String message,
+    ScaffoldMessengerState? messenger,
+    Duration? duration,
+    Color? backgroundColor,
+  }) {
+    FeedbackSonore.instance.succes();
+    (messenger ?? ScaffoldMessenger.of(context)).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: duration ?? const Duration(milliseconds: 4000),
+        backgroundColor: backgroundColor,
+      ),
     );
   }
 

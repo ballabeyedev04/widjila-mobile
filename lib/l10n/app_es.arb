@@ -81,6 +81,15 @@
   "reserveRechercheHint": "Buscar una incidencia…",
   "reserveAucune": "Ninguna incidencia",
   "reserveAucuneCriteres": "Ninguna incidencia coincide con estos criterios.",
+  "reserveAucuneAvecStatut": "Ninguna incidencia «{statut}»",
+  "@reserveAucuneAvecStatut": {
+    "placeholders": {
+      "statut": {
+        "type": "String"
+      }
+    }
+  },
+  "reserveAucuneAvecStatutDescription": "Las incidencias que pasen a este estado aparecerán aquí.",
   "reserveCreerPremiere": "Cree la primera incidencia con el botón +.",
   "reserveFiltreToutes": "Todas",
   "reserveEssayerAutreFiltre": "Pruebe con otra palabra clave o filtro.",
@@ -99,6 +108,22 @@
   },
   "reserveDetailTitreDefaut": "Incidencia",
   "reserveNumeroProvisoire": "Pendiente de sincronización",
+  "planRepereNumero": "Reserva n.º {numero}",
+  "@planRepereNumero": {
+    "placeholders": {
+      "numero": {
+        "type": "int"
+      }
+    }
+  },
+  "reserveNumeroSurPlan": "N.º {numero} en este plano",
+  "@reserveNumeroSurPlan": {
+    "placeholders": {
+      "numero": {
+        "type": "int"
+      }
+    }
+  },
   "reserveDetailChangerStatut": "Cambiar estado",
   "reserveDetailNouveauStatut": "Nuevo estado",
   "reserveDetailMotifRefusTitre": "Motivo del rechazo",
@@ -145,6 +170,26 @@
   "historiqueValidation": "Incidencia validada",
   "historiqueRefus": "Incidencia rechazada",
   "historiqueSuppression": "Incidencia eliminada",
+  "historiqueAffectation": "Interviniente asignado",
+  "historiqueDesaffectation": "Interviniente retirado",
+  "historiqueSignature": "Incidencia firmada",
+  "historiqueChangementsTitre": "Historial de cambios",
+  "historiqueChangementsVide": "Ningún cambio de estado registrado para esta incidencia.",
+  "historiqueChangementsErreur": "No se pudo cargar el historial.",
+  "historiqueSysteme": "Sistema (vencimiento)",
+  "historiqueStatutInitial": "Estado inicial",
+  "reserveDetailModifiePar": "Modificado por: {nom}",
+  "@reserveDetailModifiePar": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
+  "reserveDetailModifieeLe": "Modificada el",
+  "reserveDetailSeverite": "Severidad",
+  "reserveDetailLeveePar": "Levantada por",
+  "reserveDetailLeveeLe": "Levantada el",
   "wizardEtapeInformations": "Información",
   "wizardEtapeRecapitulatif": "Resumen",
   "wizardCreerReserve": "Crear la incidencia",
@@ -411,9 +456,13 @@
   "statutAffectee": "Asignada",
   "statutPriseEnCharge": "Asumida",
   "statutEnCours": "En curso",
+  "statutASurveiller": "Por vigilar",
+  "statutAEcheance": "Próxima a vencer",
   "statutCorrigee": "Corregida",
+  "statutTraitee": "Tratada",
   "statutAVerifier": "Por verificar",
   "statutValidee": "Validada",
+  "statutLevee": "Levantada",
   "statutRefusee": "Rechazada",
   "statutRouverte": "Reabierta",
   "statutEnRetard": "Retrasada",
@@ -966,6 +1015,20 @@
   "dashboardKpiTotal": "Total",
   "dashboardKpiOuvertes": "Abiertas",
   "dashboardKpiLevees": "Validadas",
+  "dashboardKpiTraitees": "Tratadas",
+  "dashboardKpiRefusees": "Rechazadas",
+  "dashboardCartesPrecedentes": "Tarjetas anteriores",
+  "dashboardCartesSuivantes": "Tarjetas siguientes",
+  "dashboardEvolutionTitre": "Evolución de las incidencias",
+  "dashboardEvolutionSousTitre": "Creadas, tratadas y levantadas por mes",
+  "dashboardEvolutionCreees": "Creadas",
+  "dashboardEvolutionTraitees": "Tratadas",
+  "dashboardEvolutionLevees": "Levantadas",
+  "dashboardEvolutionErreur": "No se pudo cargar la evolución.",
+  "dashboardParChantierTitre": "Incidencias por obra",
+  "dashboardParChantierSousTitre": "Total y abiertas, por obra",
+  "dashboardParChantierOuvertes": "Abiertas",
+  "dashboardAucuneDonnee": "Sin datos por ahora",
   "dashboardVueEnsemble": "Resumen",
   "dashboardRepartitionParStatut": "Distribución de incidencias por estado",
   "dashboardAucuneReserve": "Aún no hay incidencias",
@@ -1114,6 +1177,14 @@
   "abonnementUtilisateursIllimites": "Usuarios ilimitados",
   "abonnementUtilisateursMax": "Hasta {n} usuarios",
   "abonnementOuvertureImpossible": "No se pudo abrir la página de pago.",
+  "abonnementPaiementConfirme": "Pago confirmado: su plan {plan} está activo.",
+  "@abonnementPaiementConfirme": {
+    "placeholders": {
+      "plan": {
+        "type": "String"
+      }
+    }
+  },
   "abonnementPreparationImpossible": "No se pudo preparar el pago. Compruebe su conexión e inténtelo de nuevo.",
   "abonnementReserveFacturation": "Reservado al responsable de la suscripción",
   "reserveEmplacementTitre": "Ubicación en el plano",

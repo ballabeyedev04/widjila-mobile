@@ -12,10 +12,14 @@ void main() {
 
   group('ReserveStatutX', () {
     test('fromString/raw font l\'aller-retour pour chaque statut backend', () {
+      // Miroir EXACT de `config/enums.js#STATUT_RESERVE` (backend), dans l'ordre.
       const valeursBrutes = [
-        'creee', 'affectee', 'prise_en_charge', 'en_cours', 'corrigee', 'a_verifier',
-        'validee', 'refusee', 'rouverte', 'en_retard', 'cloturee',
+        'creee', 'affectee', 'prise_en_charge', 'en_cours', 'a_surveiller', 'a_echeance',
+        'corrigee', 'traitee', 'a_verifier', 'validee', 'levee', 'refusee', 'rouverte',
+        'en_retard', 'cloturee',
       ];
+      expect(ReserveStatut.values.map((s) => s.raw).toList(), valeursBrutes,
+          reason: 'l\'enum doit suivre l\'ordre du cycle de vie du serveur');
       for (final brut in valeursBrutes) {
         expect(ReserveStatutX.fromString(brut).raw, brut, reason: 'round-trip pour "$brut"');
       }
@@ -24,6 +28,98 @@ void main() {
     test('fromString retombe sur "creee" pour une valeur inconnue/nulle', () {
       expect(ReserveStatutX.fromString(null), ReserveStatut.creee);
       expect(ReserveStatutX.fromString('statut_inexistant'), ReserveStatut.creee);
+    });
+  });
+
+  group('ReserveHistoriqueEntry — deux formes JSON, une seule lecture', () {
+    test('forme NORMALISÉE (GET /reserves/:id/historique)', () {
+      final e = ReserveHistoriqueEntry.fromJson({
+        'id': 'h1',
+        'action': 'validation',
+        'date': '2026-09-20T16:48:00.000Z',
+        'utilisateur': {'id': 'u1', 'nom': 'Dupont', 'prenom': 'Jean'},
+        'changementStatut': true,
+        'ancienStatut': 'traitee',
+        'nouveauStatut': 'levee',
+        'motif': null,
+      });
+
+      expect(e.estChangementStatut, isTrue);
+      expect(e.ancienStatut, ReserveStatut.traitee);
+      expect(e.nouveauStatut, ReserveStatut.levee);
+      expect(e.createdAt, DateTime.utc(2026, 9, 20, 16, 48));
+      expect(e.utilisateur?.nomComplet, 'Jean Dupont');
+    });
+
+    test('forme BRUTE jointe au détail : les statuts sont lus dans les valeurs', () {
+      final e = ReserveHistoriqueEntry.fromJson({
+        'id': 'h1',
+        'action': 'statut',
+        'createdAt': '2026-09-18T14:32:00.000Z',
+        'anciennes_valeurs': {'statut': 'creee'},
+        'nouvelles_valeurs': {'statut': 'a_surveiller'},
+        'utilisateur': {'id': 'u1', 'nom': 'BEYE', 'prenom': 'Balla'},
+      });
+
+      expect(e.estChangementStatut, isTrue);
+      expect(e.ancienStatut, ReserveStatut.creee);
+      expect(e.nouveauStatut, ReserveStatut.aSurveiller);
+    });
+
+    test('forme brute : la création porte le statut initial, sans ancien', () {
+      final e = ReserveHistoriqueEntry.fromJson({
+        'id': 'h0',
+        'action': 'creation',
+        'createdAt': '2026-09-15T08:00:00.000Z',
+        'nouvelles_valeurs': {'titre': 'Fissure', 'statut': 'creee'},
+      });
+
+      expect(e.estChangementStatut, isTrue);
+      expect(e.ancienStatut, isNull);
+      expect(e.nouveauStatut, ReserveStatut.creee);
+    });
+
+    test('forme brute : un commentaire ou un même statut n’est pas un changement', () {
+      final commentaire = ReserveHistoriqueEntry.fromJson({
+        'id': 'h2', 'action': 'commentaire', 'nouvelles_valeurs': {'message': 'ok'},
+      });
+      final identique = ReserveHistoriqueEntry.fromJson({
+        'id': 'h3', 'action': 'modification',
+        'anciennes_valeurs': {'statut': 'creee'}, 'nouvelles_valeurs': {'statut': 'creee'},
+      });
+
+      expect(commentaire.estChangementStatut, isFalse);
+      expect(identique.estChangementStatut, isFalse);
+      expect(identique.nouveauStatut, isNull);
+    });
+
+    test('le motif d’un refus est lu dans les deux formes', () {
+      final brute = ReserveHistoriqueEntry.fromJson({
+        'id': 'h4', 'action': 'refus',
+        'anciennes_valeurs': {'statut': 'traitee'},
+        'nouvelles_valeurs': {'statut': 'refusee', 'motif': 'Joint non conforme'},
+      });
+      final normalisee = ReserveHistoriqueEntry.fromJson({
+        'id': 'h4', 'action': 'refus', 'changementStatut': true,
+        'ancienStatut': 'traitee', 'nouveauStatut': 'refusee', 'motif': 'Joint non conforme',
+      });
+
+      expect(brute.motif, 'Joint non conforme');
+      expect(normalisee.motif, 'Joint non conforme');
+    });
+
+    test('toJson/fromJson font l’aller-retour (cache hors ligne)', () {
+      final e = ReserveHistoriqueEntry(
+        id: 'h1',
+        action: 'statut',
+        createdAt: DateTime.utc(2026, 9, 18, 14, 32),
+        utilisateur: const ReserveUtilisateurRef(id: 'u1', nom: 'BEYE', prenom: 'Balla'),
+        ancienStatut: ReserveStatut.creee,
+        nouveauStatut: ReserveStatut.aSurveiller,
+        motif: null,
+      );
+
+      expect(ReserveHistoriqueEntry.fromJson(e.toJson()), e);
     });
   });
 
@@ -165,14 +261,30 @@ void main() {
           statut: statut,
         );
 
-    test('validee et cloturee sont figees', () {
+    test('validee, levee et cloturee sont figees', () {
       expect(avecStatut(ReserveStatut.validee).estFige, isTrue);
+      expect(avecStatut(ReserveStatut.levee).estFige, isTrue);
       expect(avecStatut(ReserveStatut.cloturee).estFige, isTrue);
+    });
+
+    test('les familles de statuts suivent le serveur (LEVEES / FERMES)', () {
+      expect(ReserveStatut.values.where((s) => s.estLevee), [ReserveStatut.validee, ReserveStatut.levee]);
+      expect(ReserveStatut.values.where((s) => s.estFerme),
+          [ReserveStatut.validee, ReserveStatut.levee, ReserveStatut.cloturee]);
+      // « Traitee » attend le controle : elle n'est pas fermee.
+      expect(ReserveStatut.traitee.estFerme, isFalse);
+    });
+
+    test('les statuts du client ont chacun un libelle distinct', () {
+      final libelles = statutsSuiviClient.map((s) => s.label(l10n)).toList();
+      expect(libelles, ['En retard', 'À surveiller', 'À échéance', 'Traitée', 'Refusée', 'Levée']);
+      // « Validee » et « levee » ne partagent plus le meme mot.
+      expect(ReserveStatut.validee.label(l10n), isNot(ReserveStatut.levee.label(l10n)));
     });
 
     test('aucun autre statut ne l est', () {
       for (final statut in ReserveStatut.values) {
-        if (statut == ReserveStatut.validee || statut == ReserveStatut.cloturee) continue;
+        if (statut.estFerme) continue;
         expect(avecStatut(statut).estFige, isFalse, reason: 'pour $statut');
       }
     });

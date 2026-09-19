@@ -4,6 +4,7 @@ import '../../domain/entities/dashboard_stats.dart';
 
 abstract class DashboardRemoteDataSource {
   Future<DashboardStats> getStatsGlobales();
+  Future<DashboardEvolution> getEvolution();
 }
 
 class DashboardRemoteDataSourceImpl implements DashboardRemoteDataSource {
@@ -16,6 +17,17 @@ class DashboardRemoteDataSourceImpl implements DashboardRemoteDataSource {
       final response = await dio.get('/dashboard');
       final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
       return DashboardStats.fromJson(data['stats'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<DashboardEvolution> getEvolution() async {
+    try {
+      final response = await dio.get('/dashboard/evolution');
+      final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+      return DashboardEvolution.fromJson(data['stats'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw mapDioException(e);
     }

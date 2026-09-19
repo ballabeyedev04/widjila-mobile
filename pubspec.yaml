@@ -212,6 +212,10 @@ dependencies:
   # release (vérifié le 2026-09-11). Repasser sur la 7.5.0 stable dès sa
   # publication.
   speech_to_text: ^7.5.0-beta.1
+  # Le petit son de confirmation (`FeedbackSonore`). Un seul paquet audio pour
+  # toute l'app : lecture d'un asset local, mode basse latence, contexte audio
+  # réglable (mode silencieux iOS respecté, pas de prise de focus audio).
+  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:
@@ -221,6 +225,10 @@ dev_dependencies:
   mocktail: ^1.0.4
   flutter_launcher_icons: ^0.14.4
   sqflite_common_ffi: ^2.4.2+1
+  # Pour simuler l'ouverture du navigateur dans les tests de l'écran
+  # Abonnement (confirmation du paiement) — voir `abonnement_page_test.dart`.
+  plugin_platform_interface: ^2.1.8
+  url_launcher_platform_interface: ^2.3.2
 
 flutter:
   uses-material-design: true
@@ -231,6 +239,8 @@ flutter:
     # qu'à générer les icônes natives (voir ci-dessous), les embarquer dans le
     # bundle alourdirait l'APK pour rien.
     - assets/images/
+    # Sons d'interface — voir `core/services/feedback_sonore.dart`.
+    - assets/sounds/
 
 # ── Icônes de l'application (écran d'accueil / liste des apps) ───────────────
 # Régénérer après toute modification du logo :

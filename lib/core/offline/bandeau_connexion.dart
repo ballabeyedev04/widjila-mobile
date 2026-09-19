@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../l10n/l10n_extension.dart';
 import '../routes/app_router.dart';
+import '../services/feedback_sonore.dart';
 import '../theme/app_colors.dart';
 import 'detecteur_connexion.dart';
 import 'synchronisation_service.dart';
@@ -73,6 +74,12 @@ class _BandeauConnexionState extends State<BandeauConnexion> {
     final synchroFinie = avant.synchro == EtatSynchro.enCours && courant.synchro == EtatSynchro.termine;
 
     if (toutEstParti && (retourEnLigne || synchroFinie)) {
+      // UN son pour toute la passe — pas un par action synchronisée : le
+      // service ne passe « en cours → terminé » qu'une fois par passe, quel
+      // que soit le nombre d'actions envoyées. Et seulement quand une passe a
+      // RÉELLEMENT tourné (`synchroFinie`) : un simple retour en ligne sans
+      // rien à envoyer affiche le bandeau, mais ne mérite pas de son.
+      if (synchroFinie) FeedbackSonore.instance.succes();
       setState(() => _afficherConfirmation = true);
       Future.delayed(_dureeConfirmation, () {
         if (mounted) setState(() => _afficherConfirmation = false);

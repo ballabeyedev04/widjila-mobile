@@ -431,7 +431,7 @@ Future<void> _executer(
   if (erreur != null) {
     AppAlert.error(context, message: erreur);
   } else {
-    messenger.showSnackBar(SnackBar(content: Text(l10n.structureEnregistre)));
+    AppAlert.confirmation(context, messenger: messenger, message: l10n.structureEnregistre);
   }
 }
 

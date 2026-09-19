@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/config/env.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/app_alert.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/config/user_role.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
@@ -94,6 +95,12 @@ class _AbonnementViewState extends State<_AbonnementView> with WidgetsBindingObs
   /// d'application — relancerait deux requêtes réseau pour rien.
   bool _paiementLance = false;
 
+  /// Formule dont le paiement a été lancé, et droits AVANT le paiement :
+  /// c'est leur comparaison avec ce que le serveur renvoie au retour qui dit
+  /// si le paiement a abouti. Voir [_confirmerSiPaye].
+  String? _formulePayee;
+  DroitsAbonnement? _droitsAvantPaiement;
+
   /// Code de la formule dont le paiement se prépare (demande du code de
   /// transfert en cours). Son bouton affiche un indicateur, les autres sont
   /// neutralisés : deux appuis rapides n'ouvrent pas deux navigateurs.
@@ -121,7 +128,33 @@ class _AbonnementViewState extends State<_AbonnementView> with WidgetsBindingObs
     if (etat != AppLifecycleState.resumed || !_paiementLance) return;
     _paiementLance = false;
     if (!mounted) return;
-    context.read<AbonnementCubit>().charger(avecHistorique: widget.voitLaFacturation);
+    _confirmerSiPaye();
+  }
+
+  /// Recharge, puis confirme le paiement SEULEMENT si le serveur le dit.
+  ///
+  /// Ni l'ouverture du navigateur, ni le retour dans l'application, ni la
+  /// demande de paiement ne sont un succès : l'utilisateur a pu fermer la
+  /// page, la carte a pu être refusée. Le seul témoin fiable est l'abonnement
+  /// que le serveur renvoie après le webhook — s'il porte la formule payée,
+  /// ACTIVE, alors qu'elle ne la portait pas avant, le paiement a abouti.
+  /// C'est là, et seulement là, qu'arrivent la carte verte et son son.
+  Future<void> _confirmerSiPaye() async {
+    final cubit = context.read<AbonnementCubit>();
+    final formule = _formulePayee;
+    final avant = _droitsAvantPaiement;
+    _formulePayee = null;
+    _droitsAvantPaiement = null;
+
+    await cubit.charger(avecHistorique: widget.voitLaFacturation);
+    if (!mounted || formule == null) return;
+
+    final apres = cubit.state.droits;
+    final dejaActive = avant != null && avant.actif && avant.source == 'abonnement' && avant.planCode == formule;
+    final confirme = apres.actif && apres.source == 'abonnement' && apres.planCode == formule && !dejaActive;
+    if (!confirme) return;
+
+    AppAlert.success(context, message: context.l10n.abonnementPaiementConfirme(apres.planNom ?? formule));
   }
 
   /// Ouvre la page de paiement du web pour [formule], session comprise — voir
@@ -159,6 +192,10 @@ class _AbonnementViewState extends State<_AbonnementView> with WidgetsBindingObs
       // d'ouverture ne fait pas quitter l'application, donc aucun retour à
       // guetter.
       _paiementLance = ouvert;
+      if (ouvert) {
+        _formulePayee = formule.code;
+        _droitsAvantPaiement = cubit.state.droits;
+      }
 
       if (!ouvert) {
         messenger.showSnackBar(SnackBar(content: Text(l10n.abonnementOuvertureImpossible)));

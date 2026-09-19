@@ -10,6 +10,7 @@ import '../../../../core/widgets/loading_list.dart';
 import '../../../../injection_container.dart';
 import '../../../../l10n/l10n_extension.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../domain/entities/reserve.dart';
 import '../cubit/reserves_list_cubit.dart';
 import '../cubit/reserves_list_state.dart';
 import '../widgets/reserve_card.dart';
@@ -149,6 +150,7 @@ class _ReservesListViewState extends State<_ReservesListView> {
                       if (state.items.isEmpty) {
                         return _EtatVide(
                           filtreActif: state.recherche.isNotEmpty || state.filtreStatut != null,
+                          filtreStatut: state.filtreStatut,
                           peutCreer: peutCreer,
                           onCreer: _creerReserve,
                         );
@@ -188,14 +190,32 @@ class _RangeeFiltres extends StatelessWidget {
 
 class _EtatVide extends StatelessWidget {
   final bool filtreActif;
+
+  /// Statut filtré, s'il y en a un : l'écran vide le NOMME. « Aucun résultat »
+  /// face à un onglet « À surveiller » laissait croire à une panne ; « Aucune
+  /// réserve « À surveiller » » dit que l'onglet est simplement vide.
+  final ReserveStatut? filtreStatut;
   final bool peutCreer;
   final VoidCallback onCreer;
 
-  const _EtatVide({required this.filtreActif, required this.peutCreer, required this.onCreer});
+  const _EtatVide({
+    required this.filtreActif,
+    this.filtreStatut,
+    required this.peutCreer,
+    required this.onCreer,
+  });
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final statut = filtreStatut;
+    if (statut != null) {
+      return EtatVideIllustre(
+        motif: MotifVide.recherche,
+        titre: l10n.reserveAucuneAvecStatut(statut.label(l10n)),
+        description: l10n.reserveAucuneAvecStatutDescription,
+      );
+    }
     if (filtreActif) {
       // Recherche ou filtre en cours : pas de bouton de création, ce n'est
       // pas ce que l'utilisateur cherche à faire à cet instant.

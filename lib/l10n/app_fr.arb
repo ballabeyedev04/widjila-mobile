@@ -81,6 +81,15 @@
   "reserveRechercheHint": "Rechercher une réserve…",
   "reserveAucune": "Aucune réserve",
   "reserveAucuneCriteres": "Aucune réserve ne correspond à ces critères.",
+  "reserveAucuneAvecStatut": "Aucune réserve « {statut} »",
+  "@reserveAucuneAvecStatut": {
+    "placeholders": {
+      "statut": {
+        "type": "String"
+      }
+    }
+  },
+  "reserveAucuneAvecStatutDescription": "Les réserves qui passeront à ce statut apparaîtront ici.",
   "reserveCreerPremiere": "Créez la première réserve avec le bouton +.",
   "reserveFiltreToutes": "Toutes",
   "reserveEssayerAutreFiltre": "Essayez un autre mot-clé ou un autre filtre.",
@@ -99,6 +108,22 @@
   },
   "reserveDetailTitreDefaut": "Réserve",
   "reserveNumeroProvisoire": "En attente de synchronisation",
+  "planRepereNumero": "Réserve n°{numero}",
+  "@planRepereNumero": {
+    "placeholders": {
+      "numero": {
+        "type": "int"
+      }
+    }
+  },
+  "reserveNumeroSurPlan": "N° {numero} sur ce plan",
+  "@reserveNumeroSurPlan": {
+    "placeholders": {
+      "numero": {
+        "type": "int"
+      }
+    }
+  },
   "reserveDetailChangerStatut": "Changer le statut",
   "reserveDetailNouveauStatut": "Nouveau statut",
   "reserveDetailMotifRefusTitre": "Motif du refus",
@@ -145,6 +170,26 @@
   "historiqueValidation": "Réserve validée",
   "historiqueRefus": "Réserve refusée",
   "historiqueSuppression": "Réserve supprimée",
+  "historiqueAffectation": "Intervenant affecté",
+  "historiqueDesaffectation": "Intervenant retiré",
+  "historiqueSignature": "Réserve signée",
+  "historiqueChangementsTitre": "Historique des changements",
+  "historiqueChangementsVide": "Aucun changement de statut enregistré pour cette réserve.",
+  "historiqueChangementsErreur": "Impossible de charger l'historique.",
+  "historiqueSysteme": "Système (échéance)",
+  "historiqueStatutInitial": "Statut initial",
+  "reserveDetailModifiePar": "Modifié par : {nom}",
+  "@reserveDetailModifiePar": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
+  "reserveDetailModifieeLe": "Modifiée le",
+  "reserveDetailSeverite": "Sévérité",
+  "reserveDetailLeveePar": "Levée par",
+  "reserveDetailLeveeLe": "Levée le",
   "wizardEtapeInformations": "Informations",
   "wizardEtapeRecapitulatif": "Récapitulatif",
   "wizardCreerReserve": "Créer la réserve",
@@ -425,9 +470,13 @@
   "statutAffectee": "Affectée",
   "statutPriseEnCharge": "Prise en charge",
   "statutEnCours": "En cours",
+  "statutASurveiller": "À surveiller",
+  "statutAEcheance": "À échéance",
   "statutCorrigee": "Corrigée",
+  "statutTraitee": "Traitée",
   "statutAVerifier": "À vérifier",
-  "statutValidee": "Levée",
+  "statutValidee": "Validée",
+  "statutLevee": "Levée",
   "statutRefusee": "Refusée",
   "statutRouverte": "Rouverte",
   "statutEnRetard": "En retard",
@@ -1042,6 +1091,20 @@
   "dashboardKpiTotal": "Total",
   "dashboardKpiOuvertes": "Ouvertes",
   "dashboardKpiLevees": "Levées",
+  "dashboardKpiTraitees": "Traitées",
+  "dashboardKpiRefusees": "Refusées",
+  "dashboardCartesPrecedentes": "Cartes précédentes",
+  "dashboardCartesSuivantes": "Cartes suivantes",
+  "dashboardEvolutionTitre": "Évolution des réserves",
+  "dashboardEvolutionSousTitre": "Créées, traitées et levées par mois",
+  "dashboardEvolutionCreees": "Créées",
+  "dashboardEvolutionTraitees": "Traitées",
+  "dashboardEvolutionLevees": "Levées",
+  "dashboardEvolutionErreur": "Impossible de charger l'évolution.",
+  "dashboardParChantierTitre": "Réserves par chantier",
+  "dashboardParChantierSousTitre": "Total et ouvertes, par chantier",
+  "dashboardParChantierOuvertes": "Ouvertes",
+  "dashboardAucuneDonnee": "Aucune donnée pour le moment",
   "dashboardVueEnsemble": "Vue d'ensemble",
   "dashboardRepartitionParStatut": "Répartition des réserves par statut",
   "dashboardAucuneReserve": "Aucune réserve pour le moment",
@@ -1211,6 +1274,14 @@
     }
   },
   "abonnementOuvertureImpossible": "Impossible d’ouvrir la page de paiement.",
+  "abonnementPaiementConfirme": "Paiement confirmé : votre formule {plan} est active.",
+  "@abonnementPaiementConfirme": {
+    "placeholders": {
+      "plan": {
+        "type": "String"
+      }
+    }
+  },
   "abonnementPreparationImpossible": "Impossible de préparer le paiement. Vérifiez votre connexion et réessayez.",
   "abonnementReserveFacturation": "Réservé au responsable de l’abonnement",
   "reserveEmplacementTitre": "Emplacement sur le plan",

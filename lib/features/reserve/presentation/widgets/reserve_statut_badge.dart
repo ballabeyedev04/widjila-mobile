@@ -18,11 +18,19 @@ class ReserveStatutBadge extends StatelessWidget {
         return BadgeTone.info;
       case ReserveStatut.enCours:
         return BadgeTone.warning;
+      case ReserveStatut.aSurveiller:
+        return BadgeTone.warning;
+      case ReserveStatut.aEcheance:
+        return BadgeTone.info;
       case ReserveStatut.corrigee:
+        return BadgeTone.primary;
+      case ReserveStatut.traitee:
         return BadgeTone.primary;
       case ReserveStatut.aVerifier:
         return BadgeTone.warning;
       case ReserveStatut.validee:
+        return BadgeTone.success;
+      case ReserveStatut.levee:
         return BadgeTone.success;
       case ReserveStatut.refusee:
         return BadgeTone.danger;

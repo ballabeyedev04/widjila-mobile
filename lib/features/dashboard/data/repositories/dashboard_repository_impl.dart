@@ -18,4 +18,14 @@ class DashboardRepositoryImpl implements DashboardRepository {
       return Left(exceptionToFailure(e));
     }
   }
+
+  @override
+  Future<Either<Failure, DashboardEvolution>> getEvolution() async {
+    try {
+      final evolution = await remoteDataSource.getEvolution();
+      return Right(evolution);
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
 }

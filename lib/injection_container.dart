@@ -42,6 +42,7 @@ import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'features/dashboard/data/datasources/dashboard_remote_datasource.dart';
 import 'features/dashboard/data/repositories/dashboard_repository_impl.dart';
 import 'features/dashboard/domain/repositories/dashboard_repository.dart';
+import 'features/dashboard/domain/usecases/get_dashboard_evolution.dart';
 import 'features/dashboard/domain/usecases/get_dashboard_stats.dart';
 import 'features/dashboard/presentation/cubit/dashboard_cubit.dart';
 
@@ -319,7 +320,8 @@ Future<void> init() async {
   sl.registerLazySingleton<DashboardRemoteDataSource>(() => DashboardRemoteDataSourceImpl(dio: sl()));
   sl.registerLazySingleton<DashboardRepository>(() => DashboardRepositoryImpl(sl()));
   sl.registerLazySingleton(() => GetDashboardStats(sl()));
-  sl.registerFactory(() => DashboardCubit(getDashboardStats: sl()));
+  sl.registerLazySingleton(() => GetDashboardEvolution(sl()));
+  sl.registerFactory(() => DashboardCubit(getDashboardStats: sl(), getDashboardEvolution: sl()));
 
   //================================================
   // FEATURE — CHANTIER

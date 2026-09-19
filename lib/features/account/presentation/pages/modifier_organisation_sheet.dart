@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/app_alert.dart';
 import '../../../../core/widgets/fiche_chrome.dart';
 import '../../../../core/widgets/liste_chrome.dart';
 import '../../../../l10n/l10n_extension.dart';
@@ -140,9 +141,13 @@ class _ModifierOrganisationSheetState extends State<_ModifierOrganisationSheet> 
       );
       return;
     }
+    final messenger = ScaffoldMessenger.of(context);
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.profilEntrepriseMaj), backgroundColor: AppColors.success),
+    AppAlert.confirmation(
+      context,
+      messenger: messenger,
+      message: l10n.profilEntrepriseMaj,
+      backgroundColor: AppColors.success,
     );
   }
 

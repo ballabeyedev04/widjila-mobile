@@ -275,7 +275,7 @@ class _LignePiece extends StatelessWidget {
     if (erreur != null) {
       AppAlert.error(context, message: erreur);
     } else {
-      messenger.showSnackBar(SnackBar(content: Text(l10n.pieceJointeSupprimee)));
+      AppAlert.confirmation(context, messenger: messenger, message: l10n.pieceJointeSupprimee);
     }
   }
 }
@@ -370,6 +370,6 @@ Future<void> _ajouter(BuildContext context) async {
   if (erreur != null) {
     AppAlert.error(context, message: erreur);
   } else {
-    messenger.showSnackBar(SnackBar(content: Text(l10n.pieceJointeAjoutee)));
+    AppAlert.confirmation(context, messenger: messenger, message: l10n.pieceJointeAjoutee);
   }
 }

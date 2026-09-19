@@ -79,6 +79,14 @@ class PlanPosition extends Equatable {
 class PlanReserve extends Equatable {
   final String id;
   final String numero;
+
+  /// Numéro de la réserve SUR CE PLAN (1, 2, 3…), attribué par le serveur.
+  /// C'est ce que le repère affiche : « R-0031 » ne dit pas laquelle des
+  /// réserves du plan a été relevée en premier, « 3 » oui. Nul tant que le
+  /// serveur ne l'a pas attribué (réserve créée hors ligne, pas encore
+  /// synchronisée).
+  final int? numeroPlan;
+
   final String titre;
 
   /// Observation saisie à la création.
@@ -108,6 +116,7 @@ class PlanReserve extends Equatable {
   const PlanReserve({
     required this.id,
     required this.numero,
+    this.numeroPlan,
     required this.titre,
     this.description,
     required this.statut,
@@ -123,6 +132,7 @@ class PlanReserve extends Equatable {
   factory PlanReserve.fromJson(Map<String, dynamic> json) => PlanReserve(
         id: json['id'] as String,
         numero: json['numero'] as String? ?? '',
+        numeroPlan: (json['numeroPlan'] as num?)?.toInt(),
         titre: json['titre'] as String? ?? '',
         description: json['description'] as String?,
         statut: ReserveStatutX.fromString(json['statut'] as String?),
@@ -139,7 +149,7 @@ class PlanReserve extends Equatable {
 
   @override
   List<Object?> get props => [
-        id, numero, titre, description, statut, severite, position, photoApercu,
+        id, numero, numeroPlan, titre, description, statut, severite, position, photoApercu,
         createdAt, updatedAt, dateLimite, createurNom,
       ];
 }

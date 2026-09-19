@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/reserve.dart';
 import '../../domain/entities/reserve_collaboration.dart';
@@ -38,6 +40,7 @@ class ReserveDetailCubit extends Cubit<ReserveDetailState> {
   Future<void> chargerCollaboration() async {
     final commentairesFuture = repository.getCommentaires(reserveId);
     final affectationsFuture = repository.getAffectations(reserveId);
+    final historiqueFuture = chargerHistorique();
 
     final commentaires = await commentairesFuture;
     final affectations = await affectationsFuture;
@@ -52,6 +55,30 @@ class ReserveDetailCubit extends Cubit<ReserveDetailState> {
       affectations: affectations.fold((_) => state.affectations, (v) => v),
       affectationsChargees: true,
     ));
+    await historiqueFuture;
+  }
+
+  /// Charge l'historique des changements — les lignes PERSISTÉES côté
+  /// serveur, jamais reconstruites depuis le statut courant.
+  ///
+  /// Contrairement aux commentaires, un échec est DIT : la section affiche
+  /// une erreur et un bouton « Réessayer », parce qu'un historique vide et un
+  /// historique qu'on n'a pas pu lire ne racontent pas la même chose.
+  Future<void> chargerHistorique() async {
+    emit(state.copyWith(historiqueStatus: ActionReserveStatus.enCours, historiqueErreur: null));
+    final result = await repository.getHistorique(reserveId);
+    if (isClosed) return;
+    result.fold(
+      (failure) => emit(state.copyWith(
+        historiqueStatus: ActionReserveStatus.erreur,
+        historiqueErreur: failure.errorMessage,
+      )),
+      (historique) => emit(state.copyWith(
+        historique: historique,
+        historiqueStatus: ActionReserveStatus.succes,
+        historiqueErreur: null,
+      )),
+    );
   }
 
   /// Ajoute un commentaire. Renvoie `true` si le serveur a accepté.
@@ -262,6 +289,10 @@ class ReserveDetailCubit extends Cubit<ReserveDetailState> {
       },
       (reserve) {
         emit(state.copyWith(actionEnCours: false, reserve: reserve, erreur: null));
+        // La trace vient d'être écrite avec le changement : l'historique se
+        // relit pour la montrer aussitôt — en file hors ligne, la réponse
+        // rejouée ne porte pas encore la ligne, et le repli cache s'applique.
+        unawaited(chargerHistorique());
         return true;
       },
     );

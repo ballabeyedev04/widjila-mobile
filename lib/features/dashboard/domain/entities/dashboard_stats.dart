@@ -129,3 +129,57 @@ class DashboardStats extends Equatable {
   List<Object?> get props =>
       [chantiers, reserves, plans, inspections, documents, utilisateurs, parStatut, parSeverite, parChantier];
 }
+
+/// Un point de la courbe d'évolution — miroir d'un élément de
+/// `stats.series` servi par `GET /dashboard/evolution`
+/// (`DashboardService.evolution`). `mois` est au format `AAAA-MM`.
+class DashboardEvolutionPoint extends Equatable {
+  final String mois;
+  final int creees;
+  final int traitees;
+  final int levees;
+
+  const DashboardEvolutionPoint({
+    required this.mois,
+    this.creees = 0,
+    this.traitees = 0,
+    this.levees = 0,
+  });
+
+  factory DashboardEvolutionPoint.fromJson(Map<String, dynamic> json) {
+    return DashboardEvolutionPoint(
+      mois: json['mois'] as String? ?? '',
+      creees: json['creees'] as int? ?? 0,
+      traitees: json['traitees'] as int? ?? 0,
+      // `levees` est le nom actuel ; `validees` son ancien nom, encore servi
+      // par le serveur pour l'admin web. L'un ou l'autre, jamais les deux.
+      levees: json['levees'] as int? ?? json['validees'] as int? ?? 0,
+    );
+  }
+
+  @override
+  List<Object?> get props => [mois, creees, traitees, levees];
+}
+
+/// Évolution mensuelle des réserves (créées / traitées / levées), calculée
+/// par le serveur depuis l'historique des réserves. Le mobile ne fait que la
+/// dessiner.
+class DashboardEvolution extends Equatable {
+  final List<DashboardEvolutionPoint> series;
+
+  const DashboardEvolution({this.series = const []});
+
+  factory DashboardEvolution.fromJson(Map<String, dynamic> json) {
+    final brut = (json['series'] as List?) ?? const [];
+    return DashboardEvolution(
+      series: brut.map((e) => DashboardEvolutionPoint.fromJson(e as Map<String, dynamic>)).toList(),
+    );
+  }
+
+  /// Vrai si au moins un point porte une valeur : une courbe de zéros ne
+  /// mérite pas un graphique, mais un message.
+  bool get aDesDonnees => series.any((p) => p.creees > 0 || p.traitees > 0 || p.levees > 0);
+
+  @override
+  List<Object?> get props => [series];
+}

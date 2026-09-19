@@ -118,6 +118,49 @@ void main() {
     );
   });
 
+  testWidgets('les puces de filtre proposent les statuts du client, avec le compteur du serveur', (tester) async {
+    when(() => getToutes(page: 1, limit: 20, search: '', statut: null))
+        .thenAnswer((_) async => const Right(ReservePage(items: [], total: 0)));
+    when(() => getCompteurs()).thenAnswer((_) async => const Right(ReserveStatutsCount(
+          parStatut: {ReserveStatut.aSurveiller: 3, ReserveStatut.levee: 2},
+          total: 5,
+        )));
+
+    await pomper(tester, largeur: 1200);
+
+    expect(find.text('Toutes (5)'), findsOneWidget);
+    expect(find.text('À surveiller (3)'), findsOneWidget);
+    expect(find.text('Levée (2)'), findsOneWidget);
+    expect(find.text('À échéance (0)'), findsOneWidget);
+    expect(find.text('Traitée (0)'), findsOneWidget);
+    expect(find.text('Refusée (0)'), findsOneWidget);
+    expect(find.text('En retard (0)'), findsOneWidget);
+  });
+
+  testWidgets('un statut sans reserve : l’ecran vide NOMME le statut, jamais une page blanche', (tester) async {
+    when(() => getToutes(page: 1, limit: 20, search: '', statut: null))
+        .thenAnswer((_) async => const Right(ReservePage(items: [], total: 0)));
+    when(() => getToutes(page: 1, limit: 20, search: '', statut: ReserveStatut.aSurveiller))
+        .thenAnswer((_) async => const Right(ReservePage(items: [], total: 0)));
+    when(() => getCompteurs())
+        .thenAnswer((_) async => const Right(ReserveStatutsCount(parStatut: {}, total: 0)));
+
+    await pomper(tester, largeur: 1200);
+
+    // La rangee de puces defile : on amene la puce a l'ecran avant d'appuyer.
+    await tester.ensureVisible(find.text('À surveiller (0)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('À surveiller (0)'));
+    await tester.pumpAndSettle();
+
+    // La liste a bien ete redemandee avec le filtre : les donnees viennent du
+    // serveur, pas d'un tri local.
+    verify(() => getToutes(page: 1, limit: 20, search: '', statut: ReserveStatut.aSurveiller)).called(1);
+    expect(find.text('Aucune réserve « À surveiller »'), findsOneWidget);
+    expect(find.text('Les réserves qui passeront à ce statut apparaîtront ici.'), findsOneWidget);
+    expect(find.text('Aucun résultat'), findsNothing);
+  });
+
   testWidgets('le message s’affiche MEME si les compteurs ne repondent jamais', (tester) async {
     // Le defaut d'origine, vu depuis l'ecran : les compteurs ne decorent que
     // les puces de filtre, ils ne doivent pas pouvoir retenir la reponse.

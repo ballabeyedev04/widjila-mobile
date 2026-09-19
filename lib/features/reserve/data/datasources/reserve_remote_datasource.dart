@@ -41,6 +41,11 @@ abstract class ReserveRemoteDataSource {
   Future<List<CommentaireReserve>> getCommentaires(String reserveId);
   Future<CommentaireReserve> ajouterCommentaire(String reserveId, String message);
 
+  /// `GET /reserves/:id/historique` — les changements PERSISTÉS de la
+  /// réserve, normalisés par le serveur (ancien/nouveau statut, auteur en
+  /// nom complet, date serveur), du plus récent au plus ancien.
+  Future<List<ReserveHistoriqueEntry>> getHistorique(String reserveId);
+
   Future<List<AffectationReserve>> getAffectations(String reserveId);
   Future<AffectationReserve> affecter(String reserveId, Map<String, dynamic> payload);
   Future<void> retirerAffectation(String reserveId, String affectationId);
@@ -218,6 +223,17 @@ class ReserveRemoteDataSourceImpl implements ReserveRemoteDataSource {
       final response = await dio.get('/reserves/$reserveId/commentaires');
       final liste = _data(response)['commentaires'] as List;
       return liste.map((e) => CommentaireReserve.fromJson(e as Map<String, dynamic>)).toList();
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<List<ReserveHistoriqueEntry>> getHistorique(String reserveId) async {
+    try {
+      final response = await dio.get('/reserves/$reserveId/historique');
+      final liste = _data(response)['historique'] as List;
+      return liste.map((e) => ReserveHistoriqueEntry.fromJson(e as Map<String, dynamic>)).toList();
     } on DioException catch (e) {
       throw mapDioException(e);
     }

@@ -12,9 +12,13 @@ enum ReserveStatut {
   affectee,
   priseEnCharge,
   enCours,
+  aSurveiller,
+  aEcheance,
   corrigee,
+  traitee,
   aVerifier,
   validee,
+  levee,
   refusee,
   rouverte,
   enRetard,
@@ -32,12 +36,20 @@ extension ReserveStatutX on ReserveStatut {
         return ReserveStatut.priseEnCharge;
       case 'en_cours':
         return ReserveStatut.enCours;
+      case 'a_surveiller':
+        return ReserveStatut.aSurveiller;
+      case 'a_echeance':
+        return ReserveStatut.aEcheance;
       case 'corrigee':
         return ReserveStatut.corrigee;
+      case 'traitee':
+        return ReserveStatut.traitee;
       case 'a_verifier':
         return ReserveStatut.aVerifier;
       case 'validee':
         return ReserveStatut.validee;
+      case 'levee':
+        return ReserveStatut.levee;
       case 'refusee':
         return ReserveStatut.refusee;
       case 'rouverte':
@@ -61,12 +73,20 @@ extension ReserveStatutX on ReserveStatut {
         return 'prise_en_charge';
       case ReserveStatut.enCours:
         return 'en_cours';
+      case ReserveStatut.aSurveiller:
+        return 'a_surveiller';
+      case ReserveStatut.aEcheance:
+        return 'a_echeance';
       case ReserveStatut.corrigee:
         return 'corrigee';
+      case ReserveStatut.traitee:
+        return 'traitee';
       case ReserveStatut.aVerifier:
         return 'a_verifier';
       case ReserveStatut.validee:
         return 'validee';
+      case ReserveStatut.levee:
+        return 'levee';
       case ReserveStatut.refusee:
         return 'refusee';
       case ReserveStatut.rouverte:
@@ -88,12 +108,20 @@ extension ReserveStatutX on ReserveStatut {
         return l10n.statutPriseEnCharge;
       case ReserveStatut.enCours:
         return l10n.statutEnCours;
+      case ReserveStatut.aSurveiller:
+        return l10n.statutASurveiller;
+      case ReserveStatut.aEcheance:
+        return l10n.statutAEcheance;
       case ReserveStatut.corrigee:
         return l10n.statutCorrigee;
+      case ReserveStatut.traitee:
+        return l10n.statutTraitee;
       case ReserveStatut.aVerifier:
         return l10n.statutAVerifier;
       case ReserveStatut.validee:
         return l10n.statutValidee;
+      case ReserveStatut.levee:
+        return l10n.statutLevee;
       case ReserveStatut.refusee:
         return l10n.statutRefusee;
       case ReserveStatut.rouverte:
@@ -104,7 +132,29 @@ extension ReserveStatutX on ReserveStatut {
         return l10n.statutCloturee;
     }
   }
+
+  /// Verdict POSITIF — miroir de `STATUTS_RESERVE_LEVEES` (`config/enums.js`).
+  /// `levee` est le mot du client pour `validee` : mêmes preuves exigées,
+  /// mêmes compteurs (« Levées » du tableau de bord).
+  bool get estLevee => this == ReserveStatut.validee || this == ReserveStatut.levee;
+
+  /// Réserve SOLDÉE — miroir de `STATUTS_RESERVE_FERMES` : elle ne compte plus
+  /// parmi les ouvertes et n'est plus modifiable (fiche, médias).
+  bool get estFerme => estLevee || this == ReserveStatut.cloturee;
 }
+
+/// Les statuts par lesquels le client suit ses réserves au quotidien — ceux
+/// de son ancien outil, repris tels quels dans la demande de recette. Ils
+/// alimentent les puces de filtre et les cartes du tableau de bord ; les
+/// chiffres, eux, viennent toujours du serveur (`stats.parStatut`).
+const statutsSuiviClient = <ReserveStatut>[
+  ReserveStatut.enRetard,
+  ReserveStatut.aSurveiller,
+  ReserveStatut.aEcheance,
+  ReserveStatut.traitee,
+  ReserveStatut.refusee,
+  ReserveStatut.levee,
+];
 
 enum ReserveSeverite { faible, moyenne, haute, critique }
 
@@ -307,31 +357,102 @@ class ReserveMedia extends Equatable {
   List<Object?> get props => [id, type, url, thumbnailUrl, prisLe];
 }
 
-/// Entrée d'historique — miroir de
-/// `backend/src/models/reserveHistorique.model.js`. `action` reste la
-/// valeur brute du back (creation/modification/statut/commentaire/
-/// validation/refus/suppression) : c'est [ReserveHistoriqueEntry.libelle]
-/// qui porte la traduction pour l'affichage.
+/// Entrée d'historique — une ligne PERSISTÉE de `reserve_historiques`
+/// (`backend/src/models/reserveHistorique.model.js`), écrite par le serveur
+/// dans la même transaction que le changement qu'elle décrit. Rien ici n'est
+/// reconstruit depuis le statut courant.
+///
+/// `action` reste la valeur brute du back (creation/modification/statut/
+/// commentaire/validation/refus/affectation/suppression) ; c'est
+/// [ReserveHistoriqueEntry.libelle] qui porte la traduction.
+///
+/// Deux formes JSON sont acceptées :
+///   - la ligne brute jointe au DÉTAIL (`historiques[]`) : les statuts sont
+///     dans `anciennes_valeurs.statut` / `nouvelles_valeurs.statut` ;
+///   - l'entrée NORMALISÉE de `GET /reserves/:id/historique` :
+///     `ancienStatut`, `nouveauStatut`, `changementStatut`, `date`.
+/// La seconde est celle que l'écran charge ; la première sert de repli hors
+/// ligne, depuis la fiche en cache.
 class ReserveHistoriqueEntry extends Equatable {
   final String id;
   final String action;
+
+  /// Date SERVEUR du changement (UTC) — jamais l'heure du téléphone. À
+  /// afficher via `toLocal()`.
   final DateTime? createdAt;
   final ReserveUtilisateurRef? utilisateur;
 
-  const ReserveHistoriqueEntry({required this.id, required this.action, this.createdAt, this.utilisateur});
+  /// Statut avant le changement — nul à la création (statut initial) et pour
+  /// une ligne qui n'est pas un changement de statut.
+  final ReserveStatut? ancienStatut;
 
-  factory ReserveHistoriqueEntry.fromJson(Map<String, dynamic> json) => ReserveHistoriqueEntry(
-        id: json['id'] as String,
-        action: json['action'] as String? ?? '',
-        createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'] as String) : null,
-        utilisateur: json['utilisateur'] != null ? ReserveUtilisateurRef.fromJson(json['utilisateur'] as Map<String, dynamic>) : null,
-      );
+  /// Statut après le changement — nul pour une ligne qui n'en est pas un.
+  final ReserveStatut? nouveauStatut;
 
+  /// Motif porté par la ligne : celui d'un refus, ou celui posé par le
+  /// traitement automatique des échéances.
+  final String? motif;
+
+  const ReserveHistoriqueEntry({
+    required this.id,
+    required this.action,
+    this.createdAt,
+    this.utilisateur,
+    this.ancienStatut,
+    this.nouveauStatut,
+    this.motif,
+  });
+
+  /// Vrai quand la ligne fait passer la réserve d'un statut à un autre —
+  /// création comprise. C'est ce qui décide de sa présentation dans
+  /// l'historique des changements.
+  bool get estChangementStatut => nouveauStatut != null;
+
+  factory ReserveHistoriqueEntry.fromJson(Map<String, dynamic> json) {
+    // Forme normalisée d'abord ; à défaut, les valeurs brutes de la ligne.
+    final anciennes = json['anciennes_valeurs'];
+    final nouvelles = json['nouvelles_valeurs'];
+    String? statutDe(dynamic valeurs) =>
+        valeurs is Map<String, dynamic> && valeurs['statut'] is String ? valeurs['statut'] as String : null;
+
+    String? ancienBrut = json['ancienStatut'] as String?;
+    String? nouveauBrut = json['nouveauStatut'] as String?;
+    if (!json.containsKey('changementStatut')) {
+      ancienBrut = statutDe(anciennes);
+      nouveauBrut = statutDe(nouvelles);
+      // Même statut de part et d'autre : pas un changement.
+      if (nouveauBrut == null || nouveauBrut == ancienBrut) {
+        ancienBrut = null;
+        nouveauBrut = null;
+      }
+    }
+
+    final dateBrute = (json['date'] ?? json['createdAt']) as String?;
+    final motif = json['motif'] as String? ??
+        (nouvelles is Map<String, dynamic> ? nouvelles['motif'] as String? : null);
+
+    return ReserveHistoriqueEntry(
+      id: json['id'] as String,
+      action: json['action'] as String? ?? '',
+      createdAt: dateBrute != null ? DateTime.tryParse(dateBrute) : null,
+      utilisateur:
+          json['utilisateur'] != null ? ReserveUtilisateurRef.fromJson(json['utilisateur'] as Map<String, dynamic>) : null,
+      ancienStatut: ancienBrut != null ? ReserveStatutX.fromString(ancienBrut) : null,
+      nouveauStatut: nouveauBrut != null ? ReserveStatutX.fromString(nouveauBrut) : null,
+      motif: motif,
+    );
+  }
+
+  /// Forme normalisée — c'est elle qui est mise en cache avec la fiche.
   Map<String, dynamic> toJson() => {
         'id': id,
         'action': action,
         'createdAt': createdAt?.toIso8601String(),
         'utilisateur': utilisateur?.toJson(),
+        'changementStatut': estChangementStatut,
+        'ancienStatut': ancienStatut?.raw,
+        'nouveauStatut': nouveauStatut?.raw,
+        'motif': motif,
       };
 
   String libelle(AppLocalizations l10n) {
@@ -350,13 +471,19 @@ class ReserveHistoriqueEntry extends Equatable {
         return l10n.historiqueRefus;
       case 'suppression':
         return l10n.historiqueSuppression;
+      case 'affectation':
+        return l10n.historiqueAffectation;
+      case 'desaffectation':
+        return l10n.historiqueDesaffectation;
+      case 'signature':
+        return l10n.historiqueSignature;
       default:
         return action;
     }
   }
 
   @override
-  List<Object?> get props => [id, action, createdAt, utilisateur];
+  List<Object?> get props => [id, action, createdAt, utilisateur, ancienStatut, nouveauStatut, motif];
 }
 
 /// Réserve — miroir de `backend/src/models/reserve.model.js` + des
@@ -450,6 +577,16 @@ class Reserve extends Equatable {
 
   final String id;
   final String numero;
+
+  /// Numéro PROPRE AU PLAN (1, 2, 3…), attribué par le serveur à la création
+  /// quand la réserve est posée sur un plan — c'est lui que le repère affiche.
+  ///
+  /// Nul pour une réserve hors plan, et pour une réserve créée HORS LIGNE tant
+  /// que le serveur ne l'a pas numérotée : il repart à 1 sur chaque plan et
+  /// seul le serveur connaît le dernier attribué. Jamais recalculé ici — le
+  /// numéro vient du serveur ou n'est pas affiché.
+  final int? numeroPlan;
+
   final String chantierId;
   final String titre;
   final String? description;
@@ -512,6 +649,17 @@ class Reserve extends Equatable {
   final ReserveUtilisateurRef? createur;
   final String? motifRefus;
 
+  /// Dernière écriture SERVEUR sur la réserve (`updated_at`) — servie par le
+  /// détail. Distincte de la date du dernier changement de statut, que porte
+  /// l'historique.
+  final DateTime? updatedAt;
+
+  /// Auteur et date du verdict positif (`validePar`, `date_validation`) —
+  /// renseignés tant que la réserve est validée ou levée, effacés par toute
+  /// autre transition (`ReserveService.changerStatut`).
+  final ReserveUtilisateurRef? validateur;
+  final DateTime? dateValidation;
+
   /// Première vignette photo (liste seulement — la galerie complète vient
   /// du détail via `/reserves/:id/medias`).
   final String? photoApercu;
@@ -526,6 +674,7 @@ class Reserve extends Equatable {
   const Reserve({
     required this.id,
     required this.numero,
+    this.numeroPlan,
     required this.chantierId,
     required this.titre,
     this.description,
@@ -549,6 +698,9 @@ class Reserve extends Equatable {
     this.assigne,
     this.createur,
     this.motifRefus,
+    this.updatedAt,
+    this.validateur,
+    this.dateValidation,
     this.photoApercu,
     this.medias = const [],
     this.historiques = const [],
@@ -591,13 +743,13 @@ class Reserve extends Equatable {
   /// sur une réserve validée ou clôturée en ne regardant que le RÔLE : la
   /// confirmation rouge de suppression s'ouvrait, et le refus n'arrivait
   /// qu'après. Rouvrir la réserve reste le chemin prévu pour la reprendre.
-  bool get estFige =>
-      statut == ReserveStatut.validee || statut == ReserveStatut.cloturee;
+  bool get estFige => statut.estFerme;
 
   factory Reserve.fromJson(Map<String, dynamic> json) {
     return Reserve(
       id: json['id'] as String,
       numero: json['numero'] as String? ?? '',
+      numeroPlan: (json['numeroPlan'] as num?)?.toInt(),
       chantierId: json['chantierId'] as String? ?? json['chantier_id'] as String? ?? '',
       titre: json['titre'] as String? ?? '',
       description: json['description'] as String?,
@@ -625,6 +777,10 @@ class Reserve extends Equatable {
       assigne: json['assigne'] != null ? ReserveUtilisateurRef.fromJson(json['assigne'] as Map<String, dynamic>) : null,
       createur: json['createur'] != null ? ReserveUtilisateurRef.fromJson(json['createur'] as Map<String, dynamic>) : null,
       motifRefus: json['motif_refus'] as String?,
+      updatedAt: json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt'] as String) : null,
+      validateur:
+          json['validateur'] != null ? ReserveUtilisateurRef.fromJson(json['validateur'] as Map<String, dynamic>) : null,
+      dateValidation: json['date_validation'] != null ? DateTime.tryParse(json['date_validation'] as String) : null,
       photoApercu: _apercu(json['medias']),
       medias: json['medias'] is List
           ? (json['medias'] as List).map((e) => ReserveMedia.fromJson(e as Map<String, dynamic>)).toList()
@@ -643,6 +799,7 @@ class Reserve extends Equatable {
   Map<String, dynamic> toJson() => {
         'id': id,
         'numero': numero,
+        'numeroPlan': numeroPlan,
         'chantierId': chantierId,
         'titre': titre,
         'description': description,
@@ -668,6 +825,9 @@ class Reserve extends Equatable {
         'assigne': assigne?.toJson(),
         'createur': createur?.toJson(),
         'motif_refus': motifRefus,
+        'updatedAt': updatedAt?.toIso8601String(),
+        'validateur': validateur?.toJson(),
+        'date_validation': dateValidation?.toIso8601String(),
         'medias': medias.map((m) => m.toJson()).toList(),
         'historiques': historiques.map((h) => h.toJson()).toList(),
       };
@@ -697,6 +857,9 @@ class Reserve extends Equatable {
       Reserve(
         id: id,
         numero: numero ?? this.numero,
+        // Jamais remplacé par une copie : le numéro de plan appartient au
+        // serveur, et ni un statut ni un titre ne le changent.
+        numeroPlan: numeroPlan,
         chantierId: chantierId,
         titre: titre ?? this.titre,
         description: description ?? this.description,
@@ -724,6 +887,9 @@ class Reserve extends Equatable {
         assigne: assigne,
         createur: createur,
         motifRefus: motifRefus,
+        updatedAt: updatedAt,
+        validateur: validateur,
+        dateValidation: dateValidation,
         // `?? this.…` : « null = inchangé », comme le promet la doc. Sans ce
         // repli, les deux listes ne compilaient même pas (types nullables
         // passés à des paramètres qui ne le sont pas), et l'aperçu photo était
@@ -735,10 +901,10 @@ class Reserve extends Equatable {
 
   @override
   List<Object?> get props => [
-        id, numero, chantierId, titre, description, severite, priorite, categorie, statut, dateLimite, createdAt,
+        id, numero, numeroPlan, chantierId, titre, description, severite, priorite, categorie, statut, dateLimite, createdAt,
         batiment, etage, zone, lot, entreprise, partenaire, chantier, plan, position,
         corpsEtat, phase, assigne, createur,
-        motifRefus, photoApercu, medias, historiques,
+        motifRefus, updatedAt, validateur, dateValidation, photoApercu, medias, historiques,
       ];
 }
 

@@ -19,16 +19,38 @@ import '../../domain/repositories/reserve_repository.dart';
 
 /// Statuts proposés en puces, au-dessus de la liste. `null` = « Toutes ».
 ///
-/// Choix de ces quatre entrées : ce sont les états sur lesquels on agit au
-/// quotidien (maquette Widjila, écran 2). Les statuts plus rares (refusée,
-/// rouverte, clôturée…) restent accessibles par le bouton « Filtrer », qui
-/// les liste tous — les empiler ici aurait donné une rangée illisible.
+/// Les puces suivent les statuts par lesquels le client suit ses réserves au
+/// quotidien ([statutsSuiviClient] — en retard, à surveiller, à échéance,
+/// traitée, refusée, levée), précédés des trois états de travail d'origine.
+/// La rangée défile horizontalement ; les statuts plus rares (rouverte,
+/// clôturée…) restent accessibles par le bouton « Filtrer », qui les liste
+/// tous.
 List<({String label, IconData icon, ReserveStatut? statut})> filtresReserve(AppLocalizations l10n) => [
       (label: l10n.reserveFiltreToutes, icon: Icons.grid_view_rounded, statut: null),
       (label: l10n.statutEnCours, icon: Icons.schedule_rounded, statut: ReserveStatut.enCours),
       (label: l10n.statutAVerifier, icon: Icons.verified_outlined, statut: ReserveStatut.aVerifier),
       (label: l10n.statutValidee, icon: Icons.check_circle_outline_rounded, statut: ReserveStatut.validee),
+      for (final s in statutsSuiviClient) (label: s.label(l10n), icon: _iconeStatut(s), statut: s),
     ];
+
+IconData _iconeStatut(ReserveStatut s) {
+  switch (s) {
+    case ReserveStatut.enRetard:
+      return Icons.error_outline_rounded;
+    case ReserveStatut.aSurveiller:
+      return Icons.visibility_outlined;
+    case ReserveStatut.aEcheance:
+      return Icons.event_available_outlined;
+    case ReserveStatut.traitee:
+      return Icons.build_circle_outlined;
+    case ReserveStatut.refusee:
+      return Icons.block_rounded;
+    case ReserveStatut.levee:
+      return Icons.task_alt_rounded;
+    default:
+      return Icons.label_outline_rounded;
+  }
+}
 
 /// Rangée de puces de statut, chacune avec SON compteur.
 ///

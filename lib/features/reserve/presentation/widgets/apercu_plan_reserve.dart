@@ -36,6 +36,11 @@ class ApercuPlanReserve extends StatefulWidget {
   /// Numéro affiché sur l'étiquette du repère (« R-0003 »).
   final String libelle;
 
+  /// Numéro de la réserve SUR SON PLAN (1, 2, 3…) — celui que le plan
+  /// complet affiche sur chaque repère. Nul si le serveur ne l'a pas encore
+  /// attribué ; le plein écran dessine alors la goutte seule.
+  final int? numeroPlan;
+
   /// Couleur du repère — celle du STATUT, comme les pastilles du plan.
   final Color couleur;
 
@@ -50,6 +55,7 @@ class ApercuPlanReserve extends StatefulWidget {
     required this.plan,
     required this.position,
     required this.libelle,
+    this.numeroPlan,
     required this.couleur,
     this.onOuvrirPlan,
     this.telecharger,
@@ -204,6 +210,7 @@ class _ApercuPlanReserveState extends State<ApercuPlanReserve> {
         octets: rendu.octets,
         page: _page,
         position: widget.position,
+        numeroPlan: widget.numeroPlan,
         couleur: widget.couleur,
         onOuvrirPlan: widget.onOuvrirPlan,
       ),
@@ -427,6 +434,7 @@ class _PlanPleinEcran extends StatelessWidget {
   final Uint8List octets;
   final int page;
   final ReservePositionRef? position;
+  final int? numeroPlan;
   final Color couleur;
   final VoidCallback? onOuvrirPlan;
 
@@ -435,6 +443,7 @@ class _PlanPleinEcran extends StatelessWidget {
     required this.octets,
     required this.page,
     required this.position,
+    this.numeroPlan,
     required this.couleur,
     this.onOuvrirPlan,
   });
@@ -466,7 +475,7 @@ class _PlanPleinEcran extends StatelessWidget {
           page: page,
           controlesZoom: true,
           marqueurs: [
-            if (p != null) MarqueurPlan(id: 'reserve', x: p.x, y: p.y, couleur: couleur, actif: true),
+            if (p != null) MarqueurPlan(id: 'reserve', x: p.x, y: p.y, couleur: couleur, actif: true, numero: numeroPlan),
           ],
         ),
       ),

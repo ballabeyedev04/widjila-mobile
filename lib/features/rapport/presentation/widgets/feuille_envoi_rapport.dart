@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/app_alert.dart';
 import '../../../../injection_container.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../l10n/l10n_extension.dart';
@@ -127,11 +128,17 @@ class _FeuilleEnvoiRapportState extends State<FeuilleEnvoiRapport> {
         final messenger = ScaffoldMessenger.of(context);
         Navigator.of(context).pop();
         widget.apresEnvoi?.call();
-        messenger.showSnackBar(SnackBar(
-          content: Text(issue.enFileAttente
-              ? l10n.rapportEnvoiHorsLigne
-              : (issue.message.isEmpty ? l10n.rapportEnvoiReussi : issue.message)),
-        ));
+        if (issue.enFileAttente) {
+          // Mis en file d'attente, pas envoyé : un bandeau, sans le son de
+          // succès — le serveur n'a encore rien confirmé.
+          messenger.showSnackBar(SnackBar(content: Text(l10n.rapportEnvoiHorsLigne)));
+        } else {
+          AppAlert.confirmation(
+            context,
+            messenger: messenger,
+            message: issue.message.isEmpty ? l10n.rapportEnvoiReussi : issue.message,
+          );
+        }
       },
     );
   }

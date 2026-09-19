@@ -81,6 +81,15 @@
   "reserveRechercheHint": "Search a snag…",
   "reserveAucune": "No snags",
   "reserveAucuneCriteres": "No snag matches these criteria.",
+  "reserveAucuneAvecStatut": "No snag with status “{statut}”",
+  "@reserveAucuneAvecStatut": {
+    "placeholders": {
+      "statut": {
+        "type": "String"
+      }
+    }
+  },
+  "reserveAucuneAvecStatutDescription": "Snags moved to this status will show up here.",
   "reserveCreerPremiere": "Create the first snag with the + button.",
   "reserveFiltreToutes": "All",
   "reserveEssayerAutreFiltre": "Try another keyword or filter.",
@@ -99,6 +108,22 @@
   },
   "reserveDetailTitreDefaut": "Snag",
   "reserveNumeroProvisoire": "Pending sync",
+  "planRepereNumero": "Defect no. {numero}",
+  "@planRepereNumero": {
+    "placeholders": {
+      "numero": {
+        "type": "int"
+      }
+    }
+  },
+  "reserveNumeroSurPlan": "No. {numero} on this plan",
+  "@reserveNumeroSurPlan": {
+    "placeholders": {
+      "numero": {
+        "type": "int"
+      }
+    }
+  },
   "reserveDetailChangerStatut": "Change status",
   "reserveDetailNouveauStatut": "New status",
   "reserveDetailMotifRefusTitre": "Reason for rejection",
@@ -145,6 +170,26 @@
   "historiqueValidation": "Snag approved",
   "historiqueRefus": "Snag rejected",
   "historiqueSuppression": "Snag deleted",
+  "historiqueAffectation": "Contractor assigned",
+  "historiqueDesaffectation": "Contractor removed",
+  "historiqueSignature": "Snag signed",
+  "historiqueChangementsTitre": "Change history",
+  "historiqueChangementsVide": "No status change recorded for this snag.",
+  "historiqueChangementsErreur": "Unable to load the history.",
+  "historiqueSysteme": "System (deadline)",
+  "historiqueStatutInitial": "Initial status",
+  "reserveDetailModifiePar": "Changed by: {nom}",
+  "@reserveDetailModifiePar": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
+  "reserveDetailModifieeLe": "Updated on",
+  "reserveDetailSeverite": "Severity",
+  "reserveDetailLeveePar": "Cleared by",
+  "reserveDetailLeveeLe": "Cleared on",
   "wizardEtapeInformations": "Information",
   "wizardEtapeRecapitulatif": "Summary",
   "wizardCreerReserve": "Create the snag",
@@ -411,9 +456,13 @@
   "statutAffectee": "Assigned",
   "statutPriseEnCharge": "Acknowledged",
   "statutEnCours": "In progress",
+  "statutASurveiller": "To watch",
+  "statutAEcheance": "Due soon",
   "statutCorrigee": "Corrected",
+  "statutTraitee": "Handled",
   "statutAVerifier": "To be checked",
   "statutValidee": "Approved",
+  "statutLevee": "Cleared",
   "statutRefusee": "Rejected",
   "statutRouverte": "Reopened",
   "statutEnRetard": "Overdue",
@@ -966,6 +1015,20 @@
   "dashboardKpiTotal": "Total",
   "dashboardKpiOuvertes": "Open",
   "dashboardKpiLevees": "Approved",
+  "dashboardKpiTraitees": "Handled",
+  "dashboardKpiRefusees": "Rejected",
+  "dashboardCartesPrecedentes": "Previous cards",
+  "dashboardCartesSuivantes": "Next cards",
+  "dashboardEvolutionTitre": "Snag trend",
+  "dashboardEvolutionSousTitre": "Created, handled and cleared per month",
+  "dashboardEvolutionCreees": "Created",
+  "dashboardEvolutionTraitees": "Handled",
+  "dashboardEvolutionLevees": "Cleared",
+  "dashboardEvolutionErreur": "Unable to load the trend.",
+  "dashboardParChantierTitre": "Snags per site",
+  "dashboardParChantierSousTitre": "Total and open, per site",
+  "dashboardParChantierOuvertes": "Open",
+  "dashboardAucuneDonnee": "No data yet",
   "dashboardVueEnsemble": "Overview",
   "dashboardRepartitionParStatut": "Breakdown of snags by status",
   "dashboardAucuneReserve": "No snags yet",
@@ -1114,6 +1177,14 @@
   "abonnementUtilisateursIllimites": "Unlimited users",
   "abonnementUtilisateursMax": "Up to {n} users",
   "abonnementOuvertureImpossible": "Unable to open the payment page.",
+  "abonnementPaiementConfirme": "Payment confirmed: your {plan} plan is active.",
+  "@abonnementPaiementConfirme": {
+    "placeholders": {
+      "plan": {
+        "type": "String"
+      }
+    }
+  },
   "abonnementPreparationImpossible": "Unable to prepare the payment. Check your connection and try again.",
   "abonnementReserveFacturation": "Reserved for the subscription owner",
   "reserveEmplacementTitre": "Location on the plan",

@@ -154,6 +154,43 @@ void main() {
       expect(resultat.isRight(), isTrue);
       resultat.fold((_) => fail('doit réussir'), (r) => expect(r.titre, 'Titre en cache'));
     });
+
+    test('historique : en ligne, la route dédiée ; coupure réseau, les lignes de la fiche en cache', () async {
+      final ancienne = ReserveHistoriqueEntry(
+        id: 'h0', action: 'creation', createdAt: DateTime.utc(2026, 9, 15), nouveauStatut: ReserveStatut.creee,
+      );
+      final recente = ReserveHistoriqueEntry(
+        id: 'h1', action: 'statut', createdAt: DateTime.utc(2026, 9, 18),
+        ancienStatut: ReserveStatut.creee, nouveauStatut: ReserveStatut.aSurveiller,
+      );
+      // La fiche en cache porte ses lignes dans l'ordre CHRONOLOGIQUE (celui
+      // du détail serveur).
+      final fiche = Reserve(
+        id: 'r-hist', numero: 'R-0002', chantierId: 'c1', titre: 'Fissure', statut: ReserveStatut.aSurveiller,
+        historiques: [ancienne, recente],
+      );
+      await cache.enregistrer(fiche);
+      when(() => remote.getHistorique('r-hist')).thenAnswer((_) async => [recente, ancienne]);
+
+      final enLigne = await repository(DetecteurSimule(EtatReseau.enLigne)).getHistorique('r-hist');
+      enLigne.fold((_) => fail('doit réussir'), (h) => expect(h, [recente, ancienne]));
+
+      when(() => remote.getHistorique('r-hist')).thenThrow(const NetworkException());
+      final horsLigne = await repository(DetecteurSimule(EtatReseau.enLigne)).getHistorique('r-hist');
+
+      // Servies du plus récent au plus ancien, comme le ferait le serveur.
+      horsLigne.fold((_) => fail('doit réussir depuis le cache'), (h) => expect(h, [recente, ancienne]));
+    });
+
+    test('historique : refus applicatif (403), pas de repli cache', () async {
+      await cache.enregistrer(_reserveServeur(id: 'r-403'));
+      when(() => remote.getHistorique('r-403'))
+          .thenThrow(const ServerException(message: 'Accès refusé', statusCode: 403));
+
+      final resultat = await repository(DetecteurSimule(EtatReseau.enLigne)).getHistorique('r-403');
+
+      expect(resultat.isLeft(), isTrue);
+    });
   });
 
   group('creerReserve — hors ligne', () {

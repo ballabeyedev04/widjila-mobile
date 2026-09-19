@@ -81,6 +81,15 @@
   "reserveRechercheHint": "Mangel suchen…",
   "reserveAucune": "Keine Mängel",
   "reserveAucuneCriteres": "Kein Mangel entspricht diesen Kriterien.",
+  "reserveAucuneAvecStatut": "Kein Mangel mit Status „{statut}“",
+  "@reserveAucuneAvecStatut": {
+    "placeholders": {
+      "statut": {
+        "type": "String"
+      }
+    }
+  },
+  "reserveAucuneAvecStatutDescription": "Mängel, die in diesen Status wechseln, erscheinen hier.",
   "reserveCreerPremiere": "Erstellen Sie den ersten Mangel über die Schaltfläche +.",
   "reserveFiltreToutes": "Alle",
   "reserveEssayerAutreFiltre": "Versuchen Sie ein anderes Stichwort oder einen anderen Filter.",
@@ -99,6 +108,22 @@
   },
   "reserveDetailTitreDefaut": "Mangel",
   "reserveNumeroProvisoire": "Synchronisierung ausstehend",
+  "planRepereNumero": "Mangel Nr. {numero}",
+  "@planRepereNumero": {
+    "placeholders": {
+      "numero": {
+        "type": "int"
+      }
+    }
+  },
+  "reserveNumeroSurPlan": "Nr. {numero} auf diesem Plan",
+  "@reserveNumeroSurPlan": {
+    "placeholders": {
+      "numero": {
+        "type": "int"
+      }
+    }
+  },
   "reserveDetailChangerStatut": "Status ändern",
   "reserveDetailNouveauStatut": "Neuer Status",
   "reserveDetailMotifRefusTitre": "Ablehnungsgrund",
@@ -145,6 +170,26 @@
   "historiqueValidation": "Mangel freigegeben",
   "historiqueRefus": "Mangel abgelehnt",
   "historiqueSuppression": "Mangel gelöscht",
+  "historiqueAffectation": "Beteiligter zugewiesen",
+  "historiqueDesaffectation": "Beteiligter entfernt",
+  "historiqueSignature": "Mangel unterzeichnet",
+  "historiqueChangementsTitre": "Änderungsverlauf",
+  "historiqueChangementsVide": "Keine Statusänderung für diesen Mangel erfasst.",
+  "historiqueChangementsErreur": "Verlauf konnte nicht geladen werden.",
+  "historiqueSysteme": "System (Fälligkeit)",
+  "historiqueStatutInitial": "Anfangsstatus",
+  "reserveDetailModifiePar": "Geändert von: {nom}",
+  "@reserveDetailModifiePar": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
+  "reserveDetailModifieeLe": "Geändert am",
+  "reserveDetailSeverite": "Schweregrad",
+  "reserveDetailLeveePar": "Aufgehoben von",
+  "reserveDetailLeveeLe": "Aufgehoben am",
   "wizardEtapeInformations": "Angaben",
   "wizardEtapeRecapitulatif": "Zusammenfassung",
   "wizardCreerReserve": "Mangel erstellen",
@@ -411,9 +456,13 @@
   "statutAffectee": "Zugewiesen",
   "statutPriseEnCharge": "Angenommen",
   "statutEnCours": "In Bearbeitung",
+  "statutASurveiller": "Zu beobachten",
+  "statutAEcheance": "Bald fällig",
   "statutCorrigee": "Behoben",
+  "statutTraitee": "Bearbeitet",
   "statutAVerifier": "Zu prüfen",
   "statutValidee": "Freigegeben",
+  "statutLevee": "Aufgehoben",
   "statutRefusee": "Abgelehnt",
   "statutRouverte": "Wiedereröffnet",
   "statutEnRetard": "Überfällig",
@@ -966,6 +1015,20 @@
   "dashboardKpiTotal": "Gesamt",
   "dashboardKpiOuvertes": "Offen",
   "dashboardKpiLevees": "Freigegeben",
+  "dashboardKpiTraitees": "Bearbeitet",
+  "dashboardKpiRefusees": "Abgelehnt",
+  "dashboardCartesPrecedentes": "Vorherige Karten",
+  "dashboardCartesSuivantes": "Nächste Karten",
+  "dashboardEvolutionTitre": "Entwicklung der Mängel",
+  "dashboardEvolutionSousTitre": "Erstellt, bearbeitet und aufgehoben pro Monat",
+  "dashboardEvolutionCreees": "Erstellt",
+  "dashboardEvolutionTraitees": "Bearbeitet",
+  "dashboardEvolutionLevees": "Aufgehoben",
+  "dashboardEvolutionErreur": "Entwicklung konnte nicht geladen werden.",
+  "dashboardParChantierTitre": "Mängel pro Baustelle",
+  "dashboardParChantierSousTitre": "Gesamt und offen, pro Baustelle",
+  "dashboardParChantierOuvertes": "Offen",
+  "dashboardAucuneDonnee": "Noch keine Daten",
   "dashboardVueEnsemble": "Übersicht",
   "dashboardRepartitionParStatut": "Verteilung der Mängel nach Status",
   "dashboardAucuneReserve": "Noch keine Mängel",
@@ -1114,6 +1177,14 @@
   "abonnementUtilisateursIllimites": "Unbegrenzte Benutzer",
   "abonnementUtilisateursMax": "Bis zu {n} Benutzer",
   "abonnementOuvertureImpossible": "Die Zahlungsseite konnte nicht geöffnet werden.",
+  "abonnementPaiementConfirme": "Zahlung bestätigt: Ihr Tarif {plan} ist aktiv.",
+  "@abonnementPaiementConfirme": {
+    "placeholders": {
+      "plan": {
+        "type": "String"
+      }
+    }
+  },
   "abonnementPreparationImpossible": "Die Zahlung konnte nicht vorbereitet werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
   "abonnementReserveFacturation": "Nur für den Abonnementverantwortlichen",
   "reserveEmplacementTitre": "Position auf dem Plan",

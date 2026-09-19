@@ -744,7 +744,9 @@ class _EtapeApercu extends StatelessWidget {
               : () async {
                   final messenger = ScaffoldMessenger.of(context);
                   final id = await cubit.enregistrer();
-                  if (id != null) messenger.showSnackBar(SnackBar(content: Text(l10n.rapportBrouillonEnregistre)));
+                  if (id != null) {
+                    AppAlert.confirmation(context, messenger: messenger, message: l10n.rapportBrouillonEnregistre);
+                  }
                 },
           child: Text(l10n.rapportEnregistrerBrouillon),
         ),

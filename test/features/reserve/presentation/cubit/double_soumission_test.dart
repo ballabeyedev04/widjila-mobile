@@ -124,6 +124,9 @@ void main() {
       ajouterMedia = MockAjouterMediaReserve();
       repository = MockReserveRepository();
       when(() => getDetail(any())).thenAnswer((_) async => Right(_reserve()));
+      // Un changement de statut réussi relit l'historique en tâche de fond.
+      when(() => repository.getHistorique(any()))
+          .thenAnswer((_) async => const Right<Failure, List<ReserveHistoriqueEntry>>([]));
     });
 
     ReserveDetailCubit build() => ReserveDetailCubit(

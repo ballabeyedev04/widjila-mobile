@@ -279,8 +279,10 @@ class _PlanNavigationPageState extends State<PlanNavigationPage> {
         SnackBar(content: Text(AppAlert.messageLisible(context.l10n, echec.errorMessage)), backgroundColor: AppColors.danger),
       ),
       (_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.l10n.planDetailAjoute), backgroundColor: AppColors.success),
+        AppAlert.confirmation(
+          context,
+          message: context.l10n.planDetailAjoute,
+          backgroundColor: AppColors.success,
         );
         // Rechargé pour que le détail apparaisse AUSSITÔT sous son parent.
         _charger();
@@ -1151,6 +1153,8 @@ class _VuePlanState extends State<_VuePlan> {
             // Cahier technique § 14 : la pastille dit OÙ EN EST la réserve.
             couleur: couleurStatutReserve(r.statut),
             actif: _reserveActive == r.id,
+            // Le numéro SUR CE PLAN, tel que le serveur l'a attribué.
+            numero: r.numeroPlan,
           ),
       // En DERNIER, donc au-dessus des autres : c'est le point qu'on regarde.
       if (_pointProvisoire != null)

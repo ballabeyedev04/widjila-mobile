@@ -38,11 +38,17 @@ void main() {
   late MockAjouterMediaReserve ajouterMedia;
   late MockReserveRepository repository;
 
+  setUpAll(() => registerFallbackValue(ReserveStatut.creee));
+
   setUp(() {
     getDetail = MockGetReserveDetail();
     changerStatut = MockChangerStatutReserve();
     ajouterMedia = MockAjouterMediaReserve();
     repository = MockReserveRepository();
+    // Historique : chargé avec la collaboration ; vide par défaut, les tests
+    // qui le regardent le remplacent.
+    when(() => repository.getHistorique(any()))
+        .thenAnswer((_) async => const Right<Failure, List<ReserveHistoriqueEntry>>([]));
   });
 
   ReserveDetailCubit build() => ReserveDetailCubit(
@@ -83,6 +89,81 @@ void main() {
       expect(cubit.state.commentairesCharges, isTrue);
       expect(cubit.state.affectationsChargees, isTrue);
       expect(cubit.state.commentaires, isEmpty);
+    });
+  });
+
+  group('chargerHistorique — les lignes persistées par le serveur', () {
+    final entree = ReserveHistoriqueEntry(
+      id: 'h1',
+      action: 'statut',
+      createdAt: DateTime.utc(2026, 9, 18, 14, 32),
+      utilisateur: const ReserveUtilisateurRef(id: 'u1', nom: 'BEYE', prenom: 'Balla'),
+      ancienStatut: ReserveStatut.creee,
+      nouveauStatut: ReserveStatut.aSurveiller,
+    );
+
+    test('chargé avec la collaboration : enCours puis succès, avec les entrées', () async {
+      when(() => repository.getCommentaires(any())).thenAnswer((_) async => const Right([]));
+      when(() => repository.getAffectations(any())).thenAnswer((_) async => const Right([]));
+      when(() => repository.getHistorique(any())).thenAnswer((_) async => Right([entree]));
+
+      final cubit = build();
+      final statuts = <ActionReserveStatus>[];
+      final abonnement = cubit.stream.listen((s) => statuts.add(s.historiqueStatus));
+      await cubit.chargerCollaboration();
+      await abonnement.cancel();
+
+      expect(statuts.first, ActionReserveStatus.enCours);
+      expect(cubit.state.historiqueStatus, ActionReserveStatus.succes);
+      expect(cubit.state.historique, [entree]);
+      verify(() => repository.getHistorique('r1')).called(1);
+    });
+
+    test('un échec est DIT : statut erreur et message, la fiche reste intacte', () async {
+      when(() => repository.getCommentaires(any())).thenAnswer((_) async => const Right([]));
+      when(() => repository.getAffectations(any())).thenAnswer((_) async => const Right([]));
+      when(() => repository.getHistorique(any()))
+          .thenAnswer((_) async => const Left(ServerFailure(errorMessage: 'Indisponible')));
+
+      final cubit = build();
+      await cubit.chargerCollaboration();
+
+      expect(cubit.state.historiqueStatus, ActionReserveStatus.erreur);
+      expect(cubit.state.historique, isEmpty);
+      expect(cubit.state.status, ReserveDetailStatus.chargement); // la fiche n'est pas touchée
+    });
+
+    test('après un changement de statut réussi, l’historique est relu', () async {
+      when(() => changerStatut(
+            reserveId: any(named: 'reserveId'),
+            statut: any(named: 'statut'),
+            motif: any(named: 'motif'),
+          )).thenAnswer((_) async => Right(_reserve()));
+      when(() => repository.getHistorique(any())).thenAnswer((_) async => Right([entree]));
+
+      final cubit = build();
+      final ok = await cubit.changerStatut(ReserveStatut.aSurveiller);
+      // La relecture part sans être attendue : on laisse la boucle tourner.
+      await Future<void>.delayed(Duration.zero);
+
+      expect(ok, isTrue);
+      verify(() => repository.getHistorique('r1')).called(1);
+      expect(cubit.state.historique, [entree]);
+    });
+
+    test('un changement de statut REFUSÉ ne relit rien', () async {
+      when(() => changerStatut(
+            reserveId: any(named: 'reserveId'),
+            statut: any(named: 'statut'),
+            motif: any(named: 'motif'),
+          )).thenAnswer((_) async => const Left(ServerFailure(errorMessage: 'Transition impossible')));
+
+      final cubit = build();
+      final ok = await cubit.changerStatut(ReserveStatut.cloturee);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(ok, isFalse);
+      verifyNever(() => repository.getHistorique(any()));
     });
   });
 

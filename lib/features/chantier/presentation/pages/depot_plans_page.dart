@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/app_alert.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/loading_list.dart';
@@ -108,10 +109,12 @@ class _Vue extends StatelessWidget {
     if (!context.mounted) return;
 
     if (echec == null) {
-      messenger.showSnackBar(SnackBar(
-        content: Text(l10n.depotPlansEnvoyes),
+      AppAlert.confirmation(
+        context,
+        messenger: messenger,
+        message: l10n.depotPlansEnvoyes,
         backgroundColor: AppColors.success,
-      ));
+      );
     }
     // Un échec partiel n'est pas annoncé ici : le cubit l'a déjà posé dans
     // l'état, le bandeau l'affiche, et l'écran montre désormais l'état RÉEL

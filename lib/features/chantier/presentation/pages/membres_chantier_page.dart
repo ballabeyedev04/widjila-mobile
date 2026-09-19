@@ -229,7 +229,7 @@ Future<void> _affecter(BuildContext context) async {
   if (erreur != null) {
     AppAlert.error(context, message: erreur);
   } else {
-    messenger.showSnackBar(SnackBar(content: Text(l10n.membresChantierAffectes)));
+    AppAlert.confirmation(context, messenger: messenger, message: l10n.membresChantierAffectes);
   }
 }
 
@@ -263,7 +263,7 @@ Future<void> _retirer(BuildContext context, MembreChantier membre) async {
   if (erreur != null) {
     AppAlert.error(context, message: erreur);
   } else {
-    messenger.showSnackBar(SnackBar(content: Text(l10n.membresChantierRetire)));
+    AppAlert.confirmation(context, messenger: messenger, message: l10n.membresChantierRetire);
   }
 }
 

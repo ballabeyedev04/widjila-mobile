@@ -24,6 +24,7 @@ import '../../../plan/presentation/widgets/fiche_reserve_sheet.dart' show couleu
 import '../widgets/apercu_plan_reserve.dart';
 import '../widgets/reserve_collaboration.dart';
 import '../widgets/reserve_statut_badge.dart';
+import '../widgets/section_historique_changements.dart';
 import '../widgets/section_pieces_jointes.dart';
 import 'affecter_reserve_sheet.dart';
 import 'modifier_reserve_sheet.dart';
@@ -163,14 +164,20 @@ class _ReserveDetailView extends StatelessWidget {
 
   void _ouvrirChangementStatut(BuildContext context, List<ReserveStatut> statutsDisponibles) {
     final cubit = context.read<ReserveDetailCubit>();
+    // Le choix de statut est LIBRE depuis la recette : jusqu'a treize entrees.
+    // La feuille defile et peut monter jusqu'a 85 % de l'ecran, sinon la
+    // colonne debordait sur un telephone et les derniers statuts (refusee,
+    // rouverte, en retard) restaient hors de portee.
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.background,
+      isScrollControlled: true,
+      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (sheetContext) {
         return SafeArea(
           child: ContenuFormulaire(
-            child: Padding(
+            child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -282,7 +289,11 @@ class _DetailBody extends StatelessWidget {
       color: AppColors.background,
       child: RefreshIndicator(
       color: AppColors.primary,
-      onRefresh: forcerReseau(() => context.read<ReserveDetailCubit>().charger()),
+      // La fiche ET son historique : un tirage rafraîchit tout ce que l'écran montre.
+      onRefresh: forcerReseau(() async {
+        final cubit = context.read<ReserveDetailCubit>();
+        await Future.wait([cubit.charger(), cubit.chargerHistorique()]);
+      }),
       child: ContenuCentre(
         child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
@@ -323,7 +334,13 @@ class _DetailBody extends StatelessWidget {
             ApercuPlanReserve(
               plan: reserve.plan!,
               position: reserve.position,
-              libelle: reserve.numeroAffiche(l10n),
+              // « 3 · R-0031 » : le numéro sur le plan d'abord — c'est celui
+              // qu'on cherche des yeux sur le plan —, le numéro de chantier
+              // ensuite.
+              libelle: reserve.numeroPlan == null
+                  ? reserve.numeroAffiche(l10n)
+                  : '${reserve.numeroPlan} · ${reserve.numeroAffiche(l10n)}',
+              numeroPlan: reserve.numeroPlan,
               couleur: couleurStatutReserve(reserve.statut),
               onOuvrirPlan: () => context.push('/plans/${reserve.plan!.id}'),
             ),
@@ -331,8 +348,8 @@ class _DetailBody extends StatelessWidget {
           ],
 
           _Carte(
-            child: Column(
-              children: [
+            child: _ColonneInfos(
+              lignes: [
                 // CHANTIER en tête : « c'est où ? » avant « c'est quoi ? ». Le
                 // plan, lui, est montré juste au-dessus.
                 if (reserve.chantier != null)
@@ -344,6 +361,12 @@ class _DetailBody extends StatelessWidget {
                 _InfoRow(icon: Icons.calendar_today_outlined, label: l10n.reserveDetailCreeeLe, valeur: reserve.createdAt != null ? df.format(reserve.createdAt!) : '—'),
                 if (reserve.createur != null)
                   _InfoRow(icon: Icons.person_outline, label: l10n.reserveDetailSignaleePar, valeur: reserve.createur!.nomComplet),
+                // « Modifiée le » seulement si elle diffère du jour de création :
+                // une réserve jamais retouchée n'a pas à répéter sa date.
+                if (reserve.updatedAt != null &&
+                    (reserve.createdAt == null || df.format(reserve.updatedAt!) != df.format(reserve.createdAt!)))
+                  _InfoRow(icon: Icons.update_outlined, label: l10n.reserveDetailModifieeLe, valeur: df.format(reserve.updatedAt!)),
+                _InfoRow(icon: Icons.warning_amber_outlined, label: l10n.reserveDetailSeverite, valeur: reserve.severite.label(l10n)),
                 _InfoRow(icon: Icons.flag_outlined, label: l10n.reserveDetailPriorite, valeur: reserve.priorite.label(l10n)),
                 _InfoRow(icon: Icons.category_outlined, label: l10n.reserveDetailCategorie, valeur: reserve.categorie.label(l10n)),
                 // CORPS D'ÉTAT et PHASE : servis par le serveur sur les deux
@@ -364,7 +387,13 @@ class _DetailBody extends StatelessWidget {
                     valeur: (reserve.partenaire ?? reserve.entreprise)!.nom,
                   ),
                 if (reserve.assigne != null)
-                  _InfoRow(icon: Icons.assignment_ind_outlined, label: l10n.reserveDetailAssigneeA, valeur: reserve.assigne!.nomComplet, dernier: true),
+                  _InfoRow(icon: Icons.assignment_ind_outlined, label: l10n.reserveDetailAssigneeA, valeur: reserve.assigne!.nomComplet),
+                // Le verdict positif : qui l'a prononcé, et quand. Servi par le
+                // serveur tant que la réserve est validée ou levée.
+                if (reserve.statut.estLevee && reserve.validateur != null)
+                  _InfoRow(icon: Icons.verified_outlined, label: l10n.reserveDetailLeveePar, valeur: reserve.validateur!.nomComplet),
+                if (reserve.statut.estLevee && reserve.dateValidation != null)
+                  _InfoRow(icon: Icons.event_available_outlined, label: l10n.reserveDetailLeveeLe, valeur: df.format(reserve.dateValidation!.toLocal())),
               ],
             ),
           ),
@@ -398,7 +427,9 @@ class _DetailBody extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _TitreSection(l10n.reserveDetailPhotosCount(reserve.medias.length)),
+              // `Expanded` : sur 320 dp, le titre et le bouton ne tenaient pas
+              // côte à côte et la rangée débordait de 17 px à droite.
+              Expanded(child: _TitreSection(l10n.reserveDetailPhotosCount(reserve.medias.length))),
               TextButton.icon(
                 onPressed: () => _ajouterPhoto(context),
                 style: TextButton.styleFrom(foregroundColor: AppColors.primary),
@@ -461,15 +492,23 @@ class _DetailBody extends StatelessWidget {
           const SizedBox(height: 10),
           const _Carte(child: SectionCommentaires()),
 
-          if (reserve.historiques.isNotEmpty) ...[
-            const SizedBox(height: 24),
-            _TitreSection(l10n.reserveDetailHistorique),
-            const SizedBox(height: 10),
-            _Carte(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-              child: _Timeline(entrees: reserve.historiques.reversed.toList()),
+          // HISTORIQUE DES CHANGEMENTS — toujours présent, même vide : une
+          // section qui disparaît ne dit pas si la réserve n'a pas d'histoire
+          // ou si l'écran a oublié de la montrer.
+          const SizedBox(height: 24),
+          _TitreSection(l10n.historiqueChangementsTitre),
+          const SizedBox(height: 10),
+          _Carte(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: BlocBuilder<ReserveDetailCubit, ReserveDetailState>(
+              buildWhen: (a, b) => a.historique != b.historique || a.historiqueStatus != b.historiqueStatus,
+              builder: (context, state) => SectionHistoriqueChangements(
+                entrees: state.historique,
+                status: state.historiqueStatus,
+                onReessayer: () => context.read<ReserveDetailCubit>().chargerHistorique(),
+              ),
             ),
-          ],
+          ),
         ],
         ),
       ),
@@ -739,125 +778,10 @@ class _TitreSection extends StatelessWidget {
   }
 }
 
-IconData _iconeHistorique(String action) {
-  switch (action) {
-    case 'creation':
-      return Icons.add_circle_outline;
-    case 'modification':
-      return Icons.edit_outlined;
-    case 'statut':
-      return Icons.published_with_changes_outlined;
-    case 'commentaire':
-      return Icons.chat_bubble_outline;
-    case 'validation':
-      return Icons.check_circle_outline;
-    case 'refus':
-      return Icons.cancel_outlined;
-    case 'suppression':
-      return Icons.delete_outline;
-    default:
-      return Icons.circle_outlined;
-  }
-}
-
-Color _couleurHistorique(String action) {
-  switch (action) {
-    case 'validation':
-      return AppColors.success;
-    case 'refus':
-    case 'suppression':
-      return AppColors.danger;
-    case 'statut':
-      return AppColors.warning;
-    default:
-      return AppColors.primary;
-  }
-}
-
-/// Écran 9 de la maquette — chronologie verticale : un point coloré par
-/// entrée, relié par un trait, la plus récente en tête (l'appelant a déjà
-/// inversé la liste).
-class _Timeline extends StatelessWidget {
-  final List<ReserveHistoriqueEntry> entrees;
-  const _Timeline({required this.entrees});
-
-  @override
-  Widget build(BuildContext context) {
-    final df = DateFormat('dd/MM/yyyy à HH:mm');
-    return Column(
-      children: [
-        for (var i = 0; i < entrees.length; i++)
-          _LigneTimeline(
-            entree: entrees[i],
-            dateFormattee: entrees[i].createdAt != null ? df.format(entrees[i].createdAt!) : null,
-            estDerniere: i == entrees.length - 1,
-          ),
-      ],
-    );
-  }
-}
-
-class _LigneTimeline extends StatelessWidget {
-  final ReserveHistoriqueEntry entree;
-  final String? dateFormattee;
-  final bool estDerniere;
-  const _LigneTimeline({required this.entree, required this.dateFormattee, required this.estDerniere});
-
-  @override
-  Widget build(BuildContext context) {
-    final couleur = _couleurHistorique(entree.action);
-    final l10n = context.l10n;
-
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
-            children: [
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(color: couleur.withValues(alpha: 0.14), shape: BoxShape.circle),
-                alignment: Alignment.center,
-                child: Icon(_iconeHistorique(entree.action), size: 15, color: couleur),
-              ),
-              if (!estDerniere)
-                Expanded(
-                  child: Container(width: 2, margin: const EdgeInsets.symmetric(vertical: 2), color: AppColors.border),
-                ),
-            ],
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(entree.libelle(l10n), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-                  const SizedBox(height: 2),
-                  Text(
-                    [
-                      if (dateFormattee != null) dateFormattee!,
-                      if (entree.utilisateur != null) l10n.reserveDetailPar(entree.utilisateur!.nomComplet),
-                    ].join(' · '),
-                    style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String valeur;
-  final bool dernier;
 
   // Plus de variante « actionnable » : la seule ligne qui l'était, celle du
   // plan, est devenue l'aperçu du plan lui-même (`ApercuPlanReserve`).
@@ -865,7 +789,6 @@ class _InfoRow extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.valeur,
-    this.dernier = false,
   });
 
   @override
@@ -891,9 +814,26 @@ class _InfoRow extends StatelessWidget {
       ],
     );
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: dernier ? 0 : 12),
-      child: ligne,
+    // L'espacement entre lignes est porte par `_ColonneInfos`.
+    return ligne;
+  }
+}
+
+/// Les lignes d'une carte d'informations, espacées de 12 pt — sauf la
+/// dernière, quelle qu'elle soit. Les lignes sont conditionnelles (échéance,
+/// entreprise, verdict…) : marquer « la dernière » à la main dans la liste
+/// se trompait dès qu'une condition changeait.
+class _ColonneInfos extends StatelessWidget {
+  final List<Widget> lignes;
+  const _ColonneInfos({required this.lignes});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (var i = 0; i < lignes.length; i++)
+          Padding(padding: EdgeInsets.only(bottom: i == lignes.length - 1 ? 0 : 12), child: lignes[i]),
+      ],
     );
   }
 }

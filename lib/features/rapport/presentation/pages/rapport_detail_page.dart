@@ -137,15 +137,15 @@ class _VueDetail extends StatelessWidget {
     }
     switch (state.evenement) {
       case EvenementDetailRapport.genere:
-        messenger.showSnackBar(SnackBar(content: Text(l10n.rapportGenere)));
+        AppAlert.confirmation(context, messenger: messenger, message: l10n.rapportGenere);
       case EvenementDetailRapport.nouvelleVersion:
-        messenger.showSnackBar(SnackBar(content: Text(l10n.rapportNouvelleVersion)));
+        AppAlert.confirmation(context, messenger: messenger, message: l10n.rapportNouvelleVersion);
       case EvenementDetailRapport.archive:
-        messenger.showSnackBar(SnackBar(content: Text(l10n.rapportArchiveOk)));
+        AppAlert.confirmation(context, messenger: messenger, message: l10n.rapportArchiveOk);
       case EvenementDetailRapport.revoque:
-        messenger.showSnackBar(SnackBar(content: Text(l10n.rapportPartageRevoque)));
+        AppAlert.confirmation(context, messenger: messenger, message: l10n.rapportPartageRevoque);
       case EvenementDetailRapport.duplique:
-        messenger.showSnackBar(SnackBar(content: Text(l10n.rapportDuplique)));
+        AppAlert.confirmation(context, messenger: messenger, message: l10n.rapportDuplique);
         final copie = state.copie;
         // La copie est un brouillon : on l'ouvre directement dans
         // l'assistant, c'est là qu'on la retouche.
@@ -153,13 +153,15 @@ class _VueDetail extends StatelessWidget {
       case EvenementDetailRapport.parEntreprise:
         final r = state.parEntreprise;
         if (r == null) return;
-        messenger.showSnackBar(SnackBar(
+        AppAlert.confirmation(
+          context,
+          messenger: messenger,
           duration: const Duration(seconds: 6),
-          content: Text([
+          message: [
             l10n.rapportParEntrepriseResultat(r.nbRapports),
             if (r.reservesSansEntreprise > 0) l10n.rapportParEntrepriseSans(r.reservesSansEntreprise),
-          ].join('\n')),
-        ));
+          ].join('\n'),
+        );
       case EvenementDetailRapport.aucun:
         break;
     }
@@ -267,7 +269,7 @@ class _Corps extends StatelessWidget {
         ok.fold(
           (_) => messenger.showSnackBar(SnackBar(content: Text(l10n.documentEnregistrementEchec))),
           (enregistre) {
-            if (enregistre) messenger.showSnackBar(SnackBar(content: Text(l10n.documentEnregistre)));
+            if (enregistre) AppAlert.confirmation(context, messenger: messenger, message: l10n.documentEnregistre);
           },
         );
       },

@@ -230,6 +230,49 @@ void main() {
       expect(espion.appel, 'GET /reserves/r1/commentaires');
     });
 
+    test('l’historique vient de la route dédiée, normalisée par le serveur', () async {
+      espion.repond({
+        'success': true,
+        'data': {
+          'reserveId': 'r1',
+          'historique': [
+            {
+              'id': 'h1',
+              'action': 'statut',
+              'date': '2026-09-18T14:32:00.000Z',
+              'utilisateur': {'id': 'u1', 'nom': 'BEYE', 'prenom': 'Balla', 'nomComplet': 'Balla BEYE'},
+              'changementStatut': true,
+              'ancienStatut': 'creee',
+              'nouveauStatut': 'a_surveiller',
+              'motif': null,
+            },
+            {
+              'id': 'h2',
+              'action': 'commentaire',
+              'date': '2026-09-18T10:00:00.000Z',
+              'utilisateur': null,
+              'changementStatut': false,
+              'ancienStatut': null,
+              'nouveauStatut': null,
+              'motif': null,
+            },
+          ],
+        },
+      });
+
+      final historique = await source.getHistorique('r1');
+
+      expect(espion.appel, 'GET /reserves/r1/historique');
+      expect(historique, hasLength(2));
+      expect(historique.first.ancienStatut, ReserveStatut.creee);
+      expect(historique.first.nouveauStatut, ReserveStatut.aSurveiller);
+      expect(historique.first.estChangementStatut, isTrue);
+      expect(historique.first.utilisateur?.nomComplet, 'Balla BEYE');
+      // La date est celle du serveur, en UTC — jamais l'horloge du téléphone.
+      expect(historique.first.createdAt, DateTime.utc(2026, 9, 18, 14, 32));
+      expect(historique.last.estChangementStatut, isFalse);
+    });
+
     test('retirer une affectation vise les DEUX identifiants', () async {
       espion.repond({'success': true, 'data': <String, dynamic>{}});
 

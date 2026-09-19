@@ -75,6 +75,10 @@ abstract class ReserveRepository {
 
   /// Fil de discussion d'une réserve (`/reserves/:id/commentaires`).
   Future<Either<Failure, List<CommentaireReserve>>> getCommentaires(String reserveId);
+
+  /// Historique des changements (voir `ReserveRemoteDataSource.getHistorique`).
+  /// Hors ligne : les lignes jointes à la fiche en cache, à défaut de mieux.
+  Future<Either<Failure, List<ReserveHistoriqueEntry>>> getHistorique(String reserveId);
   Future<Either<Failure, CommentaireReserve>> ajouterCommentaire({
     required String reserveId,
     required String message,

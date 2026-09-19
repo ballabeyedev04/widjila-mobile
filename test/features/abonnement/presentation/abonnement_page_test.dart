@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:suivie_chantier_mobile/core/config/user_role.dart';
 import 'package:suivie_chantier_mobile/core/errors/failure.dart';
+import 'package:suivie_chantier_mobile/core/services/feedback_sonore.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/entities/abonnement.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/creer_code_transfert_web.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_droits.dart';
@@ -18,6 +20,8 @@ import 'package:suivie_chantier_mobile/features/auth/presentation/bloc/auth_bloc
 import 'package:suivie_chantier_mobile/features/auth/presentation/bloc/auth_event.dart';
 import 'package:suivie_chantier_mobile/features/auth/presentation/bloc/auth_state.dart';
 import 'package:suivie_chantier_mobile/injection_container.dart';
+import 'package:url_launcher_platform_interface/link.dart';
+import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
 import '../../../helpers/balayage_responsive.dart';
 import '../../../helpers/l10n_test_helpers.dart';
@@ -31,6 +35,29 @@ class _MockHistorique extends Mock implements GetHistoriqueAbonnement {}
 class _MockTransfert extends Mock implements CreerCodeTransfertWeb {}
 
 class _MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
+
+/// Un navigateur qui « s'ouvre » toujours, sans rien ouvrir.
+class _NavigateurFaux extends UrlLauncherPlatform with MockPlatformInterfaceMixin {
+  final ouvertures = <String>[];
+  @override
+  LinkDelegate? get linkDelegate => null;
+  @override
+  Future<bool> canLaunch(String url) async => true;
+  @override
+  Future<bool> launchUrl(String url, LaunchOptions options) async {
+    ouvertures.add(url);
+    return true;
+  }
+}
+
+/// Un moteur audio qui note les sons demandés.
+class _LecteurEspion implements LecteurSon {
+  final joues = <String>[];
+  @override
+  Future<void> precharger(String asset) async {}
+  @override
+  Future<void> jouer(String asset) async => joues.add(asset);
+}
 
 User _utilisateur(UserRole role) => User(
       id: 'u1', nom: 'BEYE', prenom: 'Balla',
@@ -272,5 +299,86 @@ void main() {
             reason: 'débordement de mise en page sur $format');
       });
     }
+  });
+
+  /// § PAIEMENT — la règle la plus stricte du feedback sonore.
+  ///
+  /// Ni l'ouverture du navigateur, ni le retour dans l'application, ni la
+  /// demande de paiement ne valent succès. Seul l'abonnement que le SERVEUR
+  /// renvoie au retour — la formule payée, active, alors qu'elle ne l'était
+  /// pas avant — déclenche la carte verte et son son.
+  group('confirmation du paiement', () {
+    const grand = Size(390, 2600);
+    late _NavigateurFaux navigateur;
+    late _LecteurEspion lecteur;
+    late UrlLauncherPlatform navigateurInitial;
+
+    const droitsAvant = DroitsAbonnement(
+      actif: true, source: 'abonnement', planCode: 'essentiel', planNom: 'Essentiel',
+      utilisateurs: UsageRessource(courant: 4, limite: 5),
+      chantiers: UsageRessource(courant: 2, limite: 10),
+    );
+    const droitsProActive = DroitsAbonnement(
+      actif: true, source: 'abonnement', planCode: 'pro', planNom: 'Pro',
+      utilisateurs: UsageRessource(courant: 4, limite: 10),
+      chantiers: UsageRessource(courant: 2, limite: 50),
+    );
+
+    setUp(() {
+      navigateurInitial = UrlLauncherPlatform.instance;
+      navigateur = _NavigateurFaux();
+      UrlLauncherPlatform.instance = navigateur;
+      lecteur = _LecteurEspion();
+      FeedbackSonore.instance = FeedbackSonore(lecteur: lecteur, horloge: () => DateTime(2026, 9, 18));
+      when(() => formules()).thenAnswer((_) async => const Right([_formule, _pro]));
+    });
+    tearDown(() {
+      UrlLauncherPlatform.instance = navigateurInitial;
+      FeedbackSonore.instance = FeedbackSonore();
+    });
+
+    /// Choisit « Pro », part vers le navigateur, puis revient dans l'app avec
+    /// [auRetour] comme réponse du serveur.
+    Future<void> payerPuisRevenir(WidgetTester tester, DroitsAbonnement auRetour) async {
+      when(() => droits()).thenAnswer((_) async => const Right(droitsAvant));
+      await pomper(tester, UserRole.entreprise, taille: grand);
+
+      await tester.tap(find.text('Choisir cette formule'));
+      await tester.pumpAndSettle();
+      expect(navigateur.ouvertures, hasLength(1), reason: 'la page de paiement s’est ouverte');
+      expect(lecteur.joues, isEmpty, reason: 'ouvrir le navigateur n’est pas un succès');
+
+      // Retour dans l'application : le serveur répond désormais [auRetour].
+      when(() => droits()).thenAnswer((_) async => Right(auRetour));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('le serveur confirme la formule payée → carte verte + son', (tester) async {
+      await payerPuisRevenir(tester, droitsProActive);
+
+      expect(find.text('Paiement confirmé : votre formule Pro est active.'), findsOneWidget);
+      expect(lecteur.joues, hasLength(1));
+    });
+
+    testWidgets('retour SANS changement côté serveur (page fermée, carte refusée) → rien', (tester) async {
+      await payerPuisRevenir(tester, droitsAvant);
+
+      expect(find.textContaining('Paiement confirmé'), findsNothing);
+      expect(lecteur.joues, isEmpty);
+    });
+
+    testWidgets('un simple passage en arrière-plan sans paiement lancé → rien', (tester) async {
+      when(() => droits()).thenAnswer((_) async => const Right(droitsAvant));
+      await pomper(tester, UserRole.entreprise, taille: grand);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+
+      expect(lecteur.joues, isEmpty);
+      expect(find.textContaining('Paiement confirmé'), findsNothing);
+    });
   });
 }
