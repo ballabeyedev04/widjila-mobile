@@ -113,6 +113,7 @@ import 'features/abonnement/data/repositories/abonnement_repository_impl.dart';
 import 'features/abonnement/domain/repositories/abonnement_repository.dart';
 import 'features/abonnement/domain/usecases/creer_code_transfert_web.dart';
 import 'features/abonnement/domain/usecases/get_droits.dart';
+import 'features/abonnement/domain/usecases/get_etat_paiement.dart';
 import 'features/abonnement/domain/usecases/get_formules.dart';
 import 'features/abonnement/domain/usecases/get_historique_abonnement.dart';
 import 'features/abonnement/presentation/cubit/abonnement_cubit.dart';
@@ -504,11 +505,13 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetDroits(sl()));
   sl.registerLazySingleton(() => GetHistoriqueAbonnement(sl()));
   sl.registerLazySingleton(() => CreerCodeTransfertWeb(sl()));
+  sl.registerLazySingleton(() => GetEtatPaiement(sl()));
   sl.registerFactory(() => AbonnementCubit(
         getFormules: sl(),
         getDroits: sl(),
         getHistorique: sl(),
         creerCodeTransfertWeb: sl(),
+        getEtatPaiement: sl(),
       ));
 
   //================================================

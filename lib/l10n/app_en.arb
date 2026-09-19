@@ -1185,6 +1185,24 @@
       }
     }
   },
+  "abonnementRedirectionTitre": "Secure payment",
+  "abonnementRedirectionTexte": "{formule} — {prix}.\n\nYou will be redirected to Stripe's secure payment page in your browser. No card details pass through Widjila.",
+  "@abonnementRedirectionTexte": {
+    "placeholders": {
+      "formule": {
+        "type": "String"
+      },
+      "prix": {
+        "type": "String"
+      }
+    }
+  },
+  "abonnementRedirectionContinuer": "Continue",
+  "abonnementPaiementVerification": "Verifying your payment with our server…",
+  "abonnementPaiementEnAttente": "Your payment is being verified. We are updating your subscription — it will appear here as soon as it is confirmed.",
+  "abonnementPaiementEchoue": "The payment could not be completed. Nothing was charged, you can try again.",
+  "abonnementPaiementAnnule": "The payment was cancelled. No subscription has been activated.",
+  "abonnementPaiementReseau": "We cannot verify your payment right now. Check your connection and try again.",
   "abonnementPreparationImpossible": "Unable to prepare the payment. Check your connection and try again.",
   "abonnementReserveFacturation": "Reserved for the subscription owner",
   "reserveEmplacementTitre": "Location on the plan",

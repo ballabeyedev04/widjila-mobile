@@ -1185,6 +1185,24 @@
       }
     }
   },
+  "abonnementRedirectionTitre": "Sichere Zahlung",
+  "abonnementRedirectionTexte": "{formule} — {prix}.\n\nSie werden im Browser zur sicheren Zahlungsseite von Stripe weitergeleitet. Keine Kartendaten laufen über Widjila.",
+  "@abonnementRedirectionTexte": {
+    "placeholders": {
+      "formule": {
+        "type": "String"
+      },
+      "prix": {
+        "type": "String"
+      }
+    }
+  },
+  "abonnementRedirectionContinuer": "Weiter",
+  "abonnementPaiementVerification": "Zahlung wird bei unserem Server überprüft…",
+  "abonnementPaiementEnAttente": "Ihre Zahlung wird überprüft. Wir aktualisieren Ihr Abonnement — es erscheint hier, sobald es bestätigt ist.",
+  "abonnementPaiementEchoue": "Die Zahlung konnte nicht abgeschlossen werden. Es wurde nichts abgebucht, Sie können es erneut versuchen.",
+  "abonnementPaiementAnnule": "Die Zahlung wurde abgebrochen. Es wurde kein Abonnement aktiviert.",
+  "abonnementPaiementReseau": "Ihre Zahlung kann derzeit nicht überprüft werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
   "abonnementPreparationImpossible": "Die Zahlung konnte nicht vorbereitet werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
   "abonnementReserveFacturation": "Nur für den Abonnementverantwortlichen",
   "reserveEmplacementTitre": "Position auf dem Plan",

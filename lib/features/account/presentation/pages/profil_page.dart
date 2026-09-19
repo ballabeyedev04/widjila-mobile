@@ -662,7 +662,10 @@ class _SectionEntreprise extends StatelessWidget {
 /// cette ligne.
 String? _libelleAbonnement(Organisation org, AppLocalizations l10n) {
   final formule = org.abonnement;
-  if (org.essaiEnCours && org.finEssai != null) {
+  // Une organisation ABONNÉE n'est plus « en essai », même si la date de fin
+  // d'essai posée à l'inscription est encore devant : un compte qui avait
+  // payé pendant son essai lisait ici « Pro · Essai jusqu'au 20/09 ».
+  if (!org.estAbonnee && org.essaiEnCours && org.finEssai != null) {
     final essai = l10n.profilEntrepriseEssai(DateFormat('dd/MM/yyyy').format(org.finEssai!));
     return formule == null || formule.isEmpty ? essai : '$formule · $essai';
   }

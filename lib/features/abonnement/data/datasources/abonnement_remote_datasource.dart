@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../../core/config/env.dart';
+import '../../../../core/network/cache_reponses_get.dart';
 import '../../../../core/network/dio_exception_mapper.dart';
 import '../../domain/entities/abonnement.dart';
 
@@ -9,6 +10,7 @@ abstract class AbonnementRemoteDataSource {
   Future<DroitsAbonnement> getDroits();
   Future<List<SouscriptionHistorique>> getHistorique();
   Future<String> creerCodeTransfertWeb();
+  Future<EtatPaiement?> getEtatPaiement();
 }
 
 class AbonnementRemoteDataSourceImpl implements AbonnementRemoteDataSource {
@@ -54,6 +56,23 @@ class AbonnementRemoteDataSourceImpl implements AbonnementRemoteDataSource {
       return (_data(response)['souscriptions'] as List)
           .map((e) => SouscriptionHistorique.fromJson(e as Map<String, dynamic>))
           .toList();
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<EtatPaiement?> getEtatPaiement() async {
+    try {
+      // JAMAIS servie depuis le cache des GET : on interroge cet état
+      // précisément parce qu'il vient peut-être de changer (webhook reçu il
+      // y a une seconde). Une réponse d'il y a vingt secondes dirait « en
+      // attente » d'un paiement déjà confirmé.
+      final response = await dio.get(
+        '/abonnement/paiement/etat',
+        options: Options(extra: {CacheReponsesGet.ignorerCache: true}),
+      );
+      return EtatPaiement.fromJson(_data(response));
     } on DioException catch (e) {
       throw mapDioException(e);
     }

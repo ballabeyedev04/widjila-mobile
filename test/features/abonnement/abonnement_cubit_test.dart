@@ -6,6 +6,7 @@ import 'package:suivie_chantier_mobile/core/errors/failure.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/entities/abonnement.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/creer_code_transfert_web.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_droits.dart';
+import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_etat_paiement.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_formules.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_historique_abonnement.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/presentation/cubit/abonnement_cubit.dart';
@@ -17,6 +18,8 @@ class MockGetDroits extends Mock implements GetDroits {}
 class MockGetHistorique extends Mock implements GetHistoriqueAbonnement {}
 
 class MockCreerCodeTransfertWeb extends Mock implements CreerCodeTransfertWeb {}
+
+class MockGetEtatPaiement extends Mock implements GetEtatPaiement {}
 
 const tEssentiel = FormuleAbonnement(
   id: 'a1',
@@ -50,12 +53,16 @@ void main() {
   late MockGetDroits getDroits;
   late MockGetHistorique getHistorique;
   late MockCreerCodeTransfertWeb creerCode;
+  late MockGetEtatPaiement getEtatPaiement;
+  late List<Duration> attentes;
 
   setUp(() {
     getFormules = MockGetFormules();
     getDroits = MockGetDroits();
     getHistorique = MockGetHistorique();
     creerCode = MockCreerCodeTransfertWeb();
+    getEtatPaiement = MockGetEtatPaiement();
+    attentes = [];
   });
 
   AbonnementCubit construire() => AbonnementCubit(
@@ -63,7 +70,150 @@ void main() {
         getDroits: getDroits,
         getHistorique: getHistorique,
         creerCodeTransfertWeb: creerCode,
+        getEtatPaiement: getEtatPaiement,
+        // On note les attentes au lieu de les subir : vingt secondes réelles
+        // n'apporteraient rien au test.
+        dormir: (d) async => attentes.add(d),
       );
+
+  /// Le catalogue et les droits que `charger()` relit après la vérification.
+  void serveurRepond({DroitsAbonnement droits = tDroits}) {
+    when(() => getFormules()).thenAnswer((_) async => const Right([tEssentiel]));
+    when(() => getDroits()).thenAnswer((_) async => Right(droits));
+  }
+
+  EtatPaiement etat(StatutPaiement statut, {String ref = 'cs_new', String plan = 'essentiel'}) =>
+      EtatPaiement(reference: ref, statut: statut, planCode: plan, planNom: 'Essentiel');
+
+  /// Vérification au RETOUR du navigateur — le serveur seul fait foi.
+  ///
+  /// Ni le retour dans l'application ni la page de succès de Stripe ne
+  /// prouvent quoi que ce soit ; le cubit interroge le serveur, avec des
+  /// attentes croissantes, jusqu'à ce que le webhook ait tranché.
+  group('vérification du paiement au retour', () {
+    test('le serveur confirme au troisième essai → confirmé, droits rechargés, formule nommée', () async {
+      final droitsEssai = const DroitsAbonnement(actif: true, source: 'essai', planCode: '__essai__', essaiEnCours: true, joursRestants: 1);
+      var appels = 0;
+      when(() => getEtatPaiement()).thenAnswer((_) async {
+        appels++;
+        return Right(appels < 3 ? etat(StatutPaiement.enAttente) : etat(StatutPaiement.active));
+      });
+      serveurRepond();
+      final cubit = construire();
+      // L'écran affiche encore l'essai avant le retour.
+      cubit.emit(cubit.state.copyWith(droits: droitsEssai));
+
+      await cubit.verifierPaiement(formuleCode: 'essentiel', referenceAvant: 'cs_old');
+
+      expect(cubit.state.verification, VerificationPaiement.confirme);
+      expect(cubit.state.formuleConfirmee, 'Essentiel');
+      expect(appels, 3);
+      expect(attentes, [const Duration(seconds: 2), const Duration(seconds: 3)]);
+      // Les DROITS ont été rechargés : plus d'essai, la formule payée.
+      expect(cubit.state.droits.source, 'abonnement');
+      expect(cubit.state.droits.essaiEnCours, isFalse);
+      expect(cubit.state.droits.planCode, 'essentiel');
+    });
+
+    test('le paiement connu est celui d’AVANT → on continue d’attendre, jamais de succès', () async {
+      // Le serveur ne renvoie que la référence d'hier : rien de nouveau n'a
+      // été payé, quoi que dise le navigateur.
+      when(() => getEtatPaiement()).thenAnswer((_) async => Right(etat(StatutPaiement.active, ref: 'cs_old')));
+      serveurRepond(droits: const DroitsAbonnement(actif: true, source: 'essai', planCode: '__essai__', essaiEnCours: true));
+      final cubit = construire();
+
+      await cubit.verifierPaiement(formuleCode: 'essentiel', referenceAvant: 'cs_old');
+
+      expect(cubit.state.verification, VerificationPaiement.enAttente);
+      expect(cubit.state.formuleConfirmee, isNull);
+      expect(attentes.length, AbonnementCubit.attentesVerification.length - 1, reason: 'tous les paliers ont été épuisés');
+    });
+
+    test('toujours en attente au bout des essais → « en attente », sans conclure', () async {
+      when(() => getEtatPaiement()).thenAnswer((_) async => Right(etat(StatutPaiement.enAttente)));
+      serveurRepond(droits: const DroitsAbonnement(actif: true, source: 'essai', planCode: '__essai__', essaiEnCours: true));
+      final cubit = construire();
+
+      await cubit.verifierPaiement(formuleCode: 'essentiel', referenceAvant: 'cs_old');
+
+      expect(cubit.state.verification, VerificationPaiement.enAttente);
+    });
+
+    test('échec côté serveur → échec, sans réessayer inutilement', () async {
+      when(() => getEtatPaiement()).thenAnswer((_) async => Right(etat(StatutPaiement.echec)));
+      serveurRepond(droits: const DroitsAbonnement(actif: true, source: 'essai', planCode: '__essai__', essaiEnCours: true));
+      final cubit = construire();
+
+      await cubit.verifierPaiement(formuleCode: 'essentiel', referenceAvant: 'cs_old');
+
+      expect(cubit.state.verification, VerificationPaiement.echec);
+      expect(attentes, isEmpty);
+    });
+
+    test('session annulée ou expirée → annulé', () async {
+      when(() => getEtatPaiement()).thenAnswer((_) async => Right(etat(StatutPaiement.annulee)));
+      serveurRepond(droits: const DroitsAbonnement(actif: true, source: 'essai', planCode: '__essai__', essaiEnCours: true));
+      final cubit = construire();
+
+      await cubit.verifierPaiement(formuleCode: 'essentiel', referenceAvant: 'cs_old');
+
+      expect(cubit.state.verification, VerificationPaiement.annule);
+    });
+
+    test('un paiement d’une AUTRE formule n’est pas pris pour celui-ci', () async {
+      when(() => getEtatPaiement()).thenAnswer((_) async => Right(etat(StatutPaiement.active, plan: 'pro')));
+      serveurRepond(droits: const DroitsAbonnement(actif: true, source: 'abonnement', planCode: 'pro', planNom: 'Pro'));
+      final cubit = construire();
+
+      await cubit.verifierPaiement(formuleCode: 'essentiel', referenceAvant: 'cs_old');
+
+      expect(cubit.state.verification, VerificationPaiement.enAttente);
+    });
+
+    test('réseau coupé pendant toute la vérification → réseau, pas un échec de paiement', () async {
+      when(() => getEtatPaiement()).thenAnswer((_) async => const Left(NetworkFailure(errorMessage: 'hors ligne')));
+      when(() => getFormules()).thenAnswer((_) async => const Left(NetworkFailure(errorMessage: 'hors ligne')));
+      when(() => getDroits()).thenAnswer((_) async => const Left(NetworkFailure(errorMessage: 'hors ligne')));
+      final cubit = construire();
+
+      await cubit.verifierPaiement(formuleCode: 'essentiel');
+
+      expect(cubit.state.verification, VerificationPaiement.reseau);
+    });
+
+    test('les DROITS font foi : formule payée active côté serveur → confirmé même sans référence d’avant', () async {
+      // Le serveur ne retrouve pas de paiement (ou l'appel a échoué), mais
+      // les droits portent déjà la formule : c'est bien confirmé.
+      when(() => getEtatPaiement()).thenAnswer((_) async => const Right(null));
+      serveurRepond();
+      final cubit = construire();
+
+      await cubit.verifierPaiement(formuleCode: 'essentiel');
+
+      expect(cubit.state.verification, VerificationPaiement.confirme);
+      expect(cubit.state.formuleConfirmee, 'Essentiel');
+    });
+
+    test('`effacerVerification` remet le verdict à zéro sans toucher au reste', () async {
+      when(() => getEtatPaiement()).thenAnswer((_) async => Right(etat(StatutPaiement.active)));
+      serveurRepond();
+      final cubit = construire();
+      await cubit.verifierPaiement(formuleCode: 'essentiel', referenceAvant: 'cs_old');
+
+      cubit.effacerVerification();
+
+      expect(cubit.state.verification, VerificationPaiement.aucune);
+      expect(cubit.state.droits.planCode, 'essentiel');
+    });
+
+    test('`referenceAvantPaiement` rend la référence courante, ou null si le serveur ne répond pas', () async {
+      when(() => getEtatPaiement()).thenAnswer((_) async => Right(etat(StatutPaiement.active, ref: 'cs_hier')));
+      expect(await construire().referenceAvantPaiement(), 'cs_hier');
+
+      when(() => getEtatPaiement()).thenAnswer((_) async => const Left(ServerFailure(errorMessage: 'x')));
+      expect(await construire().referenceAvantPaiement(), isNull);
+    });
+  });
 
   group('préparation du paiement web', () {
     test('relaie le code de transfert du serveur tel quel', () async {

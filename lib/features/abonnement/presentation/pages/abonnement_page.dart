@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/config/env.dart';
+import '../../../../core/network/cache_reponses_get.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_alert.dart';
 import '../../../../core/widgets/error_view.dart';
@@ -95,11 +96,11 @@ class _AbonnementViewState extends State<_AbonnementView> with WidgetsBindingObs
   /// d'application — relancerait deux requêtes réseau pour rien.
   bool _paiementLance = false;
 
-  /// Formule dont le paiement a été lancé, et droits AVANT le paiement :
-  /// c'est leur comparaison avec ce que le serveur renvoie au retour qui dit
-  /// si le paiement a abouti. Voir [_confirmerSiPaye].
+  /// Formule dont le paiement a été lancé, et référence du dernier paiement
+  /// connu AVANT : c'est le serveur, interrogé au retour, qui dira si un
+  /// NOUVEAU paiement de cette formule a abouti. Voir [_verifierAuRetour].
   String? _formulePayee;
-  DroitsAbonnement? _droitsAvantPaiement;
+  String? _referenceAvantPaiement;
 
   /// Code de la formule dont le paiement se prépare (demande du code de
   /// transfert en cours). Son bouton affiche un indicateur, les autres sont
@@ -118,43 +119,72 @@ class _AbonnementViewState extends State<_AbonnementView> with WidgetsBindingObs
     super.dispose();
   }
 
-  /// Recharge l'abonnement au retour du navigateur.
+  /// Au retour du navigateur : vérifie le paiement auprès du SERVEUR.
   ///
   /// Le paiement est confirmé par le WEBHOOK Stripe, côté serveur : rien ne
-  /// prévient l'application. Sans ce rechargement, l'utilisateur qui vient de
-  /// payer revenait sur un écran affichant encore son ancienne formule.
+  /// prévient l'application, et revenir dans l'application ne prouve rien
+  /// (page fermée, carte refusée, paiement encore en cours de confirmation).
+  /// L'écran affiche « Vérification du paiement… » et interroge le serveur
+  /// jusqu'à ce qu'il tranche — voir [AbonnementCubit.verifierPaiement].
   @override
   void didChangeAppLifecycleState(AppLifecycleState etat) {
     if (etat != AppLifecycleState.resumed || !_paiementLance) return;
     _paiementLance = false;
     if (!mounted) return;
-    _confirmerSiPaye();
+    _verifierAuRetour();
   }
 
-  /// Recharge, puis confirme le paiement SEULEMENT si le serveur le dit.
-  ///
-  /// Ni l'ouverture du navigateur, ni le retour dans l'application, ni la
-  /// demande de paiement ne sont un succès : l'utilisateur a pu fermer la
-  /// page, la carte a pu être refusée. Le seul témoin fiable est l'abonnement
-  /// que le serveur renvoie après le webhook — s'il porte la formule payée,
-  /// ACTIVE, alors qu'elle ne la portait pas avant, le paiement a abouti.
-  /// C'est là, et seulement là, qu'arrivent la carte verte et son son.
-  Future<void> _confirmerSiPaye() async {
-    final cubit = context.read<AbonnementCubit>();
+  Future<void> _verifierAuRetour() async {
     final formule = _formulePayee;
-    final avant = _droitsAvantPaiement;
+    final referenceAvant = _referenceAvantPaiement;
     _formulePayee = null;
-    _droitsAvantPaiement = null;
+    _referenceAvantPaiement = null;
+    if (formule == null) return;
 
-    await cubit.charger(avecHistorique: widget.voitLaFacturation);
-    if (!mounted || formule == null) return;
+    // Le cache des GET sert des réponses de moins de trente secondes : les
+    // droits lus juste avant d'ouvrir le navigateur y sont encore, et ils
+    // disent « essai ». Tout ce qui se recharge maintenant doit venir du
+    // serveur — l'écran d'abonnement, mais aussi le profil et le tableau de
+    // bord quand l'utilisateur y retournera.
+    if (sl.isRegistered<CacheReponsesGet>()) sl<CacheReponsesGet>().vider();
 
-    final apres = cubit.state.droits;
-    final dejaActive = avant != null && avant.actif && avant.source == 'abonnement' && avant.planCode == formule;
-    final confirme = apres.actif && apres.source == 'abonnement' && apres.planCode == formule && !dejaActive;
-    if (!confirme) return;
+    await context.read<AbonnementCubit>().verifierPaiement(
+      formuleCode: formule,
+      referenceAvant: referenceAvant,
+      avecHistorique: widget.voitLaFacturation,
+    );
+  }
 
-    AppAlert.success(context, message: context.l10n.abonnementPaiementConfirme(apres.planNom ?? formule));
+  /// Le verdict de la vérification, montré UNE fois puis effacé.
+  ///
+  /// Les messages disent ce que le serveur sait, et rien de plus : un
+  /// paiement « en attente » n'est ni un succès ni un échec, et on le dit
+  /// ainsi. Jamais d'erreur technique brute à l'écran.
+  void _surVerdict(BuildContext context, AbonnementState state) {
+    final l10n = context.l10n;
+    final cubit = context.read<AbonnementCubit>();
+    switch (state.verification) {
+      case VerificationPaiement.confirme:
+        cubit.effacerVerification();
+        AppAlert.success(
+          context,
+          message: l10n.abonnementPaiementConfirme(state.formuleConfirmee ?? ''),
+        );
+      case VerificationPaiement.echec:
+        cubit.effacerVerification();
+        AppAlert.error(context, message: l10n.abonnementPaiementEchoue);
+      case VerificationPaiement.reseau:
+        cubit.effacerVerification();
+        AppAlert.error(context, message: l10n.abonnementPaiementReseau);
+      case VerificationPaiement.annule:
+      case VerificationPaiement.enAttente:
+        // Bandeau dans la page (voir `build`) : ni rouge ni vert, c'est une
+        // information. Il reste affiché jusqu'au prochain rechargement.
+        break;
+      case VerificationPaiement.aucune:
+      case VerificationPaiement.enCours:
+        break;
+    }
   }
 
   /// Ouvre la page de paiement du web pour [formule], session comprise — voir
@@ -165,6 +195,32 @@ class _AbonnementViewState extends State<_AbonnementView> with WidgetsBindingObs
     final l10n = context.l10n;
     final cubit = context.read<AbonnementCubit>();
 
+    // Une seule question avant de quitter l'application : ce qui va être
+    // payé, et où. Pas de formulaire ici — la carte se saisit sur la page de
+    // Stripe, qui la protège mieux que nous ne saurions le faire.
+    final continuer = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.abonnementRedirectionTitre),
+        content: Text(l10n.abonnementRedirectionTexte(
+          formule.nom,
+          '${formule.prix?.toStringAsFixed(0)} ${formule.devise}'
+          ' ${formule.periode == 'an' ? l10n.abonnementParAn : l10n.abonnementParMois}',
+        )),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.commonCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n.abonnementRedirectionContinuer),
+          ),
+        ],
+      ),
+    );
+    if (continuer != true || !context.mounted) return;
+
     final base = Uri.tryParse(Env.abonnementUrl);
     if (base == null) {
       messenger.showSnackBar(SnackBar(content: Text(l10n.abonnementOuvertureImpossible)));
@@ -173,6 +229,9 @@ class _AbonnementViewState extends State<_AbonnementView> with WidgetsBindingObs
 
     setState(() => _preparation = formule.code);
     try {
+      // Référence du dernier paiement connu, AVANT d'ouvrir le navigateur :
+      // au retour, seul un paiement plus récent comptera.
+      _referenceAvantPaiement = await cubit.referenceAvantPaiement();
       final resultat = await cubit.preparerPaiementWeb();
       if (!mounted) return;
 
@@ -192,10 +251,7 @@ class _AbonnementViewState extends State<_AbonnementView> with WidgetsBindingObs
       // d'ouverture ne fait pas quitter l'application, donc aucun retour à
       // guetter.
       _paiementLance = ouvert;
-      if (ouvert) {
-        _formulePayee = formule.code;
-        _droitsAvantPaiement = cubit.state.droits;
-      }
+      if (ouvert) _formulePayee = formule.code;
 
       if (!ouvert) {
         messenger.showSnackBar(SnackBar(content: Text(l10n.abonnementOuvertureImpossible)));
@@ -236,7 +292,9 @@ class _AbonnementViewState extends State<_AbonnementView> with WidgetsBindingObs
           onPressed: () => context.retourVers(),
         ),
       ),
-      body: BlocBuilder<AbonnementCubit, AbonnementState>(
+      body: BlocConsumer<AbonnementCubit, AbonnementState>(
+        listenWhen: (avant, apres) => avant.verification != apres.verification,
+        listener: _surVerdict,
         builder: (context, state) {
           if (state.status == AbonnementStatus.chargement) {
             return const Center(child: CircularProgressIndicator(color: AppColors.primary));
@@ -257,6 +315,15 @@ class _AbonnementViewState extends State<_AbonnementView> with WidgetsBindingObs
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
               children: [
+                // Retour de Stripe : ce que le serveur sait, tant qu'il ne
+                // l'a pas tranché. Voir `_surVerdict` pour les verdicts.
+                if (state.verification == VerificationPaiement.enCours)
+                  _BandeauVerification(texte: l10n.abonnementPaiementVerification, enCours: true),
+                if (state.verification == VerificationPaiement.enAttente)
+                  _BandeauVerification(texte: l10n.abonnementPaiementEnAttente),
+                if (state.verification == VerificationPaiement.annule)
+                  _BandeauVerification(texte: l10n.abonnementPaiementAnnule),
+
                 _CarteEtat(droits: state.droits, formule: state.formuleActuelle),
 
                 if (widget.voitLaFacturation) ...[
@@ -625,6 +692,45 @@ class _CarteFormule extends StatelessWidget {
 
 
 /// Petite pastille colorée — compte à rebours, statut d'une souscription.
+/// Bandeau d'information du retour de paiement : ni une erreur, ni un
+/// succès — ce que le serveur sait, ou qu'il vérifie encore.
+class _BandeauVerification extends StatelessWidget {
+  final String texte;
+  final bool enCours;
+  const _BandeauVerification({required this.texte, this.enCours = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          if (enCours)
+            const SizedBox(
+              width: 16, height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+            )
+          else
+            const Icon(Icons.info_outline_rounded, size: 18, color: AppColors.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              texte,
+              style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, height: 1.35),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Pastille extends StatelessWidget {
   final String texte;
   final Color couleur;

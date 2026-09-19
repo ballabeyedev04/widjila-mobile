@@ -2,7 +2,9 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:suivie_chantier_mobile/core/errors/error_codes.dart';
 import 'package:suivie_chantier_mobile/core/errors/exceptions.dart';
+import 'package:suivie_chantier_mobile/core/network/cache_reponses_get.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/data/datasources/abonnement_remote_datasource.dart';
+import 'package:suivie_chantier_mobile/features/abonnement/domain/entities/abonnement.dart';
 
 import '../../../../helpers/dio_espion.dart';
 
@@ -200,6 +202,44 @@ void main() {
       });
 
       await expectLater(source.getHistorique(), throwsA(isA<ServerException>()));
+    });
+  });
+
+  group('GET /abonnement/paiement/etat', () {
+    test('relit le paiement et sa référence, et contourne le cache des GET', () async {
+      espion.repond({
+        'success': true,
+        'data': {
+          'paiement': {
+            'reference': 'cs_test_1', 'statut': 'active', 'planCode': 'pro', 'planNom': 'Pro',
+            'creeLe': '2026-09-19T10:00:00.000Z',
+          },
+          'droits': {'actif': true, 'source': 'abonnement'},
+        },
+      });
+
+      final etat = await source.getEtatPaiement();
+
+      expect(espion.appel, 'GET /abonnement/paiement/etat');
+      expect(etat, isNotNull);
+      expect(etat!.reference, 'cs_test_1');
+      expect(etat.statut, StatutPaiement.active);
+      expect(etat.planCode, 'pro');
+      // Jamais servi depuis le cache : on interroge cet état parce qu'il
+      // vient peut-être de changer.
+      expect(espion.requetes.single.extra[CacheReponsesGet.ignorerCache], isTrue);
+    });
+
+    test('aucun paiement engagé → null, pas une exception', () async {
+      espion.repond({'success': true, 'data': {'paiement': null, 'droits': {'actif': false}}});
+
+      expect(await source.getEtatPaiement(), isNull);
+    });
+
+    test('un statut inconnu du mobile ne casse rien', () async {
+      espion.repond({'success': true, 'data': {'paiement': {'reference': 'cs_x', 'statut': 'nouveau_statut'}}});
+
+      expect((await source.getEtatPaiement())!.statut, StatutPaiement.inconnu);
     });
   });
 

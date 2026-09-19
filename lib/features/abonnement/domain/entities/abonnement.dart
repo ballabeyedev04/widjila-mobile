@@ -240,3 +240,59 @@ class SouscriptionHistorique extends Equatable {
   List<Object?> get props =>
       [id, planCode, planNom, prixPaye, devise, periode, statut, dateDebut, dateFin, creeLe];
 }
+
+/// Statut d'un paiement tel que le SERVEUR le connaît — miroir de
+/// `abonnements_souscrits.statut` (`abonnementSouscrit.model.js`).
+enum StatutPaiement { enAttente, active, echec, annulee, expiree, inconnu }
+
+extension StatutPaiementX on StatutPaiement {
+  static StatutPaiement fromString(String? raw) => switch (raw) {
+        'en_attente' => StatutPaiement.enAttente,
+        'active' => StatutPaiement.active,
+        'echec' => StatutPaiement.echec,
+        'annulee' => StatutPaiement.annulee,
+        'expiree' => StatutPaiement.expiree,
+        _ => StatutPaiement.inconnu,
+      };
+}
+
+/// État d'un paiement Stripe engagé par l'organisation — `GET
+/// /abonnement/paiement/etat`.
+///
+/// C'est la SEULE chose qui autorise le mobile à parler de paiement : ni le
+/// retour du navigateur, ni la page de succès, ni le temps écoulé. Le serveur
+/// n'y met que ce que le webhook Stripe (signé) lui a établi : `enAttente`
+/// tant que Stripe n'a pas confirmé, `active` ensuite, `echec` ou `annulee`
+/// sinon.
+class EtatPaiement extends Equatable {
+  /// Référence Stripe (`cs_…`) : ce qui distingue un paiement du précédent.
+  final String? reference;
+  final StatutPaiement statut;
+  final String? planCode;
+  final String? planNom;
+  final DateTime? creeLe;
+
+  const EtatPaiement({
+    required this.reference,
+    required this.statut,
+    this.planCode,
+    this.planNom,
+    this.creeLe,
+  });
+
+  /// `null` si l'organisation n'a jamais engagé de paiement.
+  static EtatPaiement? fromJson(Map<String, dynamic> json) {
+    final p = json['paiement'];
+    if (p is! Map<String, dynamic>) return null;
+    return EtatPaiement(
+      reference: p['reference'] as String?,
+      statut: StatutPaiementX.fromString(p['statut'] as String?),
+      planCode: p['planCode'] as String?,
+      planNom: p['planNom'] as String?,
+      creeLe: p['creeLe'] != null ? DateTime.tryParse(p['creeLe'] as String) : null,
+    );
+  }
+
+  @override
+  List<Object?> get props => [reference, statut, planCode, planNom, creeLe];
+}

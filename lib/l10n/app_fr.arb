@@ -1282,6 +1282,24 @@
       }
     }
   },
+  "abonnementRedirectionTitre": "Paiement sécurisé",
+  "abonnementRedirectionTexte": "{formule} — {prix}.\n\nVous allez être redirigé vers la page de paiement sécurisée de Stripe dans votre navigateur. Aucune donnée bancaire ne transite par Widjila.",
+  "@abonnementRedirectionTexte": {
+    "placeholders": {
+      "formule": {
+        "type": "String"
+      },
+      "prix": {
+        "type": "String"
+      }
+    }
+  },
+  "abonnementRedirectionContinuer": "Continuer",
+  "abonnementPaiementVerification": "Vérification du paiement auprès de notre serveur…",
+  "abonnementPaiementEnAttente": "Votre paiement est en cours de vérification. Nous actualisons votre abonnement — il apparaîtra ici dès sa confirmation.",
+  "abonnementPaiementEchoue": "Le paiement n'a pas pu être finalisé. Aucun montant n'a été prélevé, vous pouvez réessayer.",
+  "abonnementPaiementAnnule": "Le paiement a été annulé. Aucun abonnement n'a été activé.",
+  "abonnementPaiementReseau": "Impossible de vérifier votre paiement pour le moment. Vérifiez votre connexion puis réessayez.",
   "abonnementPreparationImpossible": "Impossible de préparer le paiement. Vérifiez votre connexion et réessayez.",
   "abonnementReserveFacturation": "Réservé au responsable de l’abonnement",
   "reserveEmplacementTitre": "Emplacement sur le plan",

@@ -110,6 +110,44 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('organisation ABONNÉE pendant son essai : la formule, sans « Essai jusqu’au »', (tester) async {
+    // Un compte qui paie pendant son essai garde une date de fin d'essai
+    // devant lui. La fiche lisait « Pro · Essai jusqu'au 20/09/2026 » :
+    // l'essai n'a plus cours dès que l'abonnement est actif.
+    when(getOrga.call).thenAnswer(
+      (_) async => Right<Failure, Organisation>(
+        Organisation(
+          id: 'o1', nom: 'Widjila BTP', abonnement: 'Pro', estAbonnee: true,
+          finEssai: DateTime.now().add(const Duration(days: 3)),
+        ),
+      ),
+    );
+
+    await pomperPage(tester, const ProfilPage());
+    await tester.pumpAndSettle();
+    await defilerVersEntreprise(tester);
+
+    expect(find.text('Pro'), findsOneWidget);
+    expect(find.textContaining('Essai jusqu'), findsNothing);
+  });
+
+  testWidgets('organisation EN ESSAI, non abonnée : la date de fin d’essai s’affiche', (tester) async {
+    when(getOrga.call).thenAnswer(
+      (_) async => Right<Failure, Organisation>(
+        Organisation(
+          id: 'o1', nom: 'Widjila BTP', estAbonnee: false,
+          finEssai: DateTime.now().add(const Duration(days: 3)),
+        ),
+      ),
+    );
+
+    await pomperPage(tester, const ProfilPage());
+    await tester.pumpAndSettle();
+    await defilerVersEntreprise(tester);
+
+    expect(find.textContaining('Essai jusqu'), findsOneWidget);
+  });
+
   group('mise en page — balayage des formats', () {
     // Un ecran dessine sur un telephone de 390 dp passe presque toujours a
     // 390 dp. Les debordements se produisent aux EXTREMES : sur un petit

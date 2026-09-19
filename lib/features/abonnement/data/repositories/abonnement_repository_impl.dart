@@ -63,4 +63,15 @@ class AbonnementRepositoryImpl implements AbonnementRepository {
       return Left(exceptionToFailure(e));
     }
   }
+
+  @override
+  Future<Either<Failure, EtatPaiement?>> getEtatPaiement() async {
+    try {
+      return Right(await remoteDataSource.getEtatPaiement());
+    } catch (e) {
+      // Aucun repli non plus : un état de paiement périmé ferait annoncer
+      // un succès (ou un échec) qui n'est plus vrai.
+      return Left(exceptionToFailure(e));
+    }
+  }
 }

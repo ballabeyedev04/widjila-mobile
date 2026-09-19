@@ -11,6 +11,7 @@ import 'package:suivie_chantier_mobile/core/services/feedback_sonore.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/entities/abonnement.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/creer_code_transfert_web.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_droits.dart';
+import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_etat_paiement.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_formules.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_historique_abonnement.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/presentation/cubit/abonnement_cubit.dart';
@@ -33,6 +34,8 @@ class _MockDroits extends Mock implements GetDroits {}
 class _MockHistorique extends Mock implements GetHistoriqueAbonnement {}
 
 class _MockTransfert extends Mock implements CreerCodeTransfertWeb {}
+
+class _MockEtatPaiement extends Mock implements GetEtatPaiement {}
 
 class _MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
 
@@ -86,6 +89,7 @@ void main() {
   late _MockDroits droits;
   late _MockHistorique historique;
   late _MockTransfert transfert;
+  late _MockEtatPaiement etatPaiement;
   late _MockAuthBloc authBloc;
 
   setUp(() {
@@ -94,6 +98,8 @@ void main() {
     historique = _MockHistorique();
     transfert = _MockTransfert();
     when(() => transfert()).thenAnswer((_) async => const Right('code-transfert'));
+    etatPaiement = _MockEtatPaiement();
+    when(() => etatPaiement()).thenAnswer((_) async => const Right(null));
 
     when(() => formules()).thenAnswer((_) async => const Right([_formule]));
     when(() => droits()).thenAnswer((_) async => const Right(DroitsAbonnement(
@@ -112,7 +118,9 @@ void main() {
     if (sl.isRegistered<AbonnementCubit>()) sl.unregister<AbonnementCubit>();
     sl.registerFactory<AbonnementCubit>(() => AbonnementCubit(
           getFormules: formules, getDroits: droits, getHistorique: historique,
-          creerCodeTransfertWeb: transfert,
+          creerCodeTransfertWeb: transfert, getEtatPaiement: etatPaiement,
+          // Pas d'attente réelle entre deux interrogations du serveur.
+          dormir: (_) async {},
         ));
   });
 
@@ -227,6 +235,12 @@ void main() {
       await pomper(tester, UserRole.entreprise, taille: grand);
       await tester.tap(find.text('Choisir cette formule'));
       await tester.pumpAndSettle();
+      // Une seule question avant de quitter l'application : ce qui va être
+      // payé, et où (la page sécurisée de Stripe).
+      expect(find.text('Paiement sécurisé'), findsOneWidget);
+      expect(find.textContaining('redirigé vers la page de paiement sécurisée de Stripe'), findsOneWidget);
+      await tester.tap(find.text('Continuer'));
+      await tester.pumpAndSettle();
 
       verify(() => transfert()).called(1);
       expect(
@@ -337,36 +351,109 @@ void main() {
       FeedbackSonore.instance = FeedbackSonore();
     });
 
-    /// Choisit « Pro », part vers le navigateur, puis revient dans l'app avec
-    /// [auRetour] comme réponse du serveur.
-    Future<void> payerPuisRevenir(WidgetTester tester, DroitsAbonnement auRetour) async {
+    EtatPaiement paiement(StatutPaiement statut, {String ref = 'cs_new'}) =>
+        EtatPaiement(reference: ref, statut: statut, planCode: 'pro', planNom: 'Pro');
+
+    /// Choisit « Pro », confirme la redirection, part vers le navigateur,
+    /// puis revient dans l'app : le serveur répond alors [auRetour] pour le
+    /// paiement et [droitsApres] pour les droits.
+    Future<void> payerPuisRevenir(
+      WidgetTester tester, {
+      required Either<Failure, EtatPaiement?> Function() auRetour,
+      DroitsAbonnement droitsApres = droitsAvant,
+    }) async {
       when(() => droits()).thenAnswer((_) async => const Right(droitsAvant));
+      // AVANT le paiement, le serveur connaît un paiement d'hier.
+      when(() => etatPaiement()).thenAnswer((_) async => Right(paiement(StatutPaiement.active, ref: 'cs_old')));
       await pomper(tester, UserRole.entreprise, taille: grand);
 
       await tester.tap(find.text('Choisir cette formule'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Continuer'));
+      await tester.pumpAndSettle();
       expect(navigateur.ouvertures, hasLength(1), reason: 'la page de paiement s’est ouverte');
       expect(lecteur.joues, isEmpty, reason: 'ouvrir le navigateur n’est pas un succès');
+      expect(find.textContaining('Paiement confirmé'), findsNothing);
 
-      // Retour dans l'application : le serveur répond désormais [auRetour].
-      when(() => droits()).thenAnswer((_) async => Right(auRetour));
+      // Retour dans l'application : le serveur répond désormais autre chose.
+      when(() => etatPaiement()).thenAnswer((_) async => auRetour());
+      when(() => droits()).thenAnswer((_) async => Right(droitsApres));
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
     }
 
-    testWidgets('le serveur confirme la formule payée → carte verte + son', (tester) async {
-      await payerPuisRevenir(tester, droitsProActive);
+    testWidgets('le serveur confirme la formule payée → carte verte + son, essai disparu', (tester) async {
+      await payerPuisRevenir(
+        tester,
+        auRetour: () => Right(paiement(StatutPaiement.active)),
+        droitsApres: droitsProActive,
+      );
 
+      expect(find.text('Paiement confirmé : votre formule Pro est active.'), findsOneWidget);
+      expect(lecteur.joues, hasLength(1));
+      // L'écran, derrière la carte, montre déjà la formule payée.
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pro'), findsWidgets);
+      expect(find.textContaining('essai'), findsNothing);
+    });
+
+    testWidgets('webhook en retard : le serveur confirme au deuxième essai', (tester) async {
+      var appels = 0;
+      await payerPuisRevenir(
+        tester,
+        auRetour: () => Right(++appels == 1 ? paiement(StatutPaiement.enAttente) : paiement(StatutPaiement.active)),
+        droitsApres: droitsProActive,
+      );
+
+      expect(appels, 2);
       expect(find.text('Paiement confirmé : votre formule Pro est active.'), findsOneWidget);
       expect(lecteur.joues, hasLength(1));
     });
 
-    testWidgets('retour SANS changement côté serveur (page fermée, carte refusée) → rien', (tester) async {
-      await payerPuisRevenir(tester, droitsAvant);
+    testWidgets('retour SANS nouveau paiement côté serveur (page fermée) → « en attente », aucun succès', (tester) async {
+      await payerPuisRevenir(tester, auRetour: () => Right(paiement(StatutPaiement.active, ref: 'cs_old')));
 
       expect(find.textContaining('Paiement confirmé'), findsNothing);
+      expect(find.textContaining('en cours de vérification'), findsOneWidget);
       expect(lecteur.joues, isEmpty);
+    });
+
+    testWidgets('paiement refusé côté serveur → message d’échec, pas de son', (tester) async {
+      await payerPuisRevenir(tester, auRetour: () => Right(paiement(StatutPaiement.echec)));
+
+      expect(find.textContaining("n'a pas pu être finalisé"), findsOneWidget);
+      expect(find.textContaining('Paiement confirmé'), findsNothing);
+      expect(lecteur.joues, isEmpty);
+    });
+
+    testWidgets('session annulée → « annulé », rien d’activé', (tester) async {
+      await payerPuisRevenir(tester, auRetour: () => Right(paiement(StatutPaiement.annulee)));
+
+      expect(find.textContaining('Le paiement a été annulé'), findsOneWidget);
+      expect(lecteur.joues, isEmpty);
+    });
+
+    testWidgets('réseau coupé au retour → message réseau, pas « échec du paiement »', (tester) async {
+      await payerPuisRevenir(tester, auRetour: () => const Left(NetworkFailure(errorMessage: 'hors ligne')));
+
+      expect(find.textContaining('Impossible de vérifier votre paiement'), findsOneWidget);
+      expect(find.textContaining("n'a pas pu être finalisé"), findsNothing);
+      expect(lecteur.joues, isEmpty);
+    });
+
+    testWidgets('« Annuler » sur la question de redirection : rien ne part', (tester) async {
+      when(() => droits()).thenAnswer((_) async => const Right(droitsAvant));
+      await pomper(tester, UserRole.entreprise, taille: grand);
+
+      await tester.tap(find.text('Choisir cette formule'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Annuler'));
+      await tester.pumpAndSettle();
+
+      expect(navigateur.ouvertures, isEmpty);
+      verifyNever(() => transfert());
     });
 
     testWidgets('un simple passage en arrière-plan sans paiement lancé → rien', (tester) async {
@@ -379,6 +466,7 @@ void main() {
 
       expect(lecteur.joues, isEmpty);
       expect(find.textContaining('Paiement confirmé'), findsNothing);
+      verifyNever(() => etatPaiement());
     });
   });
 }
