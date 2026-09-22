@@ -267,7 +267,7 @@ jobs:
               jq -r '.[] | "| `\(.File | sub("^/repo/"; ""))` | \(.StartLine) | \(.RuleID) |"' gitleaks.json || true
               echo ""
             } >> "$GITHUB_STEP_SUMMARY"
-            echo "::error::Un secret (mot de passe, clé…) a été trouvé dans le code. Retirez-le, puis changez-le : il doit être considéré comme compromis."
+            echo "::error::Un possible secret a été trouvé (fichier et ligne ci-dessus). Vrai secret : retirez-le du code ET changez-le, il est compromis. Faux positif (empreinte, identifiant public) : ajoutez une exception justifiée dans .gitleaks.toml."
             exit 1
           fi
 

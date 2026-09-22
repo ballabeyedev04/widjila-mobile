@@ -9,5 +9,9 @@ description = "Configuration Firebase iOS : la clé API Firebase est un identifi
 paths = ['''ios/Runner/GoogleService-Info\.plist''']
 
 [[allowlists]]
+description = "Fichiers de verrouillage des dépendances : ils ne contiennent que des versions et des empreintes de contrôle (SHA-1 des bibliothèques CocoaPods, SHA-256 des paquets Dart), publiques, que la règle generic-api-key prend pour des clés."
+paths = ['''(^|/)ios/Podfile\.lock$''', '''(^|/)macos/Podfile\.lock$''', '''(^|/)pubspec\.lock$''']
+
+[[allowlists]]
 description = "Dossier interne de git (objets, configuration) : pas du code. Le checkout de GitHub Actions y écrit son jeton d'accès temporaire."
 paths = ['''(^|/)\.git/''']
