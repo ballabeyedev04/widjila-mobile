@@ -1,0 +1,9 @@
+# Recherche de secrets (workflow android-release.yml, étape Sécurité).
+# Règles par défaut de Gitleaks, plus les exceptions justifiées ci-dessous.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Configuration Firebase iOS : la clé API Firebase est un identifiant PUBLIC par conception (embarqué dans chaque app), pas un secret. Sa protection passe par les restrictions de clé dans Google Cloud et les règles Firebase."
+paths = ['''ios/Runner/GoogleService-Info\.plist''']

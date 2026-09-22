@@ -1,0 +1,10 @@
+{
+  "_lisez_moi": "Référence du contrôle de l'AAB (tool/ci/controle_aab.py). Voir docs/DEPLOIEMENT_ANDROID.md.",
+  "package": "com.widjila.suivichantier",
+  "target_sdk_minimum": 35,
+  "target_sdk_recommande": 36,
+  "api_attendue": "api.widjila.com",
+  "croissance_taille_alerte_pct": 20,
+  "_permissions": "Permissions ACCEPTÉES. Une permission absente de cette liste déclenche un avertissement (le déploiement continue). Liste vide = référence à établir au premier déploiement.",
+  "permissions": []
+}

@@ -1,0 +1,10 @@
+# Mises à jour de sécurité des outils du déploiement (actions GitHub figées
+# sur une version précise dans .github/workflows/).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"

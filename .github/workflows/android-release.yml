@@ -1,11 +1,24 @@
-# Déploiement Android → Google Play « Tests fermés - Alpha ».
+# ═══════════════════════════════════════════════════════════════════════════
+#  Widjila — chaîne de déploiement Android (Google Play, Tests fermés - Alpha)
+# ═══════════════════════════════════════════════════════════════════════════
 #
-# Publier :        git push origin main:release
-# Essai à blanc :  onglet Actions > « Android — Google Play » > Run workflow
+#   1. Contrôles d'entrée ─┬─ 2a. Analyse & traductions ─┐
+#                          ├─ 2b. Tests & couverture ────┼─ 3. Compilation & contrôle de l'AAB
+#                          └─ 2c. Sécurité ──────────────┘            │
+#                                                          4. Test de démarrage (émulateur)
+#                                                                      │
+#                                                  5. ✋ Approbation → 6. Publication & vérification
+#                                                                      │
+#                                                                 7. Bilan
 #
-# Procédure complète et secrets : docs/DEPLOIEMENT_ANDROID.md.
+#   Publier        : git push origin main:release
+#   Essai à blanc  : Actions > « Android — Google Play » > Run workflow
+#   Procédure      : docs/DEPLOIEMENT_ANDROID.md
 
 name: Android — Google Play
+run-name: >-
+  ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '🧪 Essai à blanc' || '🚀 Déploiement' }}
+  — ${{ github.ref_name }} @ ${{ github.sha }}
 
 on:
   push:
@@ -13,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Essai à blanc : Google Play valide l'envoi sans le publier"
+        description: "Essai à blanc : tout est vérifié, Google Play valide l'envoi, rien n'est publié"
         type: boolean
         default: true
 
@@ -26,67 +39,563 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  FLUTTER_VERSION: "3.44.8"
+  JAVA_VERSION: "17"
+  RUBY_VERSION: "3.3"
+  BUNDLETOOL_VERSION: "1.18.3"
+  PACKAGE: com.widjila.suivichantier
+
 jobs:
-  deployer:
+  # ─────────────────────────────────────────────────────────────────────────
+  controles:
+    name: 1 · Contrôles d'entrée
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-
+    timeout-minutes: 5
+    outputs:
+      dry_run: ${{ steps.mode.outputs.dry_run }}
+      version_name: ${{ steps.version.outputs.version_name }}
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          distribution: temurin
-          java-version: "17"
+          fetch-depth: 0 # historique et tags : origine du commit, notes précédentes
 
-      - uses: subosito/flutter-action@v2
+      - name: Mode
+        id: mode
+        run: |
+          DRY_RUN="${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}"
+          echo "dry_run=$DRY_RUN" >> "$GITHUB_OUTPUT"
+          {
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "## 🧪 Essai à blanc"
+              echo "Toute la chaîne est exécutée et Google Play valide l'envoi, mais **rien n'est publié**."
+            else
+              echo "## 🚀 Déploiement vers Google Play — Tests fermés - Alpha"
+            fi
+            echo ""
+            echo "### 🚦 Contrôles d'entrée"
+            echo ""
+            echo "| Contrôle | Résultat | |"
+            echo "|---|---|:---:|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Le commit est sur main
+        run: |
+          git fetch --quiet origin main
+          if git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "| Origine | commit \`${GITHUB_SHA::7}\` présent sur \`main\` | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Origine | commit \`${GITHUB_SHA::7}\` absent de \`main\` | ❌ |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Seul du code présent sur main peut être publié. Poussez d'abord sur main, puis : git push origin main:release"
+            exit 1
+          fi
+
+      - name: Version
+        id: version
+        run: |
+          VERSION="$(grep -m1 '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//; s/+.*//')"
+          [ -n "$VERSION" ] || { echo "::error::version introuvable dans pubspec.yaml"; exit 1; }
+          echo "version_name=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "| Version (pubspec.yaml) | **$VERSION** — le numéro de build sera fixé par Google Play | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notes de version fr-FR
+        env:
+          DRY_RUN: ${{ steps.mode.outputs.dry_run }}
+        run: |
+          NOTES=fastlane/notes/fr-FR.txt
+          [ -f "$NOTES" ] || { echo "| Notes fr-FR | fichier absent | ❌ |" >> "$GITHUB_STEP_SUMMARY"; echo "::error::$NOTES absent"; exit 1; }
+          TAILLE="$(python3 -c "import sys; print(len(open('$NOTES', encoding='utf-8').read().strip()))")"
+          if [ "$TAILLE" -eq 0 ]; then
+            echo "| Notes fr-FR | vides | ❌ |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Écrivez les nouveautés de cette version dans $NOTES"; exit 1
+          fi
+          if [ "$TAILLE" -gt 500 ]; then
+            echo "| Notes fr-FR | $TAILLE caractères (max 500) | ❌ |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::$NOTES fait $TAILLE caractères : Google Play en accepte 500 au maximum."; exit 1
+          fi
+
+          DERNIER_TAG="$(git tag --list 'android-v*' --sort=-creatordate | head -1)"
+          if [ -n "$DERNIER_TAG" ] && git show "$DERNIER_TAG:$NOTES" 2>/dev/null | diff -q - "$NOTES" > /dev/null; then
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "| Notes fr-FR | identiques au déploiement \`$DERNIER_TAG\` | ⚠️ |" >> "$GITHUB_STEP_SUMMARY"
+              echo "::warning::Notes identiques au déploiement précédent ($DERNIER_TAG) — un vrai déploiement serait refusé."
+            else
+              echo "| Notes fr-FR | identiques au déploiement \`$DERNIER_TAG\` | ❌ |" >> "$GITHUB_STEP_SUMMARY"
+              echo "::error::Les notes n'ont pas changé depuis $DERNIER_TAG : écrivez les nouveautés de cette version dans $NOTES"; exit 1
+            fi
+          else
+            echo "| Notes fr-FR | $TAILLE / 500 caractères, nouvelles | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          {
+            echo ""
+            echo "<details><summary>📝 Notes de version (fr-FR)</summary>"
+            echo ""
+            cat "$NOTES"
+            echo ""
+            echo "</details>"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  analyse:
+    name: 2a · Analyse & traductions
+    needs: controles
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
-          flutter-version: "3.44.8"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.3"
-          bundler-cache: true
-
-      - name: Dépendances Flutter
+      - name: Dépendances
         run: |
           flutter pub get
           flutter gen-l10n
 
-      # Rien ne part si un test échoue.
-      - name: Tests
-        run: flutter test --concurrency=2
+      - name: Analyse du code
+        run: |
+          set +e
+          flutter analyze --no-fatal-infos > analyse.txt 2>&1
+          CODE=$?
+          set -e
+          ERREURS=$(grep -cE '^\s*error ' analyse.txt || true)
+          AVERTISSEMENTS=$(grep -cE '^\s*warning ' analyse.txt || true)
+          REMARQUES=$(grep -cE '^\s*info ' analyse.txt || true)
+          {
+            echo "### 🧹 Analyse du code"
+            echo ""
+            echo "| Erreurs | Avertissements | Remarques de style |"
+            echo "|:---:|:---:|:---:|"
+            echo "| $([ "$ERREURS" -eq 0 ] && echo "✅ 0" || echo "❌ $ERREURS") | $([ "$AVERTISSEMENTS" -eq 0 ] && echo "✅ 0" || echo "❌ $AVERTISSEMENTS") | ℹ️ $REMARQUES (non bloquantes) |"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$CODE" -ne 0 ]; then
+            grep -E '^\s*(error|warning) ' analyse.txt | head -50
+            echo "::error::L'analyse a trouvé des erreurs ou des avertissements."
+            exit 1
+          fi
 
-      - name: Signature et Firebase (depuis les secrets)
+      - name: Traductions (fr, en, es, de)
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python3 tool/ci/traductions.py
+
+  # ─────────────────────────────────────────────────────────────────────────
+  tests:
+    name: 2b · Tests & couverture
+    needs: controles
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Dépendances
+        run: |
+          flutter pub get
+          flutter gen-l10n
+
+      - name: Tests
+        run: |
+          set -o pipefail
+          flutter test --coverage --concurrency=2 --reporter=expanded 2>&1 | tee tests.txt
+
+      - name: Rapport
+        if: always()
+        run: |
+          RESULTAT="$(grep -oE '[+][0-9]+( ~[0-9]+)?( -[0-9]+)?: (All tests passed!|Some tests failed.)' tests.txt | tail -1 || true)"
+          REUSSIS="$(echo "$RESULTAT" | grep -oE '^[+][0-9]+' | tr -d '+' || true)"
+          ECHOUES="$(echo "$RESULTAT" | grep -oE ' -[0-9]+' | tr -d ' -' || true)"
+          COUVERTURE="—"
+          if [ -f coverage/lcov.info ]; then
+            COUVERTURE="$(awk -F: '/^LF:/{t+=$2} /^LH:/{c+=$2} END{if(t>0) printf "%.1f %%", c*100/t}' coverage/lcov.info)"
+          fi
+          {
+            echo "### 🧪 Tests"
+            echo ""
+            echo "| Réussis | Échoués | Couverture du code |"
+            echo "|:---:|:---:|:---:|"
+            echo "| ✅ ${REUSSIS:-?} | $([ -z "$ECHOUES" ] && echo "✅ 0" || echo "❌ $ECHOUES") | 📊 $COUVERTURE |"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: couverture
+          path: coverage/lcov.info
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────────────────────────────────
+  securite:
+    name: 2c · Sécurité
+    needs: controles
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Secrets oubliés dans le code (Gitleaks)
+        run: |
+          echo "### 🔐 Sécurité" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Contrôle | Résultat | |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|:---:|" >> "$GITHUB_STEP_SUMMARY"
+          if docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
+               dir /repo --config /repo/.gitleaks.toml --redact --no-banner --exit-code 1; then
+            echo "| Secrets dans le code | aucun | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Secrets dans le code | secret(s) détecté(s) — voir le journal | ❌ |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Un secret (mot de passe, clé…) a été trouvé dans le code. Retirez-le, puis changez-le : il doit être considéré comme compromis."
+            exit 1
+          fi
+
+      # Non bloquant : une faille dans une dépendance indirecte n'a pas
+      # toujours de correctif disponible. Elle est signalée pour décision.
+      - name: Failles connues des dépendances (OSV-Scanner)
+        run: |
+          set +e
+          docker run --rm -v "$PWD:/src" ghcr.io/google/osv-scanner:v2.6.0 \
+            scan source --lockfile=/src/pubspec.lock --format=markdown > osv.md 2>osv.log
+          CODE=$?
+          set -e
+          if [ "$CODE" -eq 0 ]; then
+            echo "| Failles connues des dépendances | aucune | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$CODE" -eq 1 ]; then
+            echo "| Failles connues des dépendances | faille(s) signalée(s) — détail ci-dessous | ⚠️ |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Des failles connues touchent des dépendances : voir le résumé."
+            { echo ""; echo "<details><summary>Détail OSV-Scanner</summary>"; echo ""; cat osv.md; echo "</details>"; } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Failles connues des dépendances | analyse impossible (code $CODE) | ⚠️ |" >> "$GITHUB_STEP_SUMMARY"
+            cat osv.log
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  compilation:
+    name: 3 · Compilation & contrôle de l'AAB
+    needs: [controles, analyse, tests, securite]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      version_code: ${{ steps.preparer.outputs.version_code }}
+      version_name: ${{ steps.preparer.outputs.version_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - uses: ruby/setup-ruby@e8944e80fb94b20106697132f8c20c665fab29e9 # v1.325.0
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+          bundler-cache: true
+
+      - name: Dépendances
+        run: |
+          flutter pub get
+          flutter gen-l10n
+
+      - name: Signature, Firebase et accès Google Play (depuis les secrets)
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PROPERTIES: ${{ secrets.ANDROID_KEYSTORE_PROPERTIES }}
           GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          EMPREINTE_ATTENDUE: ${{ vars.ANDROID_UPLOAD_CERT_SHA256 }}
         run: |
           for s in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PROPERTIES GOOGLE_SERVICES_JSON_BASE64 PLAY_SERVICE_ACCOUNT_JSON; do
-            if [ -z "${!s}" ]; then echo "::error::Secret GitHub manquant : $s"; exit 1; fi
+            [ -n "${!s}" ] || { echo "::error::Secret GitHub manquant : $s (voir docs/DEPLOIEMENT_ANDROID.md)"; exit 1; }
           done
+          [ -n "$EMPREINTE_ATTENDUE" ] || { echo "::error::Variable GitHub manquante : ANDROID_UPLOAD_CERT_SHA256 (voir docs/DEPLOIEMENT_ANDROID.md)"; exit 1; }
+
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
           # key.properties tel qu'il existe sur le poste, mais storeFile
           # pointe sur le keystore décodé ci-dessus (chemin relatif à android/).
-          echo "$ANDROID_KEYSTORE_PROPERTIES" | grep -v '^storeFile=' > android/key.properties
+          printf '%s\n' "$ANDROID_KEYSTORE_PROPERTIES" | tr -d '\r' | grep -v '^storeFile=' > android/key.properties
           echo "storeFile=app/upload-keystore.jks" >> android/key.properties
+          # Les mots de passe ne doivent jamais apparaître dans les journaux.
+          for cle in storePassword keyPassword; do
+            valeur="$(grep "^$cle=" android/key.properties | cut -d= -f2-)"
+            [ -n "$valeur" ] && echo "::add-mask::$valeur"
+          done
           echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > android/app/google-services.json
-          echo "$PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/play-service-account.json"
+          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/play-service-account.json"
           echo "SUPPLY_JSON_KEY=$RUNNER_TEMP/play-service-account.json" >> "$GITHUB_ENV"
 
-      - name: Compilation et envoi (Fastlane)
+      - name: Numéro de build (Google Play)
+        id: preparer
         working-directory: android
         env:
           BUNDLE_GEMFILE: ${{ github.workspace }}/Gemfile
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
-        run: bundle exec fastlane beta dry_run:"$DRY_RUN"
+        run: bundle exec fastlane preparer
+
+      - name: Compilation de l'AAB
+        working-directory: android
+        env:
+          BUNDLE_GEMFILE: ${{ github.workspace }}/Gemfile
+        run: bundle exec fastlane compiler version_code:${{ steps.preparer.outputs.version_code }}
+
+      - name: Contrôle de l'AAB
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EMPREINTE_ATTENDUE: ${{ vars.ANDROID_UPLOAD_CERT_SHA256 }}
+          PYTHONIOENCODING: utf-8
+        run: |
+          AAB=build/app/outputs/bundle/release/app-release.aab
+          curl -fsSL -o "$RUNNER_TEMP/bundletool.jar" \
+            "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar"
+          BT="java -jar $RUNNER_TEMP/bundletool.jar"
+
+          $BT dump manifest --bundle="$AAB" > manifest.xml
+          # Via des fichiers : sous « pipefail », un `grep -m1`/`grep -q` qui
+          # s'arrête tôt fait échouer la commande qui l'alimente.
+          keytool -printcert -jarfile "$AAB" > certificat.txt
+          EMPREINTE="$(awk '/SHA256:/{print $2; exit}' certificat.txt)"
+          TAILLE="$(stat -c %s "$AAB")"
+
+          # Taille du déploiement précédent (Release GitHub android-v*).
+          PRECEDENT="$(gh release list --limit 30 --json tagName --jq '.[].tagName' | grep '^android-v' | head -1 || true)"
+          TAILLE_PRECEDENTE=""
+          if [ -n "$PRECEDENT" ]; then
+            TAILLE_PRECEDENTE="$(gh release view "$PRECEDENT" --json assets --jq '.assets[] | select(.name | endswith(".aab")) | .size' | head -1 || true)"
+          fi
+
+          API=non
+          unzip -p "$AAB" 'base/lib/arm64-v8a/libapp.so' > "$RUNNER_TEMP/libapp.so" || true
+          grep -aqF "$(jq -r .api_attendue tool/ci/android_reference.json)" "$RUNNER_TEMP/libapp.so" && API=oui
+          FIREBASE=non
+          $BT dump resources --bundle="$AAB" --resource=string/google_app_id > /dev/null 2>&1 && FIREBASE=oui
+
+          python3 tool/ci/controle_aab.py \
+            --manifest manifest.xml \
+            --reference tool/ci/android_reference.json \
+            --version-code "${{ steps.preparer.outputs.version_code }}" \
+            --version-name "${{ steps.preparer.outputs.version_name }}" \
+            --empreinte "$EMPREINTE" \
+            --empreinte-attendue "$EMPREINTE_ATTENDUE" \
+            --taille "$TAILLE" \
+            --taille-precedente "$TAILLE_PRECEDENTE" \
+            --api-trouvee "$API" \
+            --firebase "$FIREBASE" \
+            --permissions-sortie permissions.txt
+
+      - name: APK de test (depuis l'AAB, même signature)
+        run: |
+          AAB=build/app/outputs/bundle/release/app-release.aab
+          STORE="$(grep '^storePassword=' android/key.properties | cut -d= -f2-)"
+          KEY="$(grep '^keyPassword=' android/key.properties | cut -d= -f2-)"
+          ALIAS="$(grep '^keyAlias=' android/key.properties | cut -d= -f2-)"
+          java -jar "$RUNNER_TEMP/bundletool.jar" build-apks --mode=universal \
+            --bundle="$AAB" --output=app.apks \
+            --ks=android/app/upload-keystore.jks --ks-pass="pass:$STORE" \
+            --ks-key-alias="$ALIAS" --key-pass="pass:$KEY"
+          unzip -p app.apks universal.apk > app-universal.apk
+
+      - name: Préparation des livrables
+        run: |
+          NOM="widjila-${{ steps.preparer.outputs.version_name }}-build${{ steps.preparer.outputs.version_code }}"
+          mkdir -p livrables
+          cp build/app/outputs/bundle/release/app-release.aab "livrables/$NOM.aab"
+          MAPPING=build/app/outputs/mapping/release/mapping.txt
+          [ -f "$MAPPING" ] && cp "$MAPPING" "livrables/$NOM-mapping.txt"
+          cp manifest.xml "livrables/$NOM-manifest.xml"
+          cp permissions.txt "livrables/$NOM-permissions.txt"
+          (cd livrables && sha256sum * > SHA256SUMS.txt)
+          {
+            echo "### 📦 Livrables"
+            echo ""
+            echo "Conservés **90 jours** (artefact \`aab\` en bas de la page) — exactement ce qui sera envoyé à Google Play."
+            echo ""
+            echo '```'
+            cat livrables/SHA256SUMS.txt
+            echo '```'
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: aab
+          path: livrables/
+          retention-days: 90
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: apk-test
+          path: app-universal.apk
+          retention-days: 7
+          if-no-files-found: error
 
       - name: Nettoyage des secrets
         if: always()
         run: |
           rm -f android/app/upload-keystore.jks android/key.properties android/app/google-services.json
+          rm -f "$RUNNER_TEMP/play-service-account.json" app.apks
+
+  # ─────────────────────────────────────────────────────────────────────────
+  emulateur:
+    name: 4 · Test de démarrage (émulateur)
+    needs: compilation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: apk-test
+
+      - name: Accélération matérielle (KVM)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Démarrage de l'app sur Android 14
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash tool/ci/test_demarrage.sh app-universal.apk resultats-demarrage
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: test-demarrage
+          path: resultats-demarrage/
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────────────────────────────────
+  publication:
+    name: 5-6 · Approbation & publication
+    needs: [controles, compilation, emulateur]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # ✋ L'environnement « google-play » exige votre approbation (Settings >
+    # Environments) : le job attend votre clic avant de démarrer.
+    environment:
+      name: google-play
+      url: https://play.google.com/console
+    permissions:
+      contents: write # tag + Release GitHub du déploiement
+    env:
+      DRY_RUN: ${{ needs.controles.outputs.dry_run }}
+      VERSION_CODE: ${{ needs.compilation.outputs.version_code }}
+      VERSION_NAME: ${{ needs.compilation.outputs.version_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ruby/setup-ruby@e8944e80fb94b20106697132f8c20c665fab29e9 # v1.325.0
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+          bundler-cache: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: aab
+          path: livrables
+
+      - name: Intégrité des livrables
+        run: |
+          (cd livrables && sha256sum --check --strict SHA256SUMS.txt)
+
+      - name: Accès Google Play
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          [ -n "$PLAY_SERVICE_ACCOUNT_JSON" ] || { echo "::error::Secret GitHub manquant : PLAY_SERVICE_ACCOUNT_JSON"; exit 1; }
+          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/play-service-account.json"
+          echo "SUPPLY_JSON_KEY=$RUNNER_TEMP/play-service-account.json" >> "$GITHUB_ENV"
+
+      - name: Envoi à Google Play et vérification
+        working-directory: android
+        env:
+          BUNDLE_GEMFILE: ${{ github.workspace }}/Gemfile
+        run: |
+          NOM="widjila-${VERSION_NAME}-build${VERSION_CODE}"
+          bundle exec fastlane publier \
+            aab:"$GITHUB_WORKSPACE/livrables/$NOM.aab" \
+            mapping:"$GITHUB_WORKSPACE/livrables/$NOM-mapping.txt" \
+            version_code:"$VERSION_CODE" \
+            dry_run:"$DRY_RUN"
+
+      - name: Trace du déploiement (tag + Release GitHub)
+        if: env.DRY_RUN != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="android-v${VERSION_NAME}-build${VERSION_CODE}"
+          gh release create "$TAG" livrables/* \
+            --target "$GITHUB_SHA" \
+            --title "Android ${VERSION_NAME} (build ${VERSION_CODE})" \
+            --notes-file fastlane/notes/fr-FR.txt
+          echo "RELEASE_URL=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${TAG}" >> "$GITHUB_ENV"
+
+      - name: Résumé
+        if: always()
+        run: |
+          {
+            echo "### 🛫 Publication"
+            echo ""
+            if [ "${{ job.status }}" != "success" ]; then
+              echo "❌ **Échec de l'envoi** — voir le journal de l'étape « Envoi à Google Play et vérification »."
+            elif [ "$DRY_RUN" = "true" ]; then
+              echo "🧪 **Essai à blanc réussi** : Google Play a validé le build **${VERSION_CODE} (${VERSION_NAME})**. Rien n'a été publié."
+            else
+              echo "✅ **Build ${VERSION_CODE} (${VERSION_NAME}) publié** en Tests fermés - Alpha et vérifié sur Google Play."
+              echo ""
+              echo "Google vérifie maintenant la version (quelques heures), puis vos testeurs la reçoivent."
+              echo ""
+              echo "🔖 Trace : ${RELEASE_URL:-}"
+            fi
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
           rm -f "$RUNNER_TEMP/play-service-account.json"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  bilan:
+    name: 7 · Bilan
+    if: always()
+    needs: [controles, analyse, tests, securite, compilation, emulateur, publication]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Bilan
+        run: |
+          icone() { case "$1" in success) echo "✅";; failure) echo "❌";; cancelled) echo "⏹️";; skipped) echo "⏭️";; *) echo "❔";; esac; }
+          {
+            echo "## 📋 Bilan du déploiement"
+            echo ""
+            echo "| Étape | Résultat |"
+            echo "|---|:---:|"
+            echo "| 1 · Contrôles d'entrée | $(icone '${{ needs.controles.result }}') |"
+            echo "| 2a · Analyse & traductions | $(icone '${{ needs.analyse.result }}') |"
+            echo "| 2b · Tests & couverture | $(icone '${{ needs.tests.result }}') |"
+            echo "| 2c · Sécurité | $(icone '${{ needs.securite.result }}') |"
+            echo "| 3 · Compilation & contrôle de l'AAB | $(icone '${{ needs.compilation.result }}') |"
+            echo "| 4 · Test de démarrage (émulateur) | $(icone '${{ needs.emulateur.result }}') |"
+            echo "| 5-6 · Approbation & publication | $(icone '${{ needs.publication.result }}') |"
+            echo ""
+            if [ "${{ needs.publication.result }}" = "success" ]; then
+              if [ "${{ needs.controles.outputs.dry_run }}" = "true" ]; then
+                echo "🧪 **Essai à blanc réussi** — build ${{ needs.compilation.outputs.version_code }} (${{ needs.compilation.outputs.version_name }}) prêt à être publié."
+              else
+                echo "🎉 **Build ${{ needs.compilation.outputs.version_code }} (${{ needs.compilation.outputs.version_name }}) envoyé en Tests fermés - Alpha.**"
+              fi
+            else
+              echo "🛑 **Rien n'a été publié.** Ouvrez l'étape en ❌ pour le détail — dépannage : docs/DEPLOIEMENT_ANDROID.md."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
