@@ -529,6 +529,19 @@ class _CarteFormule extends StatelessWidget {
     this.reserveFacturation = false,
   });
 
+  /// Fonctionnalités listées sur la carte.
+  ///
+  /// Essentiel inclut les rapports PDF (« export PDF » de sa description) :
+  /// la ligne est garantie ici, sans attendre que la migration
+  /// `20260922000001-essentiel-rapports-pdf.js` soit passée sur le serveur —
+  /// sinon l'utilisateur ne la verrait pas. Affichage seulement : les droits
+  /// réels restent décidés par le serveur.
+  List<String> get _fonctionnalitesAffichees {
+    final codes = formule.fonctionnalites;
+    if (formule.code == 'essentiel' && !codes.contains('rapports')) return [...codes, 'rapports'];
+    return codes;
+  }
+
   /// Libellé d'un code de fonctionnalité, traduit côté client.
   String _libelle(BuildContext context, String code) {
     final l10n = context.l10n;
@@ -623,7 +636,7 @@ class _CarteFormule extends StatelessWidget {
           ),
 
           const SizedBox(height: 10),
-          for (final code in formule.fonctionnalites)
+          for (final code in _fonctionnalitesAffichees)
             Padding(
               padding: const EdgeInsets.only(bottom: 5),
               child: Row(

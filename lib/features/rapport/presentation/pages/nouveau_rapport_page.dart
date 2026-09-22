@@ -334,25 +334,15 @@ class _EtapeFiltres extends StatelessWidget {
                     () => cubit.basculerZone(p.zone.id)),
             ],
           ),
-        _GroupeFiltre(
-          titre: l10n.rapportFiltreEntreprise,
+        _FiltreEntreprise(
           requis: requis.contains(FiltreRequis.entreprise),
-          vide: l10n.rapportAucuneEntreprise,
-          toutes: l10n.rapportFiltreToutes,
-          aucunChoix: f.entreprises.isEmpty,
-          options: [
-            for (final e in state.entreprises)
-              _Option(e.id, e.nom, f.entreprises.contains(e.id), () => cubit.basculerEntreprise(e.id)),
-          ],
+          entreprises: state.entreprises,
+          choisies: f.entreprises,
+          onBasculer: cubit.basculerEntreprise,
           // Un annuaire vide bloquait le « Rapport par entreprise » : il
           // fallait quitter l'assistant pour créer l'entreprise ailleurs.
-          ajout: peutAjouterEntreprise && state.chantierId != null
-              ? ActionChip(
-                  key: const ValueKey('rapport-ajouter-entreprise'),
-                  avatar: const Icon(Icons.add_rounded, size: 18, color: AppColors.primary),
-                  label: Text(l10n.rapportAjouterEntreprise),
-                  onPressed: () => _ajouterEntreprise(context, state.chantierId!),
-                )
+          onAjouter: peutAjouterEntreprise && state.chantierId != null
+              ? (nom) => _ajouterEntreprise(context, state.chantierId!, nomInitial: nom)
               : null,
         ),
         _GroupeFiltre(
@@ -409,7 +399,7 @@ class _EtapeFiltres extends StatelessWidget {
 /// puis tout recommencer. Le formulaire est le MÊME que celui de la page des
 /// intervenants (mêmes champs, mêmes contrôles, types du référentiel), rattaché
 /// à ce chantier ; l'entreprise créée revient cochée dans le filtre.
-Future<void> _ajouterEntreprise(BuildContext context, String chantierId) async {
+Future<void> _ajouterEntreprise(BuildContext context, String chantierId, {String? nomInitial}) async {
   final rapport = context.read<NouveauRapportCubit>();
   final l10n = context.l10n;
   final partenaires = sl<PartenairesCubit>();
@@ -420,7 +410,7 @@ Future<void> _ajouterEntreprise(BuildContext context, String chantierId) async {
       backgroundColor: Colors.transparent,
       builder: (_) => BlocProvider.value(
         value: partenaires,
-        child: AjouterPartenaireSheet(chantierId: chantierId),
+        child: AjouterPartenaireSheet(chantierId: chantierId, nomInitial: nomInitial),
       ),
     );
     final etat = partenaires.state;
@@ -450,10 +440,6 @@ class _GroupeFiltre extends StatelessWidget {
   final bool aucunChoix;
   final List<_Option> options;
 
-  /// Action posée après les puces — « + Ajouter une entreprise ». Nulle pour
-  /// les filtres dont la liste ne s'enrichit pas d'ici.
-  final Widget? ajout;
-
   const _GroupeFiltre({
     required this.titre,
     required this.requis,
@@ -461,7 +447,6 @@ class _GroupeFiltre extends StatelessWidget {
     required this.toutes,
     required this.aucunChoix,
     required this.options,
-    this.ajout,
   });
 
   @override
@@ -487,10 +472,9 @@ class _GroupeFiltre extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          if (options.isEmpty && vide.isNotEmpty) ...[
-            Text(vide, style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted)),
-            if (ajout != null) ...[const SizedBox(height: 8), ajout!],
-          ] else
+          if (options.isEmpty && vide.isNotEmpty)
+            Text(vide, style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted))
+          else
             Wrap(
               spacing: 6,
               runSpacing: 4,
@@ -501,9 +485,140 @@ class _GroupeFiltre extends StatelessWidget {
                     selected: o.choisi,
                     onSelected: (_) => o.onTap(),
                   ),
-                ?ajout,
               ],
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Filtre « Entreprise » : recherche dans l'annuaire, choix, ajout.
+///
+/// L'annuaire mêle les entreprises du chantier et celles de l'organisation :
+/// il dépasse vite ce qu'une rangée de puces permet de parcourir. La
+/// recherche restreint les puces proposées ; les entreprises déjà cochées
+/// restent toujours visibles, pour pouvoir les décocher. Une recherche sans
+/// résultat propose d'ajouter l'entreprise sous ce nom.
+class _FiltreEntreprise extends StatefulWidget {
+  final bool requis;
+  final List<OptionFiltre> entreprises;
+  final List<String> choisies;
+  final ValueChanged<String> onBasculer;
+
+  /// Nul : le rôle ne peut pas enrichir l'annuaire (le serveur répondrait 403).
+  final void Function(String? nomInitial)? onAjouter;
+
+  const _FiltreEntreprise({
+    required this.requis,
+    required this.entreprises,
+    required this.choisies,
+    required this.onBasculer,
+    required this.onAjouter,
+  });
+
+  @override
+  State<_FiltreEntreprise> createState() => _FiltreEntrepriseState();
+}
+
+class _FiltreEntrepriseState extends State<_FiltreEntreprise> {
+  final _rechercheCtrl = TextEditingController();
+  String _recherche = '';
+
+  @override
+  void dispose() {
+    _rechercheCtrl.dispose();
+    super.dispose();
+  }
+
+  void _effacer() {
+    _rechercheCtrl.clear();
+    setState(() => _recherche = '');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final requete = _recherche.trim();
+    final cle = requete.toLowerCase();
+
+    final visibles = [
+      for (final e in widget.entreprises)
+        if (widget.choisies.contains(e.id) || cle.isEmpty || e.nom.toLowerCase().contains(cle)) e,
+    ];
+    final aucuneCorrespondance =
+        cle.isNotEmpty && !widget.entreprises.any((e) => e.nom.toLowerCase().contains(cle));
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            children: [
+              Text(l10n.rapportFiltreEntreprise, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+              if (widget.choisies.isEmpty && widget.entreprises.isNotEmpty)
+                Text('(${l10n.rapportFiltreToutes})', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+              if (widget.requis)
+                Text(
+                  l10n.rapportFiltreRequis,
+                  style: const TextStyle(fontSize: 11.5, color: AppColors.primary, fontWeight: FontWeight.w700),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            key: const ValueKey('rapport-recherche-entreprise'),
+            controller: _rechercheCtrl,
+            onChanged: (v) => setState(() => _recherche = v),
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: l10n.rapportRechercherEntreprise,
+              prefixIcon: const Icon(Icons.search_rounded, size: 20),
+              suffixIcon: requete.isEmpty
+                  ? null
+                  : IconButton(icon: const Icon(Icons.close_rounded, size: 18), onPressed: _effacer),
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (widget.entreprises.isEmpty && cle.isEmpty)
+            Text(l10n.rapportAucuneEntreprise, style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted))
+          else if (aucuneCorrespondance)
+            Text(
+              l10n.rapportAucuneEntrepriseTrouvee(requete),
+              style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted),
+            ),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              for (final e in visibles)
+                FilterChip(
+                  label: Text(e.nom, overflow: TextOverflow.ellipsis),
+                  selected: widget.choisies.contains(e.id),
+                  onSelected: (_) => widget.onBasculer(e.id),
+                ),
+              if (widget.onAjouter != null)
+                ActionChip(
+                  key: const ValueKey('rapport-ajouter-entreprise'),
+                  avatar: const Icon(Icons.add_rounded, size: 18, color: AppColors.primary),
+                  // Recherche sans résultat : l'entreprise se crée sous ce nom.
+                  label: Text(
+                    aucuneCorrespondance ? l10n.rapportAjouterEntrepriseNommee(requete) : l10n.rapportAjouterEntreprise,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onPressed: () {
+                    widget.onAjouter!(aucuneCorrespondance ? requete : null);
+                    // La recherche a rempli son office : l'entreprise créée
+                    // revient cochée, donc visible sans filtre.
+                    if (aucuneCorrespondance) _effacer();
+                  },
+                ),
+            ],
+          ),
         ],
       ),
     );

@@ -1317,12 +1317,29 @@
       }
     }
   },
+  "rapportRechercherEntreprise": "Rechercher une entreprise",
+  "rapportAucuneEntrepriseTrouvee": "Aucune entreprise ne correspond à « {recherche} ».",
+  "@rapportAucuneEntrepriseTrouvee": {
+    "placeholders": {
+      "recherche": {
+        "type": "String"
+      }
+    }
+  },
+  "rapportAjouterEntrepriseNommee": "Ajouter « {nom} »",
+  "@rapportAjouterEntrepriseNommee": {
+    "placeholders": {
+      "nom": {
+        "type": "String"
+      }
+    }
+  },
   "abonnementFReserves": "Gestion des réserves",
   "abonnementFMobile": "Application mobile",
   "abonnementFStockage": "Stockage des photos et documents",
   "abonnementFSupport": "Support prioritaire",
   "abonnementFEquipe": "Suivi d’équipe",
-  "abonnementFRapports": "Rapports PDF",
+  "abonnementFRapports": "Rapports en PDF",
   "abonnementFAnnotations": "Annotations sur plans",
   "abonnementFApi": "Accès API",
   "abonnementIndisponible": "Cette fonctionnalité n’est pas incluse dans votre formule.",

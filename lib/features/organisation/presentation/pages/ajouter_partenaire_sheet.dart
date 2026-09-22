@@ -49,7 +49,11 @@ class AjouterPartenaireSheet extends StatefulWidget {
   /// l'organisation, comme depuis la page des intervenants.
   final String? chantierId;
 
-  const AjouterPartenaireSheet({super.key, this.chantierId});
+  /// Nom pré-rempli — la recherche restée sans résultat dans le filtre
+  /// « Entreprise » d'un rapport : l'utilisateur ne la retape pas.
+  final String? nomInitial;
+
+  const AjouterPartenaireSheet({super.key, this.chantierId, this.nomInitial});
 
   @override
   State<AjouterPartenaireSheet> createState() => _AjouterPartenaireSheetState();
@@ -57,7 +61,7 @@ class AjouterPartenaireSheet extends StatefulWidget {
 
 class _AjouterPartenaireSheetState extends State<AjouterPartenaireSheet> {
   final _formKey = GlobalKey<FormState>();
-  final _nomCtrl = TextEditingController();
+  late final _nomCtrl = TextEditingController(text: widget.nomInitial?.trim() ?? '');
   final _emailCtrl = TextEditingController();
   final _telephoneCtrl = TextEditingController();
   final _contactCtrl = TextEditingController();

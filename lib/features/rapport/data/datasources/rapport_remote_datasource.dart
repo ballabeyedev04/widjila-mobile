@@ -65,8 +65,8 @@ abstract class RapportRemoteDataSource {
   /// Les projets accessibles — l'étape « Choisir le projet » du § 3.
   Future<List<OptionFiltre>> getProjets();
 
-  /// L'annuaire des entreprises DU CHANTIER — celles que portent ses
-  /// réserves, donc les seules qu'un filtre « Entreprise » peut viser.
+  /// L'annuaire ACCESSIBLE au chantier — ses entreprises et celles de
+  /// l'organisation (ajoutées depuis « Intervenants »), archivées exclues.
   Future<List<OptionFiltre>> getEntreprisesChantier(String chantierId);
 
   Future<List<OptionFiltre>> getCorpsEtat();
@@ -241,7 +241,10 @@ class RapportRemoteDataSourceImpl implements RapportRemoteDataSource {
 
   @override
   Future<List<OptionFiltre>> getEntreprisesChantier(String chantierId) => _appel(() async {
-        final response = await dio.get('/chantiers/$chantierId/partenaires', queryParameters: {'limit': 100});
+        final response = await dio.get(
+          '/chantiers/$chantierId/partenaires',
+          queryParameters: {'limit': 100, 'actif': 'true'},
+        );
         return ((_data(response)['partenaires'] as List?) ?? const [])
             .map((e) => OptionFiltre.fromJson(e as Map<String, dynamic>))
             .toList();

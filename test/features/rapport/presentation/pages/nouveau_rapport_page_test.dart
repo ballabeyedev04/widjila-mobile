@@ -298,4 +298,55 @@ void main() {
       expect(find.widgetWithText(ActionChip, 'Ajouter une entreprise'), findsNothing);
     });
   });
+
+  // ── Recherche dans le filtre Entreprise ──────────────────────────────────
+  //
+  // L'annuaire mêle entreprises du chantier et de l'organisation : il faut
+  // pouvoir y chercher, choisir, et ajouter ce qui manque sous le nom cherché.
+  group('rechercher une entreprise', () {
+    Future<void> ouvrirFiltres(WidgetTester tester) async {
+      when(() => repository.getOptionsFiltres(any())).thenAnswer((_) async => const Right(OptionsFiltresRapport(
+            entreprises: [
+              OptionFiltre(id: 'p1', nom: 'ABC Carrelage'),
+              OptionFiltre(id: 'p2', nom: 'Sotrac BTP'),
+              OptionFiltre(id: 'p3', nom: 'Elec Plus'),
+            ],
+            corpsEtat: [OptionFiltre(id: 'ce1', nom: 'Plomberie')],
+          )));
+      await pomperPage(tester, const NouveauRapportPage(chantierId: 'c1'), taille: surface,
+          role: UserRole.conducteurTravaux);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Rapport par entreprise'));
+      await tester.pumpAndSettle();
+      await tester.tap(suivant());
+      await tester.pumpAndSettle();
+    }
+
+    Finder recherche() => find.byKey(const ValueKey('rapport-recherche-entreprise'));
+
+    testWidgets('la recherche restreint les puces, sans perdre celles cochées', (tester) async {
+      await ouvrirFiltres(tester);
+      expect(recherche(), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(FilterChip, 'ABC Carrelage'));
+      await tester.pumpAndSettle();
+      await tester.enterText(recherche(), 'sot');
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(FilterChip, 'Sotrac BTP'), findsOneWidget);
+      expect(find.widgetWithText(FilterChip, 'Elec Plus'), findsNothing);
+      // Cochée : reste visible pour pouvoir la décocher.
+      expect(find.widgetWithText(FilterChip, 'ABC Carrelage'), findsOneWidget);
+    });
+
+    testWidgets('sans résultat : l’ajout est proposé sous le nom cherché', (tester) async {
+      await ouvrirFiltres(tester);
+
+      await tester.enterText(recherche(), 'Toiture Diallo');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Aucune entreprise ne correspond à « Toiture Diallo ».'), findsOneWidget);
+      expect(find.widgetWithText(ActionChip, 'Ajouter « Toiture Diallo »'), findsOneWidget);
+    });
+  });
 }
