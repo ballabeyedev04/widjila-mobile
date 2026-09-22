@@ -7,3 +7,7 @@ useDefault = true
 [[allowlists]]
 description = "Configuration Firebase iOS : la clé API Firebase est un identifiant PUBLIC par conception (embarqué dans chaque app), pas un secret. Sa protection passe par les restrictions de clé dans Google Cloud et les règles Firebase."
 paths = ['''ios/Runner/GoogleService-Info\.plist''']
+
+[[allowlists]]
+description = "Dossier interne de git (objets, configuration) : pas du code. Le checkout de GitHub Actions y écrit son jeton d'accès temporaire."
+paths = ['''(^|/)\.git/''']
