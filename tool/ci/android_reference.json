@@ -5,6 +5,19 @@
   "target_sdk_recommande": 36,
   "api_attendue": "api.widjila.com",
   "croissance_taille_alerte_pct": 20,
-  "_permissions": "Permissions ACCEPTÉES. Une permission absente de cette liste déclenche un avertissement (le déploiement continue). Liste vide = référence à établir au premier déploiement.",
-  "permissions": []
+  "_permissions": "Permissions ACCEPTÉES (établies au build 17, 1.0.6). Une permission absente de cette liste déclenche un avertissement (le déploiement continue). Pour en accepter une nouvelle : l'ajouter ici, avec son origine dans le commit.",
+  "permissions": [
+    "android.permission.ACCESS_COARSE_LOCATION",
+    "android.permission.ACCESS_FINE_LOCATION",
+    "android.permission.ACCESS_NETWORK_STATE",
+    "android.permission.INTERNET",
+    "android.permission.POST_NOTIFICATIONS",
+    "android.permission.RECORD_AUDIO",
+    "android.permission.USE_BIOMETRIC",
+    "android.permission.USE_FINGERPRINT",
+    "android.permission.VIBRATE",
+    "android.permission.WAKE_LOCK",
+    "com.google.android.c2dm.permission.RECEIVE",
+    "com.widjila.suivichantier.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+  ]
 }

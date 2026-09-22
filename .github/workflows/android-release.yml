@@ -50,7 +50,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
   controles:
     name: 1 · Contrôles d'entrée
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # figé : un changement de système se décide, il ne se subit pas
     timeout-minutes: 5
     outputs:
       dry_run: ${{ steps.mode.outputs.dry_run }}
@@ -140,7 +140,7 @@ jobs:
   analyse:
     name: 2a · Analyse & traductions
     needs: controles
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # figé : un changement de système se décide, il ne se subit pas
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -188,7 +188,7 @@ jobs:
   tests:
     name: 2b · Tests & couverture
     needs: controles
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # figé : un changement de système se décide, il ne se subit pas
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -240,7 +240,7 @@ jobs:
   securite:
     name: 2c · Sécurité
     needs: controles
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # figé : un changement de système se décide, il ne se subit pas
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -296,7 +296,7 @@ jobs:
   compilation:
     name: 3 · Compilation & contrôle de l'AAB
     needs: [controles, analyse, tests, securite]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # figé : un changement de système se décide, il ne se subit pas
     timeout-minutes: 40
     outputs:
       version_code: ${{ steps.preparer.outputs.version_code }}
@@ -465,7 +465,7 @@ jobs:
   emulateur:
     name: 4 · Test de démarrage (émulateur)
     needs: compilation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # figé : un changement de système se décide, il ne se subit pas
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -503,7 +503,7 @@ jobs:
   publication:
     name: 5-6 · Approbation & publication
     needs: [controles, compilation, emulateur]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # figé : un changement de système se décide, il ne se subit pas
     timeout-minutes: 30
     # ✋ L'environnement « google-play » exige votre approbation (Settings >
     # Environments) : le job attend votre clic avant de démarrer.
@@ -591,7 +591,7 @@ jobs:
     name: 7 · Bilan
     if: always()
     needs: [controles, analyse, tests, securite, compilation, emulateur, publication]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # figé : un changement de système se décide, il ne se subit pas
     timeout-minutes: 5
     steps:
       - name: Bilan
