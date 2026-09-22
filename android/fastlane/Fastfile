@@ -1,0 +1,139 @@
+# Déploiement Google Play — voir docs/DEPLOIEMENT_ANDROID.md.
+#
+# Lancé par .github/workflows/android-release.yml à chaque push sur la
+# branche `release`. Envoie l'app en « Tests fermés - Alpha » avec les notes
+# de fastlane/notes/fr-FR.txt.
+#
+# Le code Ruby d'un Fastfile s'exécute depuis android/fastlane/ : tous les
+# chemins sont donc construits en absolu à partir de ce fichier.
+
+require "fileutils"
+require "shellwords"
+require "tmpdir"
+
+default_platform(:android)
+
+RACINE = File.expand_path("../..", __dir__)   # mobile/
+ANDROID = File.expand_path("..", __dir__)     # mobile/android/
+NOTES = File.join(RACINE, "fastlane", "notes", "fr-FR.txt")
+AAB = File.join(RACINE, "build", "app", "outputs", "bundle", "release", "app-release.aab")
+MAPPING = File.join(RACINE, "build", "app", "outputs", "mapping", "release", "mapping.txt")
+
+# Limite de Google Play pour les notes d'une langue.
+NOTES_MAX = 500
+
+platform :android do
+  desc "Compile, numérote et envoie l'app en Tests fermés - Alpha"
+  desc "Options : dry_run:true — Google Play valide l'envoi sans le publier"
+  lane :beta do |options|
+    dry_run = options[:dry_run].to_s == "true"
+
+    notes = lire_notes
+    verifier_signature_configuree
+
+    version_code = prochain_version_code
+    UI.important("Build #{version_code} (#{version_name}) → Tests fermés - Alpha#{dry_run ? ' [ESSAI À BLANC]' : ''}")
+
+    compiler(version_code)
+    verifier_signature_aab
+
+    Dir.mktmpdir do |metadata|
+      # Seules les notes de CETTE version sont fournies : la fiche Play Store,
+      # les captures et les autres langues ne sont pas touchées.
+      changelogs = File.join(metadata, "fr-FR", "changelogs")
+      FileUtils.mkdir_p(changelogs)
+      File.write(File.join(changelogs, "#{version_code}.txt"), notes)
+
+      upload_to_play_store(
+        track: "alpha",
+        aab: AAB,
+        mapping: File.exist?(MAPPING) ? MAPPING : nil,
+        metadata_path: metadata,
+        skip_upload_metadata: true,
+        skip_upload_images: true,
+        skip_upload_screenshots: true,
+        skip_upload_changelogs: false,
+        release_status: "completed",
+        validate_only: dry_run
+      )
+    end
+
+    UI.success(dry_run ? "Essai à blanc réussi : rien n'a été publié." : "Build #{version_code} envoyé en Tests fermés - Alpha.")
+  end
+end
+
+# ── Notes de version ────────────────────────────────────────────────────────
+
+def lire_notes
+  UI.user_error!("Notes introuvables : #{NOTES}") unless File.exist?(NOTES)
+  notes = File.read(NOTES, encoding: "UTF-8").strip
+  UI.user_error!("fastlane/notes/fr-FR.txt est vide : écrivez les nouveautés de cette version.") if notes.empty?
+  if notes.length > NOTES_MAX
+    UI.user_error!("fastlane/notes/fr-FR.txt fait #{notes.length} caractères : Google Play en accepte #{NOTES_MAX} au maximum.")
+  end
+  notes
+end
+
+# ── Numérotation ────────────────────────────────────────────────────────────
+
+# Version visible (1.0.6) : celle de pubspec.yaml.
+def version_name
+  ligne = File.read(File.join(RACINE, "pubspec.yaml")).lines.find { |l| l.start_with?("version:") }
+  UI.user_error!("Ligne `version:` introuvable dans pubspec.yaml") unless ligne
+  ligne.split(":", 2).last.strip.split("+").first
+end
+
+# Numéro de build : le plus grand connu de Google Play (tous canaux) + 1.
+#
+# Google Play fait foi — pas pubspec.yaml, qu'on oublie d'incrémenter. Le
+# canal `alpha` DOIT répondre : s'il échoue (droits, clé), mieux vaut
+# s'arrêter que deviner un numéro. Les autres canaux peuvent être vides.
+def prochain_version_code
+  codes = google_play_track_version_codes(track: "alpha")
+  %w[production beta internal].each do |canal|
+    begin
+      codes += google_play_track_version_codes(track: canal)
+    rescue StandardError => e
+      UI.message("Canal #{canal} ignoré : #{e.message}")
+    end
+  end
+  dernier = codes.map(&:to_i).max || 0
+  UI.message("Dernier numéro de build sur Google Play : #{dernier}")
+  dernier + 1
+end
+
+# ── Compilation ─────────────────────────────────────────────────────────────
+
+def compiler(version_code)
+  commande = [
+    "flutter", "build", "appbundle", "--release",
+    "--build-number=#{version_code}",
+    "--build-name=#{version_name}",
+  ]
+  # Facultatif : l'app vise déjà la production par défaut (lib/core/config/env.dart).
+  commande << "--dart-define=API_BASE_URL=#{ENV['API_BASE_URL']}" unless ENV["API_BASE_URL"].to_s.empty?
+
+  sh("cd #{RACINE.shellescape} && #{commande.shelljoin}")
+  UI.user_error!("AAB introuvable après compilation : #{AAB}") unless File.exist?(AAB)
+end
+
+# ── Signature ───────────────────────────────────────────────────────────────
+
+# Sans android/key.properties, Gradle ne S'ARRÊTE PAS : il signe avec la clé
+# de debug (voir android/app/build.gradle.kts). On refuse donc avant de
+# compiler plutôt que de découvrir le refus de Google Play après.
+def verifier_signature_configuree
+  proprietes = File.join(ANDROID, "key.properties")
+  UI.user_error!("android/key.properties absent : la signature de release n'est pas configurée.") unless File.exist?(proprietes)
+
+  store = File.read(proprietes).lines.map(&:strip).find { |l| l.start_with?("storeFile=") }
+  UI.user_error!("storeFile manquant dans android/key.properties") unless store
+  keystore = File.expand_path(store.split("=", 2).last, ANDROID)
+  UI.user_error!("Keystore introuvable : #{keystore}") unless File.exist?(keystore)
+end
+
+# Double contrôle sur le fichier produit : jamais un AAB signé en debug.
+def verifier_signature_aab
+  certificat = sh("keytool -printcert -jarfile #{AAB.shellescape}", log: false)
+  UI.user_error!("L'AAB est signé avec la clé de DEBUG : envoi annulé.") if certificat.include?("CN=Android Debug")
+end

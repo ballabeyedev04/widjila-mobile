@@ -1,0 +1,3 @@
+- Recherche dans le filtre Entreprise des rapports, et ajout d'une entreprise introuvable
+- Les intervenants de l'organisation sont proposés dans les rapports
+- Rapports en PDF inclus dans la formule Essentiel

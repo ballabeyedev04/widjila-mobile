@@ -1,0 +1,5 @@
+# Clé du compte de service Google Play (fastlane-deploy@widjila-deploy) :
+# JAMAIS dans le dépôt. Le workflow GitHub l'écrit dans un fichier temporaire
+# et en donne le chemin par SUPPLY_JSON_KEY.
+json_key_file(ENV["SUPPLY_JSON_KEY"])
+package_name("com.widjila.suivichantier")

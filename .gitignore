@@ -57,3 +57,9 @@ app.*.map.json
 *.keystore
 android/key.properties
 android/app/google-services.json
+
+# Secrets convertis pour GitHub (docs/DEPLOIEMENT_ANDROID.md)
+*.b64.txt
+# Fastlane
+android/fastlane/report.xml
+android/fastlane/README.md

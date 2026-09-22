@@ -1,0 +1,92 @@
+# Déploiement Android → Google Play « Tests fermés - Alpha ».
+#
+# Publier :        git push origin main:release
+# Essai à blanc :  onglet Actions > « Android — Google Play » > Run workflow
+#
+# Procédure complète et secrets : docs/DEPLOIEMENT_ANDROID.md.
+
+name: Android — Google Play
+
+on:
+  push:
+    branches: [release]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Essai à blanc : Google Play valide l'envoi sans le publier"
+        type: boolean
+        default: true
+
+# Un seul déploiement à la fois, dans l'ordre : deux envois simultanés
+# viseraient le même numéro de build.
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deployer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.8"
+          channel: stable
+          cache: true
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Dépendances Flutter
+        run: |
+          flutter pub get
+          flutter gen-l10n
+
+      # Rien ne part si un test échoue.
+      - name: Tests
+        run: flutter test --concurrency=2
+
+      - name: Signature et Firebase (depuis les secrets)
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PROPERTIES: ${{ secrets.ANDROID_KEYSTORE_PROPERTIES }}
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          for s in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PROPERTIES GOOGLE_SERVICES_JSON_BASE64 PLAY_SERVICE_ACCOUNT_JSON; do
+            if [ -z "${!s}" ]; then echo "::error::Secret GitHub manquant : $s"; exit 1; fi
+          done
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          # key.properties tel qu'il existe sur le poste, mais storeFile
+          # pointe sur le keystore décodé ci-dessus (chemin relatif à android/).
+          echo "$ANDROID_KEYSTORE_PROPERTIES" | grep -v '^storeFile=' > android/key.properties
+          echo "storeFile=app/upload-keystore.jks" >> android/key.properties
+          echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > android/app/google-services.json
+          echo "$PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/play-service-account.json"
+          echo "SUPPLY_JSON_KEY=$RUNNER_TEMP/play-service-account.json" >> "$GITHUB_ENV"
+
+      - name: Compilation et envoi (Fastlane)
+        working-directory: android
+        env:
+          BUNDLE_GEMFILE: ${{ github.workspace }}/Gemfile
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+        run: bundle exec fastlane beta dry_run:"$DRY_RUN"
+
+      - name: Nettoyage des secrets
+        if: always()
+        run: |
+          rm -f android/app/upload-keystore.jks android/key.properties android/app/google-services.json
+          rm -f "$RUNNER_TEMP/play-service-account.json"
