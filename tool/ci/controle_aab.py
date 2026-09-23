@@ -80,7 +80,7 @@ def main() -> int:
     elif not attendue:
         ajouter("Signature", f"`{reelle[:16]}…` — empreinte de référence non configurée", "bloque")
     elif reelle == attendue:
-        ajouter("Signature", "clé d'importation Widjila ✔ (empreinte SHA-256 identique)", "ok")
+        ajouter("Signature", "clé d'importation attendue ✔ (empreinte SHA-256 identique)", "ok")
     else:
         ajouter("Signature", f"empreinte `{reelle[:16]}…` ≠ attendue `{attendue[:16]}…`", "bloque")
 

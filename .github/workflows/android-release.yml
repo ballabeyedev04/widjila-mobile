@@ -426,7 +426,7 @@ jobs:
           mkdir -p livrables
           cp build/app/outputs/bundle/release/app-release.aab "livrables/$NOM.aab"
           MAPPING=build/app/outputs/mapping/release/mapping.txt
-          [ -f "$MAPPING" ] && cp "$MAPPING" "livrables/$NOM-mapping.txt"
+          if [ -f "$MAPPING" ]; then cp "$MAPPING" "livrables/$NOM-mapping.txt"; fi
           cp manifest.xml "livrables/$NOM-manifest.xml"
           cp permissions.txt "livrables/$NOM-permissions.txt"
           (cd livrables && sha256sum * > SHA256SUMS.txt)
