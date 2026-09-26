@@ -20,6 +20,7 @@ import '../../../organisation/domain/entities/organisation.dart';
 import '../../../organisation/presentation/cubit/mon_organisation_cubit.dart';
 import 'modifier_organisation_sheet.dart';
 import 'modifier_profil_sheet.dart';
+import '../../../../core/config/regles_store.dart';
 
 /// Fiche de profil — TOUT ce que le serveur expose sur le compte connecté,
 /// plus l'entreprise à laquelle il appartient.
@@ -630,19 +631,24 @@ class _SectionEntreprise extends StatelessWidget {
             // Porte d'entrée vers les offres. Ouverte à TOUS les rôles :
             // consulter une grille tarifaire n'engage rien, et c'est le
             // serveur qui refusera la souscription à qui n'y a pas droit.
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () => context.push(AppRoutes.abonnement),
-                icon: const Icon(Icons.workspace_premium_outlined, size: 17),
-                label: Text(l10n.abonnementVoirFormules),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            //
+            // Absente sur iOS : l'écran qu'elle ouvre y est retiré (voir
+            // `ReglesStore`). La LIGNE au-dessus reste, elle : connaître sa
+            // formule en cours n'est pas un achat.
+            if (ReglesStore.commerceAutorise)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => context.push(AppRoutes.abonnement),
+                  icon: const Icon(Icons.workspace_premium_outlined, size: 17),
+                  label: Text(l10n.abonnementVoirFormules),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
                 ),
               ),
-            ),
             if (!peutModifier)
               _Bandeau(
                 texte: l10n.profilLectureSeule,

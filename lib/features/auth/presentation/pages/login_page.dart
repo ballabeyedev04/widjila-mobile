@@ -12,6 +12,7 @@ import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
 import '../widgets/auth_chrome.dart';
+import '../../../../core/config/regles_store.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -250,6 +251,10 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _piedDePage() {
     final l10n = context.l10n;
+    // Sur iOS, aucune création de compte : Apple considère l'inscription
+    // d'une entreprise comme un canal d'achat externe (voir `ReglesStore`).
+    // Les comptes y sont créés par l'organisation, hors de l'application.
+    if (!ReglesStore.inscriptionAutorisee) return const SizedBox.shrink();
     return AuthFooterLink(
       question: l10n.loginPasEncoreDeCompte,
       action: l10n.authCreerUnCompte,

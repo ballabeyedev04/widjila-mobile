@@ -10,6 +10,7 @@ import '../../features/auth/presentation/pages/forgot_password_page.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/mfa_page.dart';
 import '../../features/auth/presentation/pages/register_page.dart';
+import '../config/regles_store.dart';
 import '../../features/auth/presentation/pages/reset_password_page.dart';
 import '../../features/auth/presentation/pages/bienvenue_page.dart';
 import '../../features/auth/presentation/pages/splash_page.dart';
@@ -309,7 +310,15 @@ class AppRouter {
       GoRoute(path: AppRoutes.bienvenue, builder: (_, _) => const BienvenuePage()),
       GoRoute(path: AppRoutes.login, builder: (_, _) => const LoginPage()),
       GoRoute(path: AppRoutes.mfa, builder: (_, _) => const MfaPage()),
-      GoRoute(path: AppRoutes.register, builder: (_, _) => const RegisterPage()),
+      // Inscription : retirée sur iOS (Apple y voit un canal d'achat
+      // externe — voir `ReglesStore`). La route reste déclarée pour qu'un
+      // lien résiduel ou un lien profond ne provoque pas d'erreur : il
+      // ramène à la connexion.
+      GoRoute(
+        path: AppRoutes.register,
+        redirect: (_, _) => ReglesStore.inscriptionAutorisee ? null : AppRoutes.login,
+        builder: (_, _) => const RegisterPage(),
+      ),
       GoRoute(path: AppRoutes.forgotPassword, builder: (_, _) => const ForgotPasswordPage()),
       GoRoute(
         path: AppRoutes.resetPassword,
@@ -387,8 +396,12 @@ class AppRouter {
                 path: AppRoutes.parametres,
                 pageBuilder: (_, state) => _pageOnglet(state, const SettingsPage()),
               ),
+              // Abonnement : écran de vente, donc absent sur iOS (voir
+              // `ReglesStore`). Redirigé vers l'accueil plutôt que supprimé,
+              // pour qu'aucun chemin résiduel ne tombe sur une erreur.
               GoRoute(
                 path: AppRoutes.abonnement,
+                redirect: (_, _) => ReglesStore.commerceAutorise ? null : AppRoutes.dashboard,
                 pageBuilder: (_, state) => _pageOnglet(state, const AbonnementPage()),
               ),
               // Dans la coquille : l'écran garde la barre du bas, comme

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../errors/error_codes.dart';
 import '../routes/app_router.dart';
+import '../config/regles_store.dart';
 import '../theme/app_colors.dart';
 import '../../l10n/l10n_extension.dart';
 
@@ -160,27 +161,40 @@ class _CarteAbonnement extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: () {
-                          // On referme AVANT de naviguer : la modale reposait
-                          // sur la route quittée, elle resterait suspendue
-                          // au-dessus de l'écran d'abonnement.
-                          Navigator.of(context).pop();
-                          context.push(AppRoutes.abonnement);
-                        },
-                        icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                        label: Text(l10n.abonnementVoirFormules),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          padding: const EdgeInsets.symmetric(vertical: 13),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                    // Sur iOS, aucun renvoi vers la vente : ni bouton, ni
+                    // tarif, ni adresse où souscrire — l'App Store l'interdit
+                    // hors achat intégré (voir `ReglesStore`). On dit
+                    // simplement à qui s'adresser dans son organisation.
+                    if (ReglesStore.commerceAutorise)
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () {
+                            // On referme AVANT de naviguer : la modale reposait
+                            // sur la route quittée, elle resterait suspendue
+                            // au-dessus de l'écran d'abonnement.
+                            Navigator.of(context).pop();
+                            context.push(AppRoutes.abonnement);
+                          },
+                          icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                          label: Text(l10n.abonnementVoirFormules),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
+                      )
+                    else
+                      Text(
+                        l10n.abonnementVoirAdministrateur,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 13, height: 1.4, color: AppColors.textSecondary,
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 6),
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),

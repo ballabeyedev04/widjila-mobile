@@ -5,6 +5,7 @@ import '../../../../core/routes/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../l10n/l10n_extension.dart';
 import '../widgets/marque_widjila.dart';
+import '../../../../core/config/regles_store.dart';
 
 /// Écran d'accueil affiché après le splash, pour un visiteur non connecté.
 ///
@@ -83,11 +84,15 @@ class BienvenuePage extends StatelessWidget {
                         libelle: l10n.authSeConnecter,
                         onPressed: () => context.go(AppRoutes.login),
                       ),
-                      const SizedBox(height: 14),
-                      _BoutonContour(
-                        libelle: l10n.authCreerUnCompte,
-                        onPressed: () => context.go(AppRoutes.register),
-                      ),
+                      // Création de compte : absente sur iOS (voir
+                      // `ReglesStore`).
+                      if (ReglesStore.inscriptionAutorisee) ...[
+                        const SizedBox(height: 14),
+                        _BoutonContour(
+                          libelle: l10n.authCreerUnCompte,
+                          onPressed: () => context.go(AppRoutes.register),
+                        ),
+                      ],
                       const SizedBox(height: 34),
                     ],
                   ),

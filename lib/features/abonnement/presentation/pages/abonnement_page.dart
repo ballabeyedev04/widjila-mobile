@@ -385,6 +385,10 @@ class _CarteEtat extends StatelessWidget {
     final (titre, couleur) = switch (droits.source) {
       'abonnement' => (droits.planNom ?? l10n.abonnementActif, AppColors.success),
       'essai' => (l10n.abonnementEssaiEnCours, AppColors.warning),
+      // L'offre gratuite n'est ni une alerte ni une panne : c'est un état
+      // normal et permanent (un chantier, deux comptes). En rouge, elle
+      // ressemblerait au « aucun abonnement » qu'elle a justement remplacé.
+      'gratuit' => (l10n.abonnementOffreGratuite, AppColors.info),
       _ => (l10n.abonnementAucun, AppColors.danger),
     };
 

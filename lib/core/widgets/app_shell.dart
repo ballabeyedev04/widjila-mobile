@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../config/regles_store.dart';
 import '../config/user_role.dart';
 import '../routes/app_router.dart';
 import '../services/verrou_biometrique.dart';
@@ -304,14 +305,19 @@ class _AppShellState extends State<AppShell> {
       dansCoquille: false,
       route: _versDemandes,
     ),
-    // Abonnement : ouvert à TOUS les rôles, sans garde.
+    // Abonnement : ouvert à TOUS les rôles, sans garde — SAUF sur iOS.
     //
     // Chacun a un intérêt légitime à voir la formule en cours et ce qu'il
     // reste de quota — c'est ce qui explique un refus de créer un chantier.
     // Seule la FACTURATION est réservée : la page masque cette section
     // d'elle-même selon le rôle (voir `AbonnementPage`), plutôt que de rendre
     // l'écran entier inaccessible.
-    (
+    //
+    // Sur iOS, l'écran entier disparaît : il présente des tarifs et mène au
+    // paiement, ce que l'App Store interdit hors achat intégré (voir
+    // `ReglesStore`).
+    if (ReglesStore.commerceAutorise)
+      (
       icon: Icons.workspace_premium_rounded,
       label: l10n.abonnementTitre,
       couleur: AppColors.warning,
@@ -320,7 +326,7 @@ class _AppShellState extends State<AppShell> {
       avecDemandesEnAttente: false,
       dansCoquille: true,
       route: _versAbonnement,
-    ),
+      ),
     (
       icon: Icons.handshake_rounded,
       label: l10n.actionIntervenants,

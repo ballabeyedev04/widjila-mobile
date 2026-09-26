@@ -1234,9 +1234,11 @@
   "typesReferentielIndisponible": "Aucun type disponible. Ajoutez-en depuis l’espace d’administration.",
   "abonnementTitre": "Abonnement",
   "abonnementVoirFormules": "Voir les formules",
+  "abonnementVoirAdministrateur": "Rapprochez-vous de l’administrateur de votre organisation pour faire évoluer votre formule.",
   "abonnementVotreFormule": "Votre formule",
   "abonnementActif": "Abonnement actif",
   "abonnementEssaiEnCours": "Période d’essai",
+  "abonnementOffreGratuite": "Offre gratuite",
   "abonnementAucun": "Aucun abonnement actif",
   "abonnementEssaiJusquau": "Essai jusqu’au {date}",
   "@abonnementEssaiJusquau": {
