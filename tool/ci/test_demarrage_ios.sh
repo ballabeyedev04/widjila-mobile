@@ -47,12 +47,25 @@ print(sorted(iphones, key=numero)[-1]["identifier"])
 
 UDID="$(xcrun simctl create widjila-ci "$TYPE" "$RUNTIME")"
 JOURNAL=""
+
 # Quoi qu'il arrive : le suivi du journal est arrêté et le simulateur effacé
 # — il garde une copie de l'app et de ses données.
+#
+# Deux précautions, et chacune a sa raison :
+#
+#  - le code de sortie est relevé À L'ENTRÉE et rendu À LA SORTIE. Sans
+#    cela, le résultat du script devient celui du nettoyage : un test réussi
+#    pouvait échouer parce que le journal était déjà arrêté, et un test
+#    raté aurait pu passer pour réussi ;
+#  - chaque commande se termine par « || true ». Sous `set -e`, la première
+#    qui échoue interrompt le nettoyage : le simulateur restait allumé, et
+#    la suite n'était jamais exécutée.
 menage() {
-  [ -n "$JOURNAL" ] && kill "$JOURNAL" 2>/dev/null
-  xcrun simctl shutdown "$UDID" 2>/dev/null || true
-  xcrun simctl delete "$UDID" 2>/dev/null || true
+  code=$?
+  if [ -n "$JOURNAL" ]; then kill "$JOURNAL" 2>/dev/null || true; fi
+  xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
+  xcrun simctl delete "$UDID" >/dev/null 2>&1 || true
+  exit "$code"
 }
 trap menage EXIT
 echo "▶ Simulateur $(xcrun simctl list devices -j | python3 -c "import json,sys; print([d['name'] for g in json.load(sys.stdin)['devices'].values() for d in g if d['udid']=='$UDID'][0])") ($RUNTIME)"
