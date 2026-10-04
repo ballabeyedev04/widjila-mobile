@@ -1,3 +1,7 @@
-- Recherche dans le filtre Entreprise des rapports, et ajout d'une entreprise introuvable
-- Les intervenants de l'organisation sont proposés dans les rapports
-- Rapports en PDF inclus dans la formule Essentiel
+- Numéro de chaque réserve affiché directement sur le plan
+- Nouveaux statuts de suivi : à surveiller, à échéance, traitée, levée
+- Tableau de bord : indicateurs, évolution et répartition par chantier
+- Abonnement Premium sur devis : demande, suivi et paiement sécurisé
+- Offre gratuite permanente à la fin de l'essai : vos données restent accessibles
+- Petit son de confirmation sur les actions réussies
+- Correction d'un plantage au démarrage sur les nouvelles installations
