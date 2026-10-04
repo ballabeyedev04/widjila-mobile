@@ -1,0 +1,21 @@
+{
+  "_lisez_moi": "Référence du contrôle de l'IPA (tool/ci/controle_ipa.py). Voir docs/DEPLOIEMENT_IOS.md.",
+  "bundle_id": "com.widjila.suivichantier",
+  "equipe": "DR54MH4Z4J",
+  "ios_minimum": "15.0",
+  "api_attendue": "api.widjila.com",
+  "croissance_taille_alerte_pct": 20,
+  "_autorisations": "Demandes d'autorisation ACCEPTÉES (établies à la version 1.0.7). Une clé NS…UsageDescription absente de cette liste déclenche un avertissement (le déploiement continue). Pour en accepter une nouvelle : l'ajouter ici, avec son origine dans le commit. Apple refuse une app qui demande une autorisation sans l'expliquer, et refuse aussi une explication qui ne correspond pas à l'usage réel.",
+  "autorisations": [
+    "NSCameraUsageDescription",
+    "NSLocationAlwaysAndWhenInUseUsageDescription",
+    "NSLocationWhenInUseUsageDescription",
+    "NSMicrophoneUsageDescription",
+    "NSPhotoLibraryUsageDescription",
+    "NSSpeechRecognitionUsageDescription"
+  ],
+  "_droits": "Droits (entitlements) attendus dans le profil et l'app signée.",
+  "droits": {
+    "aps-environment": "production"
+  }
+}

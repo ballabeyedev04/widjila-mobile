@@ -1,0 +1,374 @@
+# Déploiement App Store (TestFlight) — voir docs/DEPLOIEMENT_IOS.md.
+#
+# Trois étapes, appelées par .github/workflows/ios-release.yml :
+#
+#   preparer  — lit App Store Connect : numéro de build suivant, contrôle de
+#               la version visible (pubspec.yaml) ;
+#   compiler  — installe la signature, puis construit l'IPA signé pour
+#               l'App Store avec ce numéro ;
+#   publier   — envoie l'IPA sur TestFlight (après approbation), attend la
+#               fin du traitement d'Apple, puis vérifie qu'il y est bien.
+#
+# TestFlight n'est PAS l'examen App Store : l'envoi met la version à
+# disposition des testeurs internes. La soumission à l'examen se fait depuis
+# App Store Connect, où se joignent la réponse au refus, le compte de
+# démonstration et les notes pour l'examinateur.
+#
+# Le code Ruby d'un Fastfile s'exécute depuis ios/fastlane/ : tous les
+# chemins sont construits en absolu à partir de ce fichier.
+
+require "fileutils"
+require "plist"
+require "shellwords"
+require "time"
+require "tmpdir"
+
+default_platform(:ios)
+
+RACINE = File.expand_path("../..", __dir__)   # mobile/
+IOS = File.expand_path("..", __dir__)         # mobile/ios/
+NOTES = File.join(RACINE, "fastlane", "notes", "fr-FR.txt")
+DOSSIER_IPA = File.join(RACINE, "build", "ios", "ipa")
+
+APP_ID = "com.widjila.suivichantier"
+EQUIPE = "DR54MH4Z4J"
+NOTES_MAX = 4000 # limite de TestFlight pour « Nouveautés à tester »
+
+platform :ios do
+  # ── 1. Préparer ──────────────────────────────────────────────────────────
+  desc "Numéro de build suivant (App Store Connect) et contrôle de la version visible"
+  lane :preparer do
+    cle_api
+
+    dernier = dernier_build_asc
+    version_code = dernier + 1
+
+    nom = version_name
+    nom_asc = derniere_version_asc
+    if nom_asc && Gem::Version.new(nom) < Gem::Version.new(nom_asc)
+      UI.user_error!("pubspec.yaml annonce #{nom}, plus ancienne que la version #{nom_asc} déjà sur App Store Connect.")
+    end
+
+    UI.success("Dernier build sur App Store Connect : #{dernier}#{nom_asc ? " (#{nom_asc})" : ''} → prochain : #{version_code} (#{nom})")
+    sortie("version_code", version_code)
+    sortie("version_name", nom)
+    sortie("dernier_code", dernier)
+    sortie("derniere_version", nom_asc || "")
+  end
+
+  # ── 2. Compiler ──────────────────────────────────────────────────────────
+  desc "Installe la signature puis construit l'IPA signé — option : version_code"
+  lane :compiler do |options|
+    version_code = Integer(options[:version_code] || UI.user_error!("version_code manquant"))
+    profil = preparer_signature
+
+    # Le projet Xcode est en signature AUTOMATIQUE, ce qui est ce qu'il faut
+    # sur le poste d'un développeur. Sur une machine d'intégration il n'y a
+    # aucun compte Apple connecté : on bascule la cible Runner (configuration
+    # Release uniquement — les Pods ne sont pas touchés) en signature MANUELLE
+    # avec le profil installé juste avant. La modification reste sur la
+    # machine jetable : le dépôt n'est pas touché.
+    update_code_signing_settings(
+      path: File.join(IOS, "Runner.xcodeproj"),
+      use_automatic_signing: false,
+      team_id: EQUIPE,
+      targets: ["Runner"],
+      build_configurations: ["Release"],
+      bundle_identifier: APP_ID,
+      code_sign_identity: "Apple Distribution",
+      profile_uuid: profil["UUID"],
+      profile_name: profil["Name"]
+    )
+
+    Dir.mktmpdir do |dossier|
+      plist = File.join(dossier, "ExportOptions.plist")
+      File.write(plist, options_export(profil))
+
+      commande = [
+        "flutter", "build", "ipa", "--release",
+        "--build-number=#{version_code}",
+        "--build-name=#{version_name}",
+        "--export-options-plist=#{plist}",
+      ]
+      # Facultatif : l'app vise déjà la production par défaut (lib/core/config/env.dart).
+      commande << "--dart-define=API_BASE_URL=#{ENV['API_BASE_URL']}" unless ENV["API_BASE_URL"].to_s.empty?
+
+      sh("cd #{RACINE.shellescape} && #{commande.shelljoin}")
+    end
+
+    chemin = ipa_construit
+    UI.success("IPA construit : build #{version_code} (#{version_name}) — #{chemin}")
+    sortie("ipa", chemin)
+  end
+
+  # ── 3. Publier ───────────────────────────────────────────────────────────
+  desc "Envoie l'IPA sur TestFlight — options : ipa, version_code, dry_run"
+  lane :publier do |options|
+    ipa = options[:ipa] || UI.user_error!("ipa manquant")
+    version_code = Integer(options[:version_code] || UI.user_error!("version_code manquant"))
+    dry_run = options[:dry_run].to_s == "true"
+    notes = lire_notes
+
+    UI.user_error!("IPA introuvable : #{ipa}") unless File.exist?(ipa)
+    cle = cle_api
+
+    # Entre la compilation et l'approbation, un autre envoi (depuis Xcode, par
+    # exemple) a pu prendre ce numéro : mieux vaut le dire clairement que
+    # laisser Apple répondre « bundle version must be higher ».
+    dernier = dernier_build_asc
+    if version_code <= dernier
+      UI.user_error!("Le build #{version_code} n'est plus libre : App Store Connect est déjà au build #{dernier}. Relancez le déploiement.")
+    end
+
+    if dry_run
+      valider(ipa, cle)
+      UI.success("Essai à blanc : Apple a validé l'envoi du build #{version_code}. Rien n'a été publié.")
+      next
+    end
+
+    avec_nouvel_essai do
+      upload_to_testflight(
+        api_key: cle,
+        app_identifier: APP_ID,
+        ipa: ipa,
+        changelog: notes,
+        # Testeurs internes seulement : pas d'examen bêta, aucune diffusion
+        # externe déclenchée par une machine.
+        distribute_external: false,
+        notify_external_testers: false,
+        # On attend la fin du traitement d'Apple : sans cela, « envoyé » ne
+        # veut rien dire — un IPA refusé au traitement ne le dit que là.
+        skip_waiting_for_build_processing: false
+      )
+    end
+
+    # Vérification APRÈS envoi : le build est-il vraiment sur TestFlight ?
+    unless dernier_build_asc >= version_code
+      UI.user_error!("Envoi terminé mais le build #{version_code} n'apparaît pas sur TestFlight.")
+    end
+    UI.success("Build #{version_code} (#{version_name}) disponible sur TestFlight et vérifié.")
+  end
+end
+
+# ── App Store Connect ───────────────────────────────────────────────────────
+
+# Authentification par clé API : pas d'identifiant Apple, pas de mot de passe,
+# pas de double authentification à déjouer sur une machine d'intégration. Le
+# workflow décode le secret dans un fichier temporaire et en donne le chemin
+# par ASC_KEY_PATH.
+def cle_api
+  @cle_api ||= begin
+    chemin = ENV["ASC_KEY_PATH"].to_s
+    id = ENV["ASC_KEY_ID"].to_s
+    emetteur = ENV["ASC_ISSUER_ID"].to_s
+    UI.user_error!("ASC_KEY_PATH absent ou introuvable : la clé App Store Connect n'est pas configurée (voir docs/DEPLOIEMENT_IOS.md).") if chemin.empty? || !File.exist?(chemin)
+    UI.user_error!("ASC_KEY_ID absent (voir docs/DEPLOIEMENT_IOS.md).") if id.empty?
+    UI.user_error!("ASC_ISSUER_ID absent (voir docs/DEPLOIEMENT_IOS.md).") if emetteur.empty?
+
+    app_store_connect_api_key(key_id: id, issuer_id: emetteur, key_filepath: chemin, in_house: false)
+  end
+end
+
+# Numéro de build le plus élevé connu d'App Store Connect.
+#
+# Apple exige un numéro strictement croissant DANS une même version visible.
+# On prend le maximum entre le train de la version en préparation et le
+# dernier build tous trains confondus : la suite reste croissante même quand
+# la version visible change.
+def dernier_build_asc
+  global = latest_testflight_build_number(
+    api_key: cle_api, app_identifier: APP_ID, initial_build_number: 0
+  ).to_i
+
+  train = begin
+    latest_testflight_build_number(
+      api_key: cle_api, app_identifier: APP_ID, version: version_name, initial_build_number: 0
+    ).to_i
+  rescue StandardError => e
+    UI.message("Version #{version_name} encore inconnue de TestFlight (#{e.message.lines.first&.strip})")
+    0
+  end
+
+  [global, train].max
+end
+
+# Version visible la plus récente déclarée sur App Store Connect.
+# Non bloquant : son seul rôle est d'éviter de publier une version plus
+# ancienne que celle déjà en ligne.
+def derniere_version_asc
+  app = Spaceship::ConnectAPI::App.find(APP_ID)
+  return nil unless app
+
+  versions = app.get_app_store_versions.map { |v| v.version_string.to_s }
+  versions.select { |v| v =~ /\A\d+(\.\d+)*\z/ }.max_by { |v| Gem::Version.new(v) }
+rescue StandardError => e
+  UI.message("Versions App Store Connect illisibles (#{e.message.lines.first&.strip}) — contrôle de version ignoré.")
+  nil
+end
+
+# Essai à blanc : Apple fait passer à l'IPA les mêmes contrôles qu'un envoi
+# (signature, droits, icônes, clés d'Info.plist) et ne publie rien.
+def valider(ipa, cle)
+  # altool ne prend pas un chemin de clé : il la cherche dans un des dossiers
+  # convenus, sous le nom AuthKey_<KEY_ID>.p8.
+  dossier = File.expand_path("~/.appstoreconnect/private_keys")
+  destination = File.join(dossier, "AuthKey_#{cle[:key_id]}.p8")
+  FileUtils.mkdir_p(dossier)
+  FileUtils.cp(ENV["ASC_KEY_PATH"], destination)
+
+  sh([
+    "xcrun", "altool", "--validate-app",
+    "-f", ipa, "-t", "ios",
+    "--apiKey", cle[:key_id].to_s, "--apiIssuer", cle[:issuer_id].to_s,
+  ].shelljoin)
+ensure
+  FileUtils.rm_f(destination) if destination
+end
+
+# ── Signature ───────────────────────────────────────────────────────────────
+
+# Installe le certificat de distribution et le profil d'approvisionnement
+# venus des secrets, puis les contrôle.
+#
+# Sans contrôle, une erreur de profil ne se voit qu'à l'export (message
+# obscur) ou, pire, à l'envoi : un IPA signé avec un profil de développement
+# est refusé par Apple après dix minutes de compilation.
+#
+# @return [Hash] le contenu du profil (Name, UUID, Entitlements…)
+def preparer_signature
+  p12 = ENV["IOS_CERT_P12"].to_s
+  profil_chemin = ENV["IOS_PROFILE"].to_s
+  UI.user_error!("IOS_CERT_P12 absent ou introuvable : le certificat de distribution n'est pas configuré (voir docs/DEPLOIEMENT_IOS.md).") if p12.empty? || !File.exist?(p12)
+  UI.user_error!("IOS_PROFILE absent ou introuvable : le profil d'approvisionnement n'est pas configuré (voir docs/DEPLOIEMENT_IOS.md).") if profil_chemin.empty? || !File.exist?(profil_chemin)
+
+  # Trousseau temporaire, propre à ce travail : le certificat ne reste pas sur
+  # la machine et ne demande aucun déverrouillage interactif.
+  setup_ci
+
+  import_certificate(
+    certificate_path: p12,
+    certificate_password: ENV["IOS_CERT_PASSWORD"].to_s,
+    keychain_name: ENV["MATCH_KEYCHAIN_NAME"] || "fastlane_tmp_keychain",
+    keychain_password: ENV["MATCH_KEYCHAIN_PASSWORD"].to_s,
+    log_output: false
+  )
+
+  identites = sh("security find-identity -v -p codesigning", log: false)
+  unless identites.include?("Apple Distribution") || identites.include?("iPhone Distribution")
+    UI.user_error!("Aucune identité « Apple Distribution » dans le trousseau : le fichier .p12 n'est pas un certificat de DISTRIBUTION, ou son mot de passe est faux.")
+  end
+
+  install_provisioning_profile(path: profil_chemin)
+  profil = infos_profil(profil_chemin)
+  verifier_profil(profil)
+  profil
+end
+
+# Contenu d'un .mobileprovision : un plist signé (CMS), que `security` sait
+# dépouiller de sa signature.
+def infos_profil(chemin)
+  Plist.parse_xml(sh("security cms -D -i #{chemin.shellescape}", log: false)) ||
+    UI.user_error!("Profil d'approvisionnement illisible : #{chemin}")
+end
+
+def verifier_profil(profil)
+  nom = profil["Name"]
+  droits = profil["Entitlements"] || {}
+  identifiant = droits["application-identifier"].to_s.sub(/\A[^.]+\./, "")
+
+  unless identifiant == APP_ID
+    UI.user_error!("Le profil « #{nom} » vise #{identifiant}, pas #{APP_ID}.")
+  end
+  unless Array(profil["TeamIdentifier"]).include?(EQUIPE)
+    UI.user_error!("Le profil « #{nom} » appartient à l'équipe #{Array(profil['TeamIdentifier']).join(', ')}, pas à #{EQUIPE}.")
+  end
+  # Un profil App Store ne liste AUCUN appareil et interdit le débogage :
+  # c'est ce qui le distingue d'un profil de développement ou ad hoc, qui
+  # serait refusé à l'envoi.
+  if profil["ProvisionedDevices"]
+    UI.user_error!("Le profil « #{nom} » liste des appareils : c'est un profil Développement ou Ad Hoc, pas App Store.")
+  end
+  if droits["get-task-allow"]
+    UI.user_error!("Le profil « #{nom} » autorise le débogage (get-task-allow) : ce n'est pas un profil App Store.")
+  end
+  unless droits["aps-environment"].to_s == "production"
+    UI.important("Le profil « #{nom} » n'active pas les notifications push en production : les notifications ne fonctionneront pas dans ce build.")
+  end
+
+  jours = ((Time.parse(profil["ExpirationDate"].to_s) - Time.now) / 86_400).floor
+  UI.user_error!("Le profil « #{nom} » a expiré il y a #{-jours} jour(s) : régénérez-le sur developer.apple.com.") if jours.negative?
+  UI.important("Le profil « #{nom} » expire dans #{jours} jour(s).") if jours < 30
+
+  UI.success("Profil « #{nom} » : #{APP_ID}, équipe #{EQUIPE}, App Store, valable #{jours} jour(s).")
+end
+
+# Options d'export de l'archive — ce qui décide de la forme de l'IPA.
+def options_export(profil)
+  {
+    "method" => "app-store",
+    "teamID" => EQUIPE,
+    "signingStyle" => "manual",
+    "signingCertificate" => "Apple Distribution",
+    "provisioningProfiles" => { APP_ID => profil["UUID"] },
+    # Symboles envoyés à Apple : sans eux, les plantages remontent en
+    # adresses mémoire illisibles.
+    "uploadSymbols" => true,
+    "stripSwiftSymbols" => true,
+    # Le numéro de build vient de nous, pas de Xcode.
+    "manageAppVersionAndBuildNumber" => false,
+  }.to_plist
+end
+
+# ── Fichiers du dépôt ───────────────────────────────────────────────────────
+
+def ipa_construit
+  fichiers = Dir[File.join(DOSSIER_IPA, "*.ipa")]
+  UI.user_error!("Aucun IPA dans build/ios/ipa/ après compilation.") if fichiers.empty?
+  if fichiers.length > 1
+    UI.user_error!("Plusieurs IPA dans build/ios/ipa/ (#{fichiers.map { |f| File.basename(f) }.join(', ')}) : impossible de choisir.")
+  end
+  fichiers.first
+end
+
+# Le même fichier que pour Google Play : une version, des notes. La limite de
+# Google Play (500) est plus stricte que celle de TestFlight et c'est elle qui
+# est contrôlée à l'entrée du déploiement Android.
+def lire_notes
+  UI.user_error!("Notes introuvables : #{NOTES}") unless File.exist?(NOTES)
+  notes = File.read(NOTES, encoding: "UTF-8").strip
+  UI.user_error!("fastlane/notes/fr-FR.txt est vide : écrivez les nouveautés de cette version.") if notes.empty?
+  if notes.length > NOTES_MAX
+    UI.user_error!("fastlane/notes/fr-FR.txt fait #{notes.length} caractères : TestFlight en accepte #{NOTES_MAX} au maximum.")
+  end
+  notes
+end
+
+# Version visible (1.0.6) : celle de pubspec.yaml. Le numéro après « + » est
+# ignoré — c'est App Store Connect qui fixe le numéro de build.
+def version_name
+  ligne = File.read(File.join(RACINE, "pubspec.yaml")).lines.find { |l| l.start_with?("version:") }
+  UI.user_error!("Ligne `version:` introuvable dans pubspec.yaml") unless ligne
+  ligne.split(":", 2).last.strip.split("+").first
+end
+
+# Relance un envoi interrompu par une erreur réseau passagère — jamais une
+# erreur de fond (droits, numéro déjà utilisé, fichier refusé).
+def avec_nouvel_essai(max: 3)
+  tentative = 0
+  begin
+    tentative += 1
+    yield
+  rescue StandardError => e
+    passagere = e.message =~ /timeout|timed out|execution expired|ECONNRESET|connection reset|50[0234]|Service Unavailable|Internal error|try again/i
+    raise unless passagere && tentative < max
+    UI.important("Erreur réseau passagère (#{e.message.lines.first&.strip}) — nouvel essai #{tentative + 1}/#{max} dans #{30 * tentative} s")
+    sleep(30 * tentative)
+    retry
+  end
+end
+
+# Valeur transmise à l'étape suivante du workflow GitHub.
+def sortie(cle, valeur)
+  fichier = ENV["GITHUB_OUTPUT"]
+  File.open(fichier, "a") { |f| f.puts("#{cle}=#{valeur}") } if fichier
+end

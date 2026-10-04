@@ -3,6 +3,8 @@
 > **En une phrase :** vous écrivez les nouveautés, vous poussez sur `release`,
 > la chaîne vérifie tout, vous approuvez d'un clic, et l'app arrive chez vos
 > testeurs — sans ouvrir Play Console.
+>
+> Pour iOS, la chaîne jumelle : `docs/DEPLOIEMENT_IOS.md`.
 
 ---
 
@@ -210,3 +212,5 @@ La branche `release` ne fait qu'avancer avec `main` : jamais de force-push.
 | `tool/ci/test_demarrage.sh` | test de démarrage sur émulateur |
 | `.gitleaks.toml` | règles de la recherche de secrets |
 | `.github/dependabot.yml` | mises à jour de sécurité des outils de la chaîne |
+
+Chaîne iOS : `docs/DEPLOIEMENT_IOS.md`.

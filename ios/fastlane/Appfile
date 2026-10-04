@@ -1,0 +1,8 @@
+# Déploiement App Store / TestFlight — voir docs/DEPLOIEMENT_IOS.md.
+#
+# Aucun identifiant Apple ici : l'authentification se fait par CLÉ API App
+# Store Connect (secrets APP_STORE_CONNECT_*), écrite par le workflow GitHub
+# dans un fichier temporaire. Pas de mot de passe, pas de double
+# authentification à déjouer sur une machine d'intégration.
+app_identifier("com.widjila.suivichantier")
+team_id("DR54MH4Z4J") # Widjila — App Store Connect > Adhésion

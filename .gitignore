@@ -63,3 +63,9 @@ android/app/google-services.json
 # Fastlane
 android/fastlane/report.xml
 android/fastlane/README.md
+ios/fastlane/report.xml
+ios/fastlane/README.md
+# Signature iOS : jamais dans le depot (secrets GitHub, voir docs/DEPLOIEMENT_IOS.md).
+*.p12
+*.mobileprovision
+AuthKey_*.p8

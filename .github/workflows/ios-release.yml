@@ -1,0 +1,633 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  Widjila — chaîne de déploiement iOS (App Store Connect, TestFlight)
+# ═══════════════════════════════════════════════════════════════════════════
+#
+#   1. Contrôles d'entrée ─┬─ 2a. Analyse & traductions ─┐
+#                          ├─ 2b. Tests & couverture ────┼─ 3-4. Compilation,
+#                          └─ 2c. Sécurité ──────────────┘   contrôle de l'IPA
+#                                                            & démarrage
+#                                                                      │
+#                                                  5. ✋ Approbation → 6. Publication & vérification
+#                                                                      │
+#                                                                 7. Bilan
+#
+#   Publier        : git push origin main:release-ios
+#   Essai à blanc  : Actions > « iOS — App Store » > Run workflow
+#   Procédure      : docs/DEPLOIEMENT_IOS.md
+#
+# ── Deux différences assumées avec la chaîne Android ──────────────────────
+#
+# 1. TestFlight n'est pas l'examen App Store. Cette chaîne met la version à
+#    disposition des testeurs internes et s'arrête là. La soumission à
+#    l'examen se fait depuis App Store Connect : c'est là que se joignent les
+#    notes pour l'examinateur, le compte de démonstration et, le cas échéant,
+#    la réponse à un refus. Une machine n'a pas à décider de cela.
+#
+# 2. Une minute de machine macOS est facturée dix fois une minute Linux.
+#    Tout ce qui peut tourner sur Linux (analyse, tests, sécurité) y tourne,
+#    et la compilation, le contrôle de l'IPA et le test de démarrage sont
+#    regroupés dans UN seul travail macOS au lieu de deux.
+
+name: iOS — App Store
+run-name: >-
+  ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '🧪 Essai à blanc' || '🚀 Déploiement' }}
+  — ${{ github.ref_name }} @ ${{ github.sha }}
+
+on:
+  push:
+    branches: [release-ios]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Essai à blanc : tout est vérifié, Apple valide l'envoi, rien n'est publié"
+        type: boolean
+        default: true
+
+# Un seul déploiement à la fois, dans l'ordre : deux envois simultanés
+# viseraient le même numéro de build.
+concurrency:
+  group: ios-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.44.8"
+  RUBY_VERSION: "3.3"
+  XCODE_MAJEUR_MINIMUM: "16" # Apple refuse les envois construits avec un SDK plus ancien
+  BUNDLE_ID: com.widjila.suivichantier
+  NOTES_MAX: "500" # le fichier de notes est partagé avec Google Play, dont la limite est la plus basse
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  controles:
+    name: 1 · Contrôles d'entrée
+    runs-on: ubuntu-24.04 # figé : un changement de système se décide, il ne se subit pas
+    timeout-minutes: 5
+    outputs:
+      dry_run: ${{ steps.mode.outputs.dry_run }}
+      version_name: ${{ steps.version.outputs.version_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # historique et tags : origine du commit, notes précédentes
+
+      - name: Mode
+        id: mode
+        run: |
+          DRY_RUN="${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}"
+          echo "dry_run=$DRY_RUN" >> "$GITHUB_OUTPUT"
+          {
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "## 🧪 Essai à blanc"
+              echo "Toute la chaîne est exécutée et Apple valide l'envoi, mais **rien n'est publié**."
+            else
+              echo "## 🚀 Déploiement vers TestFlight"
+            fi
+            echo ""
+            echo "### 🚦 Contrôles d'entrée"
+            echo ""
+            echo "| Contrôle | Résultat | |"
+            echo "|---|---|:---:|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Le commit est sur main
+        run: |
+          git fetch --quiet origin main
+          if git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "| Origine | commit \`${GITHUB_SHA::7}\` présent sur \`main\` | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Origine | commit \`${GITHUB_SHA::7}\` absent de \`main\` | ❌ |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Seul du code présent sur main peut être publié. Poussez d'abord sur main, puis : git push origin main:release-ios"
+            exit 1
+          fi
+
+      - name: Version
+        id: version
+        run: |
+          VERSION="$(grep -m1 '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//; s/+.*//')"
+          [ -n "$VERSION" ] || { echo "::error::version introuvable dans pubspec.yaml"; exit 1; }
+          echo "version_name=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "| Version (pubspec.yaml) | **$VERSION** — le numéro de build sera fixé par App Store Connect | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notes de version fr-FR
+        env:
+          DRY_RUN: ${{ steps.mode.outputs.dry_run }}
+        run: |
+          NOTES=fastlane/notes/fr-FR.txt
+          [ -f "$NOTES" ] || { echo "| Notes fr-FR | fichier absent | ❌ |" >> "$GITHUB_STEP_SUMMARY"; echo "::error::$NOTES absent"; exit 1; }
+          TAILLE="$(python3 -c "import sys; print(len(open('$NOTES', encoding='utf-8').read().strip()))")"
+          if [ "$TAILLE" -eq 0 ]; then
+            echo "| Notes fr-FR | vides | ❌ |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Écrivez les nouveautés de cette version dans $NOTES"; exit 1
+          fi
+          # Le fichier sert aussi aux « Nouveautés à tester » de TestFlight,
+          # qui en accepte 4000 : c'est la limite de Google Play (500) qui
+          # décide, pour que les deux chaînes lisent le même fichier.
+          if [ "$TAILLE" -gt "$NOTES_MAX" ]; then
+            echo "| Notes fr-FR | $TAILLE caractères (max $NOTES_MAX) | ❌ |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::$NOTES fait $TAILLE caractères : le fichier est partagé avec Google Play, qui en accepte $NOTES_MAX au maximum."; exit 1
+          fi
+
+          DERNIER_TAG="$(git tag --list 'ios-v*' --sort=-creatordate | head -1)"
+          if [ -n "$DERNIER_TAG" ] && git show "$DERNIER_TAG:$NOTES" 2>/dev/null | diff -q - "$NOTES" > /dev/null; then
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "| Notes fr-FR | identiques au déploiement \`$DERNIER_TAG\` | ⚠️ |" >> "$GITHUB_STEP_SUMMARY"
+              echo "::warning::Notes identiques au déploiement précédent ($DERNIER_TAG) — un vrai déploiement serait refusé."
+            else
+              echo "| Notes fr-FR | identiques au déploiement \`$DERNIER_TAG\` | ❌ |" >> "$GITHUB_STEP_SUMMARY"
+              echo "::error::Les notes n'ont pas changé depuis $DERNIER_TAG : écrivez les nouveautés de cette version dans $NOTES"; exit 1
+            fi
+          else
+            echo "| Notes fr-FR | $TAILLE / $NOTES_MAX caractères, nouvelles | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          {
+            echo ""
+            echo "<details><summary>📝 Notes de version (fr-FR)</summary>"
+            echo ""
+            cat "$NOTES"
+            echo ""
+            echo "</details>"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  analyse:
+    name: 2a · Analyse & traductions
+    needs: controles
+    runs-on: ubuntu-24.04 # figé : un changement de système se décide, il ne se subit pas
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # le jeton GitHub ne reste pas sur la machine
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Dépendances
+        run: |
+          flutter pub get
+          flutter gen-l10n
+
+      - name: Analyse du code
+        run: |
+          set +e
+          flutter analyze --no-fatal-infos > analyse.txt 2>&1
+          CODE=$?
+          set -e
+          ERREURS=$(grep -cE '^\s*error ' analyse.txt || true)
+          AVERTISSEMENTS=$(grep -cE '^\s*warning ' analyse.txt || true)
+          REMARQUES=$(grep -cE '^\s*info ' analyse.txt || true)
+          {
+            echo "### 🧹 Analyse du code"
+            echo ""
+            echo "| Erreurs | Avertissements | Remarques de style |"
+            echo "|:---:|:---:|:---:|"
+            echo "| $([ "$ERREURS" -eq 0 ] && echo "✅ 0" || echo "❌ $ERREURS") | $([ "$AVERTISSEMENTS" -eq 0 ] && echo "✅ 0" || echo "❌ $AVERTISSEMENTS") | ℹ️ $REMARQUES (non bloquantes) |"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$CODE" -ne 0 ]; then
+            grep -E '^\s*(error|warning) ' analyse.txt | head -50
+            echo "::error::L'analyse a trouvé des erreurs ou des avertissements."
+            exit 1
+          fi
+
+      - name: Traductions (fr, en, es, de)
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python3 tool/ci/traductions.py
+
+  # ─────────────────────────────────────────────────────────────────────────
+  tests:
+    name: 2b · Tests & couverture
+    needs: controles
+    runs-on: ubuntu-24.04 # figé : un changement de système se décide, il ne se subit pas
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # le jeton GitHub ne reste pas sur la machine
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Dépendances
+        run: |
+          flutter pub get
+          flutter gen-l10n
+
+      - name: Tests
+        run: |
+          set -o pipefail
+          flutter test --coverage --concurrency=2 --reporter=expanded 2>&1 | tee tests.txt
+
+      - name: Rapport
+        if: always()
+        run: |
+          RESULTAT="$(grep -oE '[+][0-9]+( ~[0-9]+)?( -[0-9]+)?: (All tests passed!|Some tests failed.)' tests.txt | tail -1 || true)"
+          REUSSIS="$(echo "$RESULTAT" | grep -oE '^[+][0-9]+' | tr -d '+' || true)"
+          ECHOUES="$(echo "$RESULTAT" | grep -oE ' -[0-9]+' | tr -d ' -' || true)"
+          COUVERTURE="—"
+          if [ -f coverage/lcov.info ]; then
+            COUVERTURE="$(awk -F: '/^LF:/{t+=$2} /^LH:/{c+=$2} END{if(t>0) printf "%.1f %%", c*100/t}' coverage/lcov.info)"
+          fi
+          {
+            echo "### 🧪 Tests"
+            echo ""
+            echo "| Réussis | Échoués | Couverture du code |"
+            echo "|:---:|:---:|:---:|"
+            echo "| ✅ ${REUSSIS:-?} | $([ -z "$ECHOUES" ] && echo "✅ 0" || echo "❌ $ECHOUES") | 📊 $COUVERTURE |"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: couverture
+          path: coverage/lcov.info
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────────────────────────────────
+  securite:
+    name: 2c · Sécurité
+    needs: controles
+    runs-on: ubuntu-24.04 # figé : un changement de système se décide, il ne se subit pas
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # le jeton GitHub ne reste pas sur la machine
+
+      - name: Secrets oubliés dans le code (Gitleaks)
+        run: |
+          echo "### 🔐 Sécurité" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Contrôle | Résultat | |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|:---:|" >> "$GITHUB_STEP_SUMMARY"
+          # --user : le rapport est écrit avec les droits de la machine, pas de root.
+          if docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
+               dir /repo --config /repo/.gitleaks.toml --redact --no-banner --verbose \
+               --report-format json --report-path /repo/gitleaks.json --exit-code 1; then
+            echo "| Secrets dans le code | aucun | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Secrets dans le code | secret(s) détecté(s) — détail ci-dessous | ❌ |" >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo ""
+              echo "| Fichier | Ligne | Règle |"
+              echo "|---|---:|---|"
+              jq -r '.[] | "| `\(.File | sub("^/repo/"; ""))` | \(.StartLine) | \(.RuleID) |"' gitleaks.json || true
+              echo ""
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Un possible secret a été trouvé (fichier et ligne ci-dessus). Vrai secret : retirez-le du code ET changez-le, il est compromis. Faux positif (empreinte, identifiant public) : ajoutez une exception justifiée dans .gitleaks.toml."
+            exit 1
+          fi
+
+      # Non bloquant : une faille dans une dépendance indirecte n'a pas
+      # toujours de correctif disponible. Elle est signalée pour décision.
+      - name: Failles connues des dépendances (OSV-Scanner)
+        run: |
+          set +e
+          docker run --rm -v "$PWD:/src" ghcr.io/google/osv-scanner:v2.6.0 \
+            scan source --lockfile=/src/pubspec.lock --format=markdown > osv.md 2>osv.log
+          CODE=$?
+          set -e
+          if [ "$CODE" -eq 0 ]; then
+            echo "| Failles connues des dépendances | aucune | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$CODE" -eq 1 ]; then
+            echo "| Failles connues des dépendances | faille(s) signalée(s) — détail ci-dessous | ⚠️ |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Des failles connues touchent des dépendances : voir le résumé."
+            { echo ""; echo "<details><summary>Détail OSV-Scanner</summary>"; echo ""; cat osv.md; echo "</details>"; } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Failles connues des dépendances | analyse impossible (code $CODE) | ⚠️ |" >> "$GITHUB_STEP_SUMMARY"
+            cat osv.log
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  compilation:
+    name: 3-4 · Compilation, contrôle de l'IPA & démarrage
+    needs: [controles, analyse, tests, securite]
+    runs-on: macos-15 # figé : un changement de système (donc de Xcode) se décide
+    timeout-minutes: 75
+    outputs:
+      version_code: ${{ steps.preparer.outputs.version_code }}
+      version_name: ${{ steps.preparer.outputs.version_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # le jeton GitHub ne reste pas sur la machine
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - uses: ruby/setup-ruby@e8944e80fb94b20106697132f8c20c665fab29e9 # v1.325.0
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+          bundler-cache: true
+
+      - name: Xcode
+        run: |
+          sudo xcode-select -switch /Applications/Xcode.app
+          VERSION="$(xcodebuild -version | head -1 | awk '{print $2}')"
+          MAJEUR="${VERSION%%.*}"
+          if [ "$MAJEUR" -lt "$XCODE_MAJEUR_MINIMUM" ]; then
+            echo "::error::Xcode $VERSION sur cette machine : Apple refuse les envois construits avec un SDK antérieur à Xcode $XCODE_MAJEUR_MINIMUM."
+            exit 1
+          fi
+          {
+            echo "### 🍏 Machine de compilation"
+            echo ""
+            echo "| Outil | Version |"
+            echo "|---|---|"
+            echo "| Xcode | **$VERSION** |"
+            echo "| SDK iOS | $(xcrun --sdk iphoneos --show-sdk-version) |"
+            echo "| Flutter | ${FLUTTER_VERSION} |"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Dépendances
+        run: |
+          flutter pub get
+          flutter gen-l10n
+
+      - name: Clé App Store Connect et signature (depuis les secrets)
+        env:
+          APP_STORE_CONNECT_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_BASE64 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          IOS_DIST_CERT_BASE64: ${{ secrets.IOS_DIST_CERT_BASE64 }}
+          IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          for s in APP_STORE_CONNECT_KEY_BASE64 APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID \
+                   IOS_DIST_CERT_BASE64 IOS_DIST_CERT_PASSWORD IOS_PROVISIONING_PROFILE_BASE64; do
+            [ -n "${!s}" ] || { echo "::error::Secret GitHub manquant : $s (voir docs/DEPLOIEMENT_IOS.md)"; exit 1; }
+          done
+          # Le mot de passe du certificat ne doit jamais apparaître dans les journaux.
+          echo "::add-mask::$IOS_DIST_CERT_PASSWORD"
+
+          # Décodage par python3 : `base64` n'a pas les mêmes options selon
+          # le système, et un secret sur plusieurs lignes le met en échec.
+          decoder() {
+            python3 -c 'import base64,os,sys; open(sys.argv[1],"wb").write(base64.b64decode(os.environ[sys.argv[2]]))' "$1" "$2"
+          }
+          decoder "$RUNNER_TEMP/asc.p8" APP_STORE_CONNECT_KEY_BASE64
+          decoder "$RUNNER_TEMP/distribution.p12" IOS_DIST_CERT_BASE64
+          decoder "$RUNNER_TEMP/profil.mobileprovision" IOS_PROVISIONING_PROFILE_BASE64
+          chmod 600 "$RUNNER_TEMP/asc.p8" "$RUNNER_TEMP/distribution.p12"
+
+          {
+            echo "ASC_KEY_PATH=$RUNNER_TEMP/asc.p8"
+            echo "ASC_KEY_ID=$APP_STORE_CONNECT_KEY_ID"
+            echo "ASC_ISSUER_ID=$APP_STORE_CONNECT_ISSUER_ID"
+            echo "IOS_CERT_P12=$RUNNER_TEMP/distribution.p12"
+            echo "IOS_CERT_PASSWORD=$IOS_DIST_CERT_PASSWORD"
+            echo "IOS_PROFILE=$RUNNER_TEMP/profil.mobileprovision"
+          } >> "$GITHUB_ENV"
+
+      - name: Numéro de build (App Store Connect)
+        id: preparer
+        working-directory: ios
+        env:
+          BUNDLE_GEMFILE: ${{ github.workspace }}/Gemfile
+        run: bundle exec fastlane preparer
+
+      - name: Compilation de l'IPA
+        id: compiler
+        working-directory: ios
+        env:
+          BUNDLE_GEMFILE: ${{ github.workspace }}/Gemfile
+        run: bundle exec fastlane compiler version_code:${{ steps.preparer.outputs.version_code }}
+
+      - name: Contrôle de l'IPA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PYTHONIOENCODING: utf-8
+        run: |
+          IPA="${{ steps.compiler.outputs.ipa }}"
+
+          # Taille du déploiement précédent (Release GitHub ios-v*).
+          PRECEDENT="$(gh release list --limit 30 --json tagName --jq '.[].tagName' | grep '^ios-v' | head -1 || true)"
+          TAILLE_PRECEDENTE=""
+          if [ -n "$PRECEDENT" ]; then
+            TAILLE_PRECEDENTE="$(gh release view "$PRECEDENT" --json assets --jq '.assets[] | select(.name | endswith(".ipa")) | .size' | head -1 || true)"
+          fi
+
+          python3 tool/ci/controle_ipa.py \
+            --ipa "$IPA" \
+            --reference tool/ci/ios_reference.json \
+            --version-code "${{ steps.preparer.outputs.version_code }}" \
+            --version-name "${{ steps.preparer.outputs.version_name }}" \
+            --taille-precedente "$TAILLE_PRECEDENTE" \
+            --autorisations-sortie autorisations.txt
+
+      - name: Préparation des livrables
+        run: |
+          NOM="widjila-${{ steps.preparer.outputs.version_name }}-build${{ steps.preparer.outputs.version_code }}"
+          mkdir -p livrables
+          cp "${{ steps.compiler.outputs.ipa }}" "livrables/$NOM.ipa"
+          cp autorisations.txt "livrables/$NOM-autorisations.txt"
+          # Symboles de débogage : sans eux, un plantage remonté par
+          # Crashlytics reste une suite d'adresses mémoire.
+          DSYMS=build/ios/archive/Runner.xcarchive/dSYMs
+          if [ -d "$DSYMS" ]; then
+            (cd "$(dirname "$DSYMS")" && zip -qr "$GITHUB_WORKSPACE/livrables/$NOM-dSYMs.zip" dSYMs)
+          fi
+          # macOS n'a pas `sha256sum` : c'est `shasum -a 256`.
+          (cd livrables && shasum -a 256 * > SHA256SUMS.txt)
+          {
+            echo "### 📦 Livrables"
+            echo ""
+            echo "Conservés **90 jours** (artefact \`ipa\` en bas de la page) — exactement ce qui sera envoyé à Apple."
+            echo ""
+            echo '```'
+            cat livrables/SHA256SUMS.txt
+            echo '```'
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ipa
+          path: livrables/
+          retention-days: 90
+          if-no-files-found: error
+
+      # ── Test de démarrage ──────────────────────────────────────────────
+      # Dans le même travail que la compilation : une minute de machine macOS
+      # est facturée dix fois une minute Linux, et un second travail macOS
+      # repaierait l'installation de Flutter et des Pods.
+      - name: Compilation pour simulateur
+        run: |
+          # Un simulateur n'exécute pas de build « release » : Flutter ne le
+          # produit pas pour simulateur. Ce test répond à « l'app démarre-t-elle
+          # sur une installation neuve ? » — la conformité du binaire envoyé à
+          # Apple est contrôlée par l'étape « Contrôle de l'IPA ».
+          flutter build ios --simulator --debug
+
+      - name: Démarrage sur simulateur iOS
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          bash tool/ci/test_demarrage_ios.sh \
+            build/ios/iphonesimulator/Runner.app resultats-demarrage
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: test-demarrage-ios
+          path: resultats-demarrage/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      # Le simulateur est effacé par le script de test, qui le crée.
+      - name: Nettoyage des secrets
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/asc.p8" "$RUNNER_TEMP/distribution.p12" "$RUNNER_TEMP/profil.mobileprovision"
+          security delete-keychain fastlane_tmp_keychain 2>/dev/null || true
+          rm -f ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision 2>/dev/null || true
+
+  # ─────────────────────────────────────────────────────────────────────────
+  publication:
+    name: 5-6 · Approbation & publication
+    needs: [controles, compilation]
+    runs-on: macos-15 # altool et iTMSTransporter n'existent que sur macOS
+    # L'attente du traitement d'Apple (5 à 20 minutes) est comprise dedans :
+    # sans elle, « envoyé » ne veut rien dire.
+    timeout-minutes: 60
+    # ✋ L'environnement « app-store » exige votre approbation (Settings >
+    # Environments) : le job attend votre clic avant de démarrer.
+    environment:
+      name: app-store
+      url: https://appstoreconnect.apple.com
+    permissions:
+      contents: write # tag + Release GitHub du déploiement
+    env:
+      DRY_RUN: ${{ needs.controles.outputs.dry_run }}
+      VERSION_CODE: ${{ needs.compilation.outputs.version_code }}
+      VERSION_NAME: ${{ needs.compilation.outputs.version_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # le jeton GitHub ne reste pas sur la machine
+      - uses: ruby/setup-ruby@e8944e80fb94b20106697132f8c20c665fab29e9 # v1.325.0
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+          bundler-cache: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ipa
+          path: livrables
+
+      - name: Intégrité des livrables
+        run: |
+          # macOS n'a pas `sha256sum` : c'est `shasum -a 256`.
+          (cd livrables && shasum -a 256 -c SHA256SUMS.txt)
+
+      - name: Xcode
+        run: sudo xcode-select -switch /Applications/Xcode.app
+
+      - name: Clé App Store Connect
+        env:
+          APP_STORE_CONNECT_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_BASE64 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          for s in APP_STORE_CONNECT_KEY_BASE64 APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID; do
+            [ -n "${!s}" ] || { echo "::error::Secret GitHub manquant : $s (voir docs/DEPLOIEMENT_IOS.md)"; exit 1; }
+          done
+          python3 -c 'import base64,os,sys; open(sys.argv[1],"wb").write(base64.b64decode(os.environ["APP_STORE_CONNECT_KEY_BASE64"]))' "$RUNNER_TEMP/asc.p8"
+          chmod 600 "$RUNNER_TEMP/asc.p8"
+          {
+            echo "ASC_KEY_PATH=$RUNNER_TEMP/asc.p8"
+            echo "ASC_KEY_ID=$APP_STORE_CONNECT_KEY_ID"
+            echo "ASC_ISSUER_ID=$APP_STORE_CONNECT_ISSUER_ID"
+          } >> "$GITHUB_ENV"
+
+      - name: Envoi à TestFlight et vérification
+        working-directory: ios
+        env:
+          BUNDLE_GEMFILE: ${{ github.workspace }}/Gemfile
+        run: |
+          NOM="widjila-${VERSION_NAME}-build${VERSION_CODE}"
+          bundle exec fastlane publier \
+            ipa:"$GITHUB_WORKSPACE/livrables/$NOM.ipa" \
+            version_code:"$VERSION_CODE" \
+            dry_run:"$DRY_RUN"
+
+      - name: Trace du déploiement (tag + Release GitHub)
+        if: env.DRY_RUN != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="ios-v${VERSION_NAME}-build${VERSION_CODE}"
+          gh release create "$TAG" livrables/* \
+            --target "$GITHUB_SHA" \
+            --title "iOS ${VERSION_NAME} (build ${VERSION_CODE})" \
+            --notes-file fastlane/notes/fr-FR.txt
+          echo "RELEASE_URL=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${TAG}" >> "$GITHUB_ENV"
+
+      - name: Résumé
+        if: always()
+        run: |
+          {
+            echo "### 🛫 Publication"
+            echo ""
+            if [ "${{ job.status }}" != "success" ]; then
+              echo "❌ **Échec de l'envoi** — voir le journal de l'étape « Envoi à TestFlight et vérification »."
+            elif [ "$DRY_RUN" = "true" ]; then
+              echo "🧪 **Essai à blanc réussi** : Apple a validé le build **${VERSION_CODE} (${VERSION_NAME})**. Rien n'a été publié."
+            else
+              echo "✅ **Build ${VERSION_CODE} (${VERSION_NAME}) disponible sur TestFlight** et vérifié sur App Store Connect."
+              echo ""
+              echo "> [!IMPORTANT]"
+              echo "> **La version n'est pas encore soumise à l'examen d'Apple.** Elle est à disposition de vos testeurs internes."
+              echo "> Pour la publier sur l'App Store : App Store Connect > l'app > la version > **Ajouter à l'examen**,"
+              echo "> avec les notes pour l'examinateur et le compte de démonstration."
+              echo ""
+              echo "🔖 Trace : ${RELEASE_URL:-}"
+            fi
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+          rm -f "$RUNNER_TEMP/asc.p8"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  bilan:
+    name: 7 · Bilan
+    if: always()
+    needs: [controles, analyse, tests, securite, compilation, publication]
+    runs-on: ubuntu-24.04 # figé : un changement de système se décide, il ne se subit pas
+    timeout-minutes: 5
+    steps:
+      - name: Bilan
+        run: |
+          icone() { case "$1" in success) echo "✅";; failure) echo "❌";; cancelled) echo "⏹️";; skipped) echo "⏭️";; *) echo "❔";; esac; }
+          {
+            echo "## 📋 Bilan du déploiement"
+            echo ""
+            echo "| Étape | Résultat |"
+            echo "|---|:---:|"
+            echo "| 1 · Contrôles d'entrée | $(icone '${{ needs.controles.result }}') |"
+            echo "| 2a · Analyse & traductions | $(icone '${{ needs.analyse.result }}') |"
+            echo "| 2b · Tests & couverture | $(icone '${{ needs.tests.result }}') |"
+            echo "| 2c · Sécurité | $(icone '${{ needs.securite.result }}') |"
+            echo "| 3-4 · Compilation, contrôle de l'IPA & démarrage | $(icone '${{ needs.compilation.result }}') |"
+            echo "| 5-6 · Approbation & publication | $(icone '${{ needs.publication.result }}') |"
+            echo ""
+            if [ "${{ needs.publication.result }}" = "success" ]; then
+              if [ "${{ needs.controles.outputs.dry_run }}" = "true" ]; then
+                echo "🧪 **Essai à blanc réussi** — build ${{ needs.compilation.outputs.version_code }} (${{ needs.compilation.outputs.version_name }}) prêt à être envoyé."
+              else
+                echo "🎉 **Build ${{ needs.compilation.outputs.version_code }} (${{ needs.compilation.outputs.version_name }}) disponible sur TestFlight.** La soumission à l'examen App Store reste à faire depuis App Store Connect."
+              fi
+            else
+              echo "🛑 **Rien n'a été publié.** Ouvrez l'étape en ❌ pour le détail — dépannage : docs/DEPLOIEMENT_IOS.md."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
