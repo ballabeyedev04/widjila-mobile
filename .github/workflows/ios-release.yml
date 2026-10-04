@@ -331,7 +331,12 @@ jobs:
           ruby-version: ${{ env.RUBY_VERSION }}
           bundler-cache: true
 
-      - name: Xcode
+      # Contrôlé AVANT toute compilation : ces deux outils manquants ou
+      # inutilisables ne se découvrent sinon qu'au bout de dix minutes
+      # d'archivage, sur un message qui parle d'autre chose.
+      - name: Xcode et CocoaPods
+        env:
+          BUNDLE_GEMFILE: ${{ github.workspace }}/Gemfile
         run: |
           sudo xcode-select -switch /Applications/Xcode.app
           VERSION="$(xcodebuild -version | head -1 | awk '{print $2}')"
@@ -340,6 +345,16 @@ jobs:
             echo "::error::Xcode $VERSION sur cette machine : Apple refuse les envois construits avec un SDK antérieur à Xcode $XCODE_MAJEUR_MINIMUM."
             exit 1
           fi
+
+          # `flutter build ipa` appelle `pod`. Il doit venir du MÊME paquet
+          # Ruby que fastlane : celui de la machine est lié au Ruby du
+          # système, que `ruby/setup-ruby` a remplacé, et répondrait
+          # « CocoaPods is installed but broken ».
+          PODS="$(bundle exec pod --version 2>&1)" || {
+            echo "::error::CocoaPods inutilisable depuis le paquet Ruby : $PODS — il doit être déclaré dans le Gemfile (voir docs/DEPLOIEMENT_IOS.md)."
+            exit 1
+          }
+
           {
             echo "### 🍏 Machine de compilation"
             echo ""
@@ -348,6 +363,7 @@ jobs:
             echo "| Xcode | **$VERSION** |"
             echo "| SDK iOS | $(xcrun --sdk iphoneos --show-sdk-version) |"
             echo "| Flutter | ${FLUTTER_VERSION} |"
+            echo "| CocoaPods | $PODS |"
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
 

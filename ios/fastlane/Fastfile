@@ -80,6 +80,16 @@ platform :ios do
       profile_name: profil["Name"]
     )
 
+    # `flutter build ipa` appelle `pod` dans l'environnement que lui donne
+    # CETTE commande — pas celui du workflow. On le vérifie donc ici, où
+    # c'est gratuit : sans cela, l'absence de CocoaPods ne se manifeste
+    # qu'après l'archivage, sur un message qui parle d'autre chose.
+    pods = `pod --version 2>&1`.strip
+    unless $?.success?
+      UI.user_error!("CocoaPods n'est pas utilisable depuis fastlane (#{pods}) : il doit être déclaré dans le Gemfile, car le CocoaPods de la machine est lié à un autre Ruby.")
+    end
+    UI.message("CocoaPods #{pods}")
+
     Dir.mktmpdir do |dossier|
       plist = File.join(dossier, "ExportOptions.plist")
       File.write(plist, options_export(profil))
