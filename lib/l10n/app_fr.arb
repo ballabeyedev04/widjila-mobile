@@ -1264,6 +1264,53 @@
   "abonnementChoisir": "Choisir cette formule",
   "abonnementNousContacter": "Nous contacter",
   "abonnementSurDevis": "Sur devis",
+  "devisTitre": "Premium — sur devis",
+  "devisDemander": "Demander un devis",
+  "devisFormulaireTitre": "Votre demande de devis",
+  "devisFormulaireSousTitre": "Décrivez votre besoin : nous revenons vers vous avec une proposition chiffrée. Aucun engagement à ce stade.",
+  "devisContact": "Nom du contact",
+  "devisEmail": "E-mail",
+  "devisTelephone": "Téléphone",
+  "devisNbUtilisateurs": "Nombre d'utilisateurs",
+  "devisNbChantiers": "Nombre de chantiers",
+  "devisDureeSouhaitee": "Durée souhaitée (mois)",
+  "devisBesoins": "Vos besoins particuliers",
+  "devisEnvoyerDemande": "Envoyer ma demande",
+  "devisDemandeEnvoyee": "Demande envoyée. Nous revenons vers vous rapidement.",
+  "devisEnPreparation": "Votre proposition est en cours de préparation.",
+  "devisMontantHt": "Montant HT",
+  "devisMontantTtc": "Montant TTC",
+  "devisDuree": "Durée",
+  "devisUtilisateurs": "Utilisateurs",
+  "devisChantiers": "Chantiers",
+  "devisRegle": "Réglé",
+  "devisAccepter": "Accepter",
+  "devisRefuser": "Refuser",
+  "devisMotifFacultatif": "Motif (facultatif)",
+  "devisConfirmerRefus": "Confirmer le refus",
+  "devisProcederPaiement": "Procéder au paiement sécurisé",
+  "devisRedirection": "Vous allez être redirigé vers la page de paiement sécurisée de Stripe. Aucune donnée bancaire ne transite par Widjila.",
+  "devisStatutBrouillon": "En préparation",
+  "devisStatutEnvoye": "À votre attention",
+  "devisStatutAccepte": "Accepté",
+  "devisStatutRefuse": "Refusé",
+  "devisStatutExpire": "Expiré",
+  "devisTva": "TVA ({taux} %)",
+  "@devisTva": {
+    "placeholders": {
+      "taux": {
+        "type": "String"
+      }
+    }
+  },
+  "devisDureeMois": "{n} mois",
+  "@devisDureeMois": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "abonnementParMois": "/ mois",
   "abonnementParAn": "/ an",
   "abonnementUtilisateursIllimites": "Utilisateurs illimités",

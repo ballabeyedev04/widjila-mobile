@@ -296,3 +296,161 @@ class EtatPaiement extends Equatable {
   @override
   List<Object?> get props => [reference, statut, planCode, planNom, creeLe];
 }
+
+/// Où en est un devis — miroir de `devis.statut` côté serveur.
+enum StatutDevis { brouillon, envoye, accepte, refuse, expire, inconnu }
+
+extension StatutDevisX on StatutDevis {
+  static StatutDevis fromString(String? raw) => switch (raw) {
+        'brouillon' => StatutDevis.brouillon,
+        'envoye' => StatutDevis.envoye,
+        'accepte' => StatutDevis.accepte,
+        'refuse' => StatutDevis.refuse,
+        'expire' => StatutDevis.expire,
+        _ => StatutDevis.inconnu,
+      };
+}
+
+/// DEVIS d'abonnement — le parcours « Premium sur devis ».
+///
+/// Le client DEMANDE, il ne chiffre pas : rien ici ne se calcule localement.
+/// Montants, durée et limites viennent du serveur, et surtout
+/// [peutEtreAccepte] et [peutEtrePaye] aussi — c'est LUI qui connaît la
+/// règle (validité, statut, paiement déjà fait). Les recalculer ici ferait
+/// diverger l'écran de ce que le serveur autorise, et proposerait un bouton
+/// qui finirait en refus.
+class Devis extends Equatable {
+  final String id;
+  final String numero;
+  final StatutDevis statut;
+  final String? planNom;
+
+  /// `null` tant que le devis n'est pas chiffré — à distinguer de 0, qui
+  /// serait une offre gratuite.
+  final double? montantHt;
+  final double tauxTva;
+  final double? montantTva;
+  final double? montantTtc;
+  final String devise;
+
+  final int? dureeMois;
+
+  /// `null` = illimité.
+  final int? limiteUtilisateurs;
+  final int? limiteChantiers;
+
+  final String? conditions;
+  final String? motifRefus;
+
+  final DateTime? creeLe;
+  final DateTime? expireLe;
+  final DateTime? payeLe;
+
+  /// Ce que le SERVEUR autorise, repris tel quel.
+  final bool chiffre;
+  final bool peutEtreAccepte;
+  final bool peutEtrePaye;
+
+  const Devis({
+    required this.id,
+    required this.numero,
+    required this.statut,
+    this.planNom,
+    this.montantHt,
+    this.tauxTva = 0,
+    this.montantTva,
+    this.montantTtc,
+    this.devise = 'EUR',
+    this.dureeMois,
+    this.limiteUtilisateurs,
+    this.limiteChantiers,
+    this.conditions,
+    this.motifRefus,
+    this.creeLe,
+    this.expireLe,
+    this.payeLe,
+    this.chiffre = false,
+    this.peutEtreAccepte = false,
+    this.peutEtrePaye = false,
+  });
+
+  factory Devis.fromJson(Map<String, dynamic> json) => Devis(
+        id: json['id'] as String,
+        numero: json['numero'] as String? ?? '',
+        statut: StatutDevisX.fromString(json['statut'] as String?),
+        planNom: json['planNom'] as String?,
+        montantHt: _decimal(json['montantHt']),
+        tauxTva: _decimal(json['tauxTva']) ?? 0,
+        montantTva: _decimal(json['montantTva']),
+        montantTtc: _decimal(json['montantTtc']),
+        devise: json['devise'] as String? ?? 'EUR',
+        dureeMois: (json['dureeMois'] as num?)?.toInt(),
+        limiteUtilisateurs: (json['limiteUtilisateurs'] as num?)?.toInt(),
+        limiteChantiers: (json['limiteChantiers'] as num?)?.toInt(),
+        conditions: json['conditions'] as String?,
+        motifRefus: json['motifRefus'] as String?,
+        creeLe: _date(json['creeLe']),
+        expireLe: _date(json['expireLe']),
+        payeLe: _date(json['payeLe']),
+        chiffre: json['chiffre'] as bool? ?? false,
+        peutEtreAccepte: json['peutEtreAccepte'] as bool? ?? false,
+        peutEtrePaye: json['peutEtrePaye'] as bool? ?? false,
+      );
+
+  /// Un montant peut arriver en nombre ou en chaîne selon le pilote SQL :
+  /// les deux formes viennent du même champ décimal.
+  static double? _decimal(Object? valeur) => switch (valeur) {
+        null => null,
+        final num n => n.toDouble(),
+        final String s => double.tryParse(s),
+        _ => null,
+      };
+
+  static DateTime? _date(Object? valeur) =>
+      valeur is String ? DateTime.tryParse(valeur) : null;
+
+  @override
+  List<Object?> get props => [
+        id, numero, statut, planNom, montantHt, tauxTva, montantTva, montantTtc,
+        devise, dureeMois, limiteUtilisateurs, limiteChantiers, conditions,
+        motifRefus, creeLe, expireLe, payeLe, chiffre, peutEtreAccepte, peutEtrePaye,
+      ];
+}
+
+/// Ce que le client saisit pour demander un devis.
+///
+/// Aucun montant : il décrit un BESOIN. Le serveur refuserait d'ailleurs un
+/// champ de prix, son schéma n'en comporte pas.
+class DemandeDevis extends Equatable {
+  final String? contact;
+  final String? email;
+  final String? telephone;
+  final int? nbUtilisateurs;
+  final int? nbChantiers;
+  final int? dureeSouhaitee;
+  final String? besoins;
+
+  const DemandeDevis({
+    this.contact,
+    this.email,
+    this.telephone,
+    this.nbUtilisateurs,
+    this.nbChantiers,
+    this.dureeSouhaitee,
+    this.besoins,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'contact': contact,
+        'email': email,
+        'telephone': telephone,
+        'nbUtilisateurs': nbUtilisateurs,
+        'nbChantiers': nbChantiers,
+        'dureeSouhaitee': dureeSouhaitee,
+        'besoins': besoins,
+      };
+
+  @override
+  List<Object?> get props =>
+      [contact, email, telephone, nbUtilisateurs, nbChantiers, dureeSouhaitee, besoins];
+}

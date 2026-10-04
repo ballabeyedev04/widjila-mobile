@@ -113,6 +113,7 @@ import 'features/abonnement/data/repositories/abonnement_repository_impl.dart';
 import 'features/abonnement/domain/repositories/abonnement_repository.dart';
 import 'features/abonnement/domain/usecases/creer_code_transfert_web.dart';
 import 'features/abonnement/domain/usecases/get_droits.dart';
+import 'features/abonnement/domain/usecases/devis_usecases.dart';
 import 'features/abonnement/domain/usecases/get_etat_paiement.dart';
 import 'features/abonnement/domain/usecases/get_formules.dart';
 import 'features/abonnement/domain/usecases/get_historique_abonnement.dart';
@@ -506,12 +507,23 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetHistoriqueAbonnement(sl()));
   sl.registerLazySingleton(() => CreerCodeTransfertWeb(sl()));
   sl.registerLazySingleton(() => GetEtatPaiement(sl()));
+  // Devis « Premium sur devis ».
+  sl.registerLazySingleton(() => ListerDevis(sl()));
+  sl.registerLazySingleton(() => DemanderDevis(sl()));
+  sl.registerLazySingleton(() => AccepterDevis(sl()));
+  sl.registerLazySingleton(() => RefuserDevis(sl()));
+  sl.registerLazySingleton(() => PayerDevis(sl()));
   sl.registerFactory(() => AbonnementCubit(
         getFormules: sl(),
         getDroits: sl(),
         getHistorique: sl(),
         creerCodeTransfertWeb: sl(),
         getEtatPaiement: sl(),
+        listerDevis: sl(),
+        demanderDevis: sl(),
+        accepterDevis: sl(),
+        refuserDevis: sl(),
+        payerDevis: sl(),
       ));
 
   //================================================

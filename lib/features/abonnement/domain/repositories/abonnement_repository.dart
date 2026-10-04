@@ -24,4 +24,16 @@ abstract class AbonnementRepository {
   /// le connaît — `null` s'il n'y en a jamais eu. Jamais mis en cache : c'est
   /// l'état le plus récent qu'on veut, ou une erreur.
   Future<Either<Failure, EtatPaiement?>> getEtatPaiement();
+
+  // ── Devis « Premium sur devis » ───────────────────────────────────────
+  //
+  // Aucun cache : un devis change d'état côté serveur (chiffré, accepté,
+  // réglé), et c'est son état courant qui décide des boutons affichés.
+  Future<Either<Failure, List<Devis>>> listerDevis();
+  Future<Either<Failure, Devis>> demanderDevis(DemandeDevis demande);
+  Future<Either<Failure, Devis>> accepterDevis(String id);
+  Future<Either<Failure, Devis>> refuserDevis(String id, String? motif);
+
+  /// Adresse de la page de paiement Stripe pour un devis accepté.
+  Future<Either<Failure, String>> payerDevis(String id);
 }

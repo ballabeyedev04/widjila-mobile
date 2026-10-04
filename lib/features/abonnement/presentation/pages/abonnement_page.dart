@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/config/env.dart';
+import '../../../../core/config/regles_store.dart';
 import '../../../../core/network/cache_reponses_get.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_alert.dart';
@@ -13,6 +14,8 @@ import '../../../../injection_container.dart';
 import '../../../../l10n/l10n_extension.dart';
 import '../../domain/entities/abonnement.dart';
 import '../cubit/abonnement_cubit.dart';
+import '../widgets/feuille_demande_devis.dart';
+import '../widgets/section_devis.dart';
 import '../../../../core/network/forcer_reseau.dart';
 import '../../../../core/routes/retour.dart';
 
@@ -59,7 +62,14 @@ class AbonnementPage extends StatelessWidget {
         false;
 
     return BlocProvider(
-      create: (_) => sl<AbonnementCubit>()..charger(avecHistorique: voitLaFacturation),
+      create: (_) {
+        final cubit = sl<AbonnementCubit>()..charger(avecHistorique: voitLaFacturation);
+        // Les devis ne se chargent que là où ils servent : leur route est
+        // réservée au groupe FACTURATION, et la section n'existe pas sur iOS
+        // (elle mène à un paiement hors achat intégré — voir `ReglesStore`).
+        if (voitLaFacturation && ReglesStore.commerceAutorise) cubit.chargerDevis();
+        return cubit;
+      },
       child: _AbonnementView(voitLaFacturation: voitLaFacturation),
     );
   }
@@ -261,6 +271,104 @@ class _AbonnementViewState extends State<_AbonnementView> with WidgetsBindingObs
     }
   }
 
+  // ── DEVIS « Premium sur devis » ────────────────────────────────────────
+  //
+  // Le client décrit son besoin, nous chiffrons, il accepte, il paie sur la
+  // page de Stripe. Aucune règle n'est décidée ici : le cubit rend ce que le
+  // SERVEUR dit du devis, boutons compris.
+
+  Future<void> _demanderDevis(BuildContext context) async {
+    final cubit = context.read<AbonnementCubit>();
+    final l10n = context.l10n;
+
+    final demande = await demanderUnDevis(context);
+    if (demande == null || !context.mounted) return;
+
+    if (await cubit.demander(demande) && context.mounted) {
+      AppAlert.success(context, message: l10n.devisDemandeEnvoyee);
+    }
+  }
+
+  Future<void> _accepterDevis(BuildContext context, Devis devis) async {
+    await context.read<AbonnementCubit>().accepter(devis.id);
+  }
+
+  /// Refus motivé — le motif nous sert à reformuler, il reste facultatif.
+  Future<void> _refuserDevis(BuildContext context, Devis devis) async {
+    final l10n = context.l10n;
+    final controleur = TextEditingController();
+
+    final confirme = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.devisRefuser),
+        content: TextField(
+          controller: controleur,
+          maxLines: 3,
+          decoration: InputDecoration(
+            labelText: l10n.devisMotifFacultatif,
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(l10n.commonCancel)),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(l10n.devisConfirmerRefus)),
+        ],
+      ),
+    );
+    final motif = controleur.text.trim();
+    controleur.dispose();
+    if (confirme != true || !context.mounted) return;
+
+    await context.read<AbonnementCubit>().refuser(devis.id, motif.isEmpty ? null : motif);
+  }
+
+  /// Paiement du devis : le serveur rend l'adresse de la page Stripe, le
+  /// navigateur l'ouvre. Au retour, c'est la vérification habituelle qui
+  /// tranche — jamais le simple fait d'être revenu.
+  Future<void> _payerDevis(BuildContext context, Devis devis) async {
+    if (_preparation != null) return;
+    final cubit = context.read<AbonnementCubit>();
+    final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
+
+    setState(() => _preparation = devis.id);
+    try {
+      _referenceAvantPaiement = await cubit.referenceAvantPaiement();
+      final adresse = await cubit.adressePaiementDevis(devis.id);
+      if (adresse == null || !mounted) return;
+
+      bool ouvert;
+      try {
+        ouvert = await launchUrl(Uri.parse(adresse), mode: LaunchMode.externalApplication);
+      } catch (_) {
+        ouvert = false;
+      }
+
+      _paiementLance = ouvert;
+      // La formule du devis, pour que la vérification au retour reconnaisse
+      // le bon paiement.
+      if (ouvert) _formulePayee = devis.planNom != null ? _codeFormuleDevis(cubit, devis) : null;
+      if (!ouvert) {
+        messenger.showSnackBar(SnackBar(content: Text(l10n.abonnementOuvertureImpossible)));
+      }
+    } finally {
+      if (mounted) setState(() => _preparation = null);
+    }
+  }
+
+  /// Code de la formule visée par un devis, retrouvé dans le catalogue.
+  ///
+  /// La vérification au retour compare le code de la formule payée à celui
+  /// que porte le serveur ; sans correspondance, on laisse `null` et ce sont
+  /// les DROITS rechargés qui trancheront.
+  String? _codeFormuleDevis(AbonnementCubit cubit, Devis devis) {
+    for (final f in cubit.state.formules) {
+      if (f.nom == devis.planNom) return f.code;
+    }
+    return null;
+  }
+
   /// « Nous contacter » d'une formule sur devis : un courriel, pas la page de
   /// paiement — il n'y a aucun montant à régler en ligne.
   Future<void> _contacter() async {
@@ -331,6 +439,21 @@ class _AbonnementViewState extends State<_AbonnementView> with WidgetsBindingObs
                   _SectionHistorique(lignes: state.historique, totalPaye: state.totalPaye),
                 ],
 
+                // « Premium sur devis » — absent sur iOS : il mène à un
+                // paiement hors achat intégré (voir `ReglesStore`).
+                if (widget.voitLaFacturation && ReglesStore.commerceAutorise) ...[
+                  const SizedBox(height: 18),
+                  SectionDevis(
+                    devis: state.devis,
+                    enCours: state.devisEnCours || _preparation != null,
+                    erreur: state.erreurDevis,
+                    onDemander: () => _demanderDevis(context),
+                    onAccepter: (d) => _accepterDevis(context, d),
+                    onRefuser: (d) => _refuserDevis(context, d),
+                    onPayer: (d) => _payerDevis(context, d),
+                  ),
+                ],
+
                 const SizedBox(height: 18),
                 Text(
                   l10n.abonnementNosFormules,
@@ -355,7 +478,13 @@ class _AbonnementViewState extends State<_AbonnementView> with WidgetsBindingObs
                     onChoisir: _preparation != null
                         ? null
                         : formule.surDevis
-                            ? _contacter
+                            // La demande de devis entre dans le produit :
+                            // elle y laisse une trace, et le client suivra
+                            // son devis depuis cet écran. Sur iOS, pas de
+                            // devis — on garde le courriel.
+                            ? (ReglesStore.commerceAutorise
+                                ? () => _demanderDevis(context)
+                                : _contacter)
                             : widget.voitLaFacturation
                                 ? () => _ouvrirPaiement(context, formule)
                                 : null,

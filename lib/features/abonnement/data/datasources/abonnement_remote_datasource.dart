@@ -11,6 +11,13 @@ abstract class AbonnementRemoteDataSource {
   Future<List<SouscriptionHistorique>> getHistorique();
   Future<String> creerCodeTransfertWeb();
   Future<EtatPaiement?> getEtatPaiement();
+
+  // ── Devis « Premium sur devis » ───────────────────────────────────────
+  Future<List<Devis>> listerDevis();
+  Future<Devis> demanderDevis(DemandeDevis demande);
+  Future<Devis> accepterDevis(String id);
+  Future<Devis> refuserDevis(String id, String? motif);
+  Future<String> payerDevis(String id);
 }
 
 class AbonnementRemoteDataSourceImpl implements AbonnementRemoteDataSource {
@@ -73,6 +80,66 @@ class AbonnementRemoteDataSourceImpl implements AbonnementRemoteDataSource {
         options: Options(extra: {CacheReponsesGet.ignorerCache: true}),
       );
       return EtatPaiement.fromJson(_data(response));
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<List<Devis>> listerDevis() async {
+    try {
+      // Jamais depuis le cache des GET : un devis vient peut-être d'être
+      // chiffré ou accepté, et un état d'il y a vingt secondes proposerait
+      // un bouton que le serveur refuserait.
+      final response = await dio.get(
+        '/abonnement/devis',
+        options: Options(extra: {CacheReponsesGet.ignorerCache: true}),
+      );
+      return (_data(response)['devis'] as List)
+          .map((e) => Devis.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<Devis> demanderDevis(DemandeDevis demande) async {
+    try {
+      final response = await dio.post('/abonnement/devis', data: demande.toJson());
+      return Devis.fromJson(_data(response)['devis'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<Devis> accepterDevis(String id) async {
+    try {
+      final response = await dio.post('/abonnement/devis/$id/accepter');
+      return Devis.fromJson(_data(response)['devis'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<Devis> refuserDevis(String id, String? motif) async {
+    try {
+      final response = await dio.post('/abonnement/devis/$id/refuser', data: {'motif': motif});
+      return Devis.fromJson(_data(response)['devis'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<String> payerDevis(String id) async {
+    try {
+      // Rend l'ADRESSE de la page Stripe. Aucun montant n'est transmis : le
+      // serveur relit celui qu'il a lui-même posé sur le devis.
+      final response = await dio.post('/abonnement/devis/$id/paiement');
+      return _data(response)['url'] as String;
     } on DioException catch (e) {
       throw mapDioException(e);
     }

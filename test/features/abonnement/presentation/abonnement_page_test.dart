@@ -10,6 +10,7 @@ import 'package:suivie_chantier_mobile/core/errors/failure.dart';
 import 'package:suivie_chantier_mobile/core/services/feedback_sonore.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/entities/abonnement.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/creer_code_transfert_web.dart';
+import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/devis_usecases.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_droits.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_etat_paiement.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_formules.dart';
@@ -36,6 +37,17 @@ class _MockHistorique extends Mock implements GetHistoriqueAbonnement {}
 class _MockTransfert extends Mock implements CreerCodeTransfertWeb {}
 
 class _MockEtatPaiement extends Mock implements GetEtatPaiement {}
+
+class _MockListerDevis extends Mock implements ListerDevis {}
+
+class _MockDemanderDevis extends Mock implements DemanderDevis {}
+
+class _MockAccepterDevis extends Mock implements AccepterDevis {}
+
+class _MockRefuserDevis extends Mock implements RefuserDevis {}
+
+class _MockPayerDevis extends Mock implements PayerDevis {}
+
 
 class _MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
 
@@ -90,6 +102,7 @@ void main() {
   late _MockHistorique historique;
   late _MockTransfert transfert;
   late _MockEtatPaiement etatPaiement;
+  late _MockListerDevis devisVides;
   late _MockAuthBloc authBloc;
 
   setUp(() {
@@ -100,6 +113,8 @@ void main() {
     when(() => transfert()).thenAnswer((_) async => const Right('code-transfert'));
     etatPaiement = _MockEtatPaiement();
     when(() => etatPaiement()).thenAnswer((_) async => const Right(null));
+    devisVides = _MockListerDevis();
+    when(() => devisVides()).thenAnswer((_) async => const Right([]));
 
     when(() => formules()).thenAnswer((_) async => const Right([_formule]));
     when(() => droits()).thenAnswer((_) async => const Right(DroitsAbonnement(
@@ -119,6 +134,10 @@ void main() {
     sl.registerFactory<AbonnementCubit>(() => AbonnementCubit(
           getFormules: formules, getDroits: droits, getHistorique: historique,
           creerCodeTransfertWeb: transfert, getEtatPaiement: etatPaiement,
+          // Parcours « Premium sur devis » — couvert par `devis_test.dart`.
+          listerDevis: devisVides, demanderDevis: _MockDemanderDevis(),
+          accepterDevis: _MockAccepterDevis(), refuserDevis: _MockRefuserDevis(),
+          payerDevis: _MockPayerDevis(),
           // Pas d'attente réelle entre deux interrogations du serveur.
           dormir: (_) async {},
         ));

@@ -1174,6 +1174,53 @@
   "abonnementChoisir": "Elegir este plan",
   "abonnementNousContacter": "Contáctenos",
   "abonnementSurDevis": "A consultar",
+  "devisTitre": "Premium — a medida",
+  "devisDemander": "Solicitar presupuesto",
+  "devisFormulaireTitre": "Su solicitud de presupuesto",
+  "devisFormulaireSousTitre": "Describa su necesidad: le responderemos con una propuesta valorada. Sin compromiso.",
+  "devisContact": "Nombre de contacto",
+  "devisEmail": "Correo electrónico",
+  "devisTelephone": "Teléfono",
+  "devisNbUtilisateurs": "Número de usuarios",
+  "devisNbChantiers": "Número de obras",
+  "devisDureeSouhaitee": "Duración deseada (meses)",
+  "devisBesoins": "Necesidades específicas",
+  "devisEnvoyerDemande": "Enviar mi solicitud",
+  "devisDemandeEnvoyee": "Solicitud enviada. Le responderemos en breve.",
+  "devisEnPreparation": "Su propuesta se está preparando.",
+  "devisMontantHt": "Importe sin IVA",
+  "devisMontantTtc": "Importe con IVA",
+  "devisDuree": "Duración",
+  "devisUtilisateurs": "Usuarios",
+  "devisChantiers": "Obras",
+  "devisRegle": "Pagado",
+  "devisAccepter": "Aceptar",
+  "devisRefuser": "Rechazar",
+  "devisMotifFacultatif": "Motivo (opcional)",
+  "devisConfirmerRefus": "Confirmar el rechazo",
+  "devisProcederPaiement": "Proceder al pago seguro",
+  "devisRedirection": "Será redirigido a la página de pago segura de Stripe. Ningún dato bancario pasa por Widjila.",
+  "devisStatutBrouillon": "En preparación",
+  "devisStatutEnvoye": "Pendiente de su respuesta",
+  "devisStatutAccepte": "Aceptado",
+  "devisStatutRefuse": "Rechazado",
+  "devisStatutExpire": "Caducado",
+  "devisTva": "IVA ({taux} %)",
+  "@devisTva": {
+    "placeholders": {
+      "taux": {
+        "type": "String"
+      }
+    }
+  },
+  "devisDureeMois": "{n} meses",
+  "@devisDureeMois": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "abonnementParMois": "/ mes",
   "abonnementParAn": "/ año",
   "abonnementUtilisateursIllimites": "Usuarios ilimitados",

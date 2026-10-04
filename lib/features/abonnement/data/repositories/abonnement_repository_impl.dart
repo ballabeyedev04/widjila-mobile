@@ -65,6 +65,51 @@ class AbonnementRepositoryImpl implements AbonnementRepository {
   }
 
   @override
+  Future<Either<Failure, List<Devis>>> listerDevis() async {
+    try {
+      return Right(await remoteDataSource.listerDevis());
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Devis>> demanderDevis(DemandeDevis demande) async {
+    try {
+      return Right(await remoteDataSource.demanderDevis(demande));
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Devis>> accepterDevis(String id) async {
+    try {
+      return Right(await remoteDataSource.accepterDevis(id));
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Devis>> refuserDevis(String id, String? motif) async {
+    try {
+      return Right(await remoteDataSource.refuserDevis(id, motif));
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, String>> payerDevis(String id) async {
+    try {
+      return Right(await remoteDataSource.payerDevis(id));
+    } catch (e) {
+      return Left(exceptionToFailure(e));
+    }
+  }
+
+  @override
   Future<Either<Failure, EtatPaiement?>> getEtatPaiement() async {
     try {
       return Right(await remoteDataSource.getEtatPaiement());

@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/errors/failure.dart';
 import '../../domain/entities/abonnement.dart';
 import '../../domain/usecases/creer_code_transfert_web.dart';
+import '../../domain/usecases/devis_usecases.dart';
 import '../../domain/usecases/get_droits.dart';
 import '../../domain/usecases/get_etat_paiement.dart';
 import '../../domain/usecases/get_formules.dart';
@@ -52,6 +53,19 @@ class AbonnementState extends Equatable {
   /// message. Nul sinon.
   final String? formuleConfirmee;
 
+  /// Devis de l'organisation, tels que le SERVEUR les connaît. Ce sont ses
+  /// drapeaux (`peutEtreAccepte`, `peutEtrePaye`) qui décident des boutons :
+  /// l'écran ne recalcule aucune règle de validité.
+  final List<Devis> devis;
+
+  /// Vrai pendant une action sur un devis (demande, acceptation, refus,
+  /// départ vers le paiement).
+  final bool devisEnCours;
+
+  /// Message d'un refus du serveur sur une action de devis. Distinct de
+  /// [erreur], qui concerne le chargement de l'écran.
+  final String? erreurDevis;
+
   const AbonnementState({
     this.status = AbonnementStatus.initial,
     this.formules = const [],
@@ -61,6 +75,9 @@ class AbonnementState extends Equatable {
     this.erreur,
     this.verification = VerificationPaiement.aucune,
     this.formuleConfirmee,
+    this.devis = const [],
+    this.devisEnCours = false,
+    this.erreurDevis,
   });
 
   AbonnementState copyWith({
@@ -72,6 +89,9 @@ class AbonnementState extends Equatable {
     String? erreur,
     VerificationPaiement? verification,
     String? formuleConfirmee,
+    List<Devis>? devis,
+    bool? devisEnCours,
+    String? erreurDevis,
   }) {
     return AbonnementState(
       status: status ?? this.status,
@@ -82,6 +102,11 @@ class AbonnementState extends Equatable {
       erreur: erreur,
       verification: verification ?? this.verification,
       formuleConfirmee: formuleConfirmee ?? this.formuleConfirmee,
+      devis: devis ?? this.devis,
+      devisEnCours: devisEnCours ?? this.devisEnCours,
+      // `null` EFFACE le message : une nouvelle action repart sans traîner
+      // le refus de la précédente.
+      erreurDevis: erreurDevis,
     );
   }
 
@@ -110,7 +135,8 @@ class AbonnementState extends Equatable {
 
   @override
   List<Object?> get props =>
-      [status, formules, droits, historique, historiqueDemande, erreur, verification, formuleConfirmee];
+      [status, formules, droits, historique, historiqueDemande, erreur, verification,
+        formuleConfirmee, devis, devisEnCours, erreurDevis];
 }
 
 /// Écran d'abonnement du mobile.
@@ -139,6 +165,11 @@ class AbonnementCubit extends Cubit<AbonnementState> {
   final GetHistoriqueAbonnement getHistorique;
   final CreerCodeTransfertWeb creerCodeTransfertWeb;
   final GetEtatPaiement getEtatPaiement;
+  final ListerDevis listerDevis;
+  final DemanderDevis demanderDevis;
+  final AccepterDevis accepterDevis;
+  final RefuserDevis refuserDevis;
+  final PayerDevis payerDevis;
 
   /// Injectable dans les tests : attendre vingt secondes réelles n'y apporte
   /// rien.
@@ -150,6 +181,11 @@ class AbonnementCubit extends Cubit<AbonnementState> {
     required this.getHistorique,
     required this.creerCodeTransfertWeb,
     required this.getEtatPaiement,
+    required this.listerDevis,
+    required this.demanderDevis,
+    required this.accepterDevis,
+    required this.refuserDevis,
+    required this.payerDevis,
     Future<void> Function(Duration)? dormir,
   })  : dormir = dormir ?? Future.delayed,
         super(const AbonnementState());
@@ -257,6 +293,76 @@ class AbonnementCubit extends Cubit<AbonnementState> {
       verification: verdict,
       formuleConfirmee: verdict == VerificationPaiement.confirme ? (formuleNom ?? formuleCode) : null,
     ));
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  DEVIS « Premium sur devis »
+  // ══════════════════════════════════════════════════════════════════════
+
+  /// Charge les devis. Silencieux en cas d'échec : un rôle sans facturation
+  /// reçoit un 403, et l'écran reste parfaitement utilisable sans la section.
+  Future<void> chargerDevis() async {
+    final res = await listerDevis();
+    if (isClosed) return;
+    res.fold((_) {}, (liste) => emit(state.copyWith(devis: liste)));
+  }
+
+  /// Joue une action de devis et remplace la ligne par ce que rend le
+  /// SERVEUR — jamais par un état recalculé ici.
+  Future<bool> _agir(Future<Either<Failure, Devis>> Function() action) async {
+    emit(state.copyWith(devisEnCours: true));
+    final res = await action();
+    if (isClosed) return false;
+
+    return res.fold(
+      (echec) {
+        emit(state.copyWith(devisEnCours: false, erreurDevis: echec.errorMessage));
+        return false;
+      },
+      (devis) {
+        final liste = [...state.devis];
+        final index = liste.indexWhere((d) => d.id == devis.id);
+        if (index >= 0) {
+          liste[index] = devis;
+        } else {
+          liste.insert(0, devis);
+        }
+        emit(state.copyWith(devis: liste, devisEnCours: false));
+        return true;
+      },
+    );
+  }
+
+  Future<bool> demander(DemandeDevis demande) => _agir(() => demanderDevis(demande));
+
+  Future<bool> accepter(String id) => _agir(() => accepterDevis(id));
+
+  Future<bool> refuser(String id, String? motif) => _agir(() => refuserDevis(id, motif));
+
+  /// Adresse de la page Stripe pour un devis accepté — `null` si le serveur
+  /// refuse (devis périmé, déjà réglé), avec son message dans
+  /// [AbonnementState.erreurDevis].
+  Future<String?> adressePaiementDevis(String id) async {
+    emit(state.copyWith(devisEnCours: true));
+    final res = await payerDevis(id);
+    if (isClosed) return null;
+
+    return res.fold(
+      (echec) {
+        emit(state.copyWith(devisEnCours: false, erreurDevis: echec.errorMessage));
+        return null;
+      },
+      (url) {
+        emit(state.copyWith(devisEnCours: false));
+        return url;
+      },
+    );
+  }
+
+  /// Efface le refus affiché — avant une nouvelle tentative.
+  void effacerErreurDevis() {
+    if (state.erreurDevis == null) return;
+    emit(state.copyWith(devisEnCours: state.devisEnCours));
   }
 
   /// L'écran a montré le verdict : on l'efface pour ne pas le remontrer à la

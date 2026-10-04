@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:suivie_chantier_mobile/core/errors/failure.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/entities/abonnement.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/creer_code_transfert_web.dart';
+import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/devis_usecases.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_droits.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_etat_paiement.dart';
 import 'package:suivie_chantier_mobile/features/abonnement/domain/usecases/get_formules.dart';
@@ -20,6 +21,17 @@ class MockGetHistorique extends Mock implements GetHistoriqueAbonnement {}
 class MockCreerCodeTransfertWeb extends Mock implements CreerCodeTransfertWeb {}
 
 class MockGetEtatPaiement extends Mock implements GetEtatPaiement {}
+
+class MockListerDevis extends Mock implements ListerDevis {}
+
+class MockDemanderDevis extends Mock implements DemanderDevis {}
+
+class MockAccepterDevis extends Mock implements AccepterDevis {}
+
+class MockRefuserDevis extends Mock implements RefuserDevis {}
+
+class MockPayerDevis extends Mock implements PayerDevis {}
+
 
 const tEssentiel = FormuleAbonnement(
   id: 'a1',
@@ -71,6 +83,13 @@ void main() {
         getHistorique: getHistorique,
         creerCodeTransfertWeb: creerCode,
         getEtatPaiement: getEtatPaiement,
+        // Parcours « Premium sur devis » — couvert par `devis_test.dart`.
+        // Simulé ici pour que le cubit se construise.
+        listerDevis: MockListerDevis(),
+        demanderDevis: MockDemanderDevis(),
+        accepterDevis: MockAccepterDevis(),
+        refuserDevis: MockRefuserDevis(),
+        payerDevis: MockPayerDevis(),
         // On note les attentes au lieu de les subir : vingt secondes réelles
         // n'apporteraient rien au test.
         dormir: (d) async => attentes.add(d),

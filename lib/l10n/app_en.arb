@@ -1174,6 +1174,53 @@
   "abonnementChoisir": "Choose this plan",
   "abonnementNousContacter": "Contact us",
   "abonnementSurDevis": "On request",
+  "devisTitre": "Premium — custom quote",
+  "devisDemander": "Request a quote",
+  "devisFormulaireTitre": "Your quote request",
+  "devisFormulaireSousTitre": "Describe your needs and we will come back with a priced proposal. No commitment at this stage.",
+  "devisContact": "Contact name",
+  "devisEmail": "Email",
+  "devisTelephone": "Phone",
+  "devisNbUtilisateurs": "Number of users",
+  "devisNbChantiers": "Number of sites",
+  "devisDureeSouhaitee": "Desired duration (months)",
+  "devisBesoins": "Specific needs",
+  "devisEnvoyerDemande": "Send my request",
+  "devisDemandeEnvoyee": "Request sent. We will get back to you shortly.",
+  "devisEnPreparation": "Your proposal is being prepared.",
+  "devisMontantHt": "Amount excl. tax",
+  "devisMontantTtc": "Total incl. tax",
+  "devisDuree": "Duration",
+  "devisUtilisateurs": "Users",
+  "devisChantiers": "Sites",
+  "devisRegle": "Paid",
+  "devisAccepter": "Accept",
+  "devisRefuser": "Decline",
+  "devisMotifFacultatif": "Reason (optional)",
+  "devisConfirmerRefus": "Confirm refusal",
+  "devisProcederPaiement": "Proceed to secure payment",
+  "devisRedirection": "You will be redirected to Stripe's secure payment page. No card details pass through Widjila.",
+  "devisStatutBrouillon": "Being prepared",
+  "devisStatutEnvoye": "Awaiting your reply",
+  "devisStatutAccepte": "Accepted",
+  "devisStatutRefuse": "Declined",
+  "devisStatutExpire": "Expired",
+  "devisTva": "VAT ({taux}%)",
+  "@devisTva": {
+    "placeholders": {
+      "taux": {
+        "type": "String"
+      }
+    }
+  },
+  "devisDureeMois": "{n} months",
+  "@devisDureeMois": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "abonnementParMois": "/ month",
   "abonnementParAn": "/ year",
   "abonnementUtilisateursIllimites": "Unlimited users",
