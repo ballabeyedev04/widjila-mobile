@@ -371,6 +371,13 @@ jobs:
           done
           # Le mot de passe du certificat ne doit jamais apparaître dans les journaux.
           echo "::add-mask::$IOS_DIST_CERT_PASSWORD"
+          # Un mot de passe collé depuis Windows peut traîner un retour
+          # chariot : invisible dans l'interface de GitHub, fatal à l'import,
+          # et le message d'erreur ne parle alors que du certificat. Aucun
+          # mot de passe ne peut contenir ces caractères — les retirer ne
+          # peut rien casser.
+          IOS_DIST_CERT_PASSWORD="$(printf '%s' "$IOS_DIST_CERT_PASSWORD" | tr -d '\r\n')"
+          echo "::add-mask::$IOS_DIST_CERT_PASSWORD"
 
           # Décodage par python3 : `base64` n'a pas les mêmes options selon
           # le système, et un secret sur plusieurs lignes le met en échec.

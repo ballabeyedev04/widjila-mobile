@@ -241,6 +241,8 @@ def preparer_signature
   UI.user_error!("IOS_CERT_P12 absent ou introuvable : le certificat de distribution n'est pas configuré (voir docs/DEPLOIEMENT_IOS.md).") if p12.empty? || !File.exist?(p12)
   UI.user_error!("IOS_PROFILE absent ou introuvable : le profil d'approvisionnement n'est pas configuré (voir docs/DEPLOIEMENT_IOS.md).") if profil_chemin.empty? || !File.exist?(profil_chemin)
 
+  verifier_mot_de_passe(p12)
+
   # Trousseau temporaire, propre à ce travail : le certificat ne reste pas sur
   # la machine et ne demande aucun déverrouillage interactif.
   setup_ci
@@ -255,13 +257,45 @@ def preparer_signature
 
   identites = sh("security find-identity -v -p codesigning", log: false)
   unless identites.include?("Apple Distribution") || identites.include?("iPhone Distribution")
-    UI.user_error!("Aucune identité « Apple Distribution » dans le trousseau : le fichier .p12 n'est pas un certificat de DISTRIBUTION, ou son mot de passe est faux.")
+    UI.user_error!("Le fichier .p12 a bien été ouvert, mais il ne contient pas d'identité « Apple Distribution » : c'est un certificat de DÉVELOPPEMENT. Recréez-en un de type « Apple Distribution » (voir docs/DEPLOIEMENT_IOS.md §2).")
   end
 
   install_provisioning_profile(path: profil_chemin)
   profil = infos_profil(profil_chemin)
   verifier_profil(profil)
   profil
+end
+
+# Le mot de passe du .p12 est contrôlé AVANT l'import.
+#
+# `security import` ne sait dire qu'une chose quand il échoue — « MAC
+# verification failed during PKCS12 import (wrong password?) » — et fastlane
+# poursuit malgré tout, si bien que l'échec se manifeste plus loin, sur
+# l'absence d'identité dans le trousseau. On accusait alors le certificat
+# d'être un certificat de développement, ce qui envoie chercher au mauvais
+# endroit. Ici, chaque cause a son message.
+#
+# Le mot de passe passe par l'environnement (`passin env:`) et jamais par la
+# ligne de commande, qui serait visible dans la liste des processus.
+def verifier_mot_de_passe(p12)
+  commande = "openssl pkcs12 -in #{p12.shellescape} -nokeys -passin env:IOS_CERT_PASSWORD -out /dev/null"
+  # macOS livre LibreSSL, qui ne connaît pas l'option `-legacy` ; OpenSSL 3
+  # en a besoin pour les fichiers chiffrés à l'ancienne. On essaie les deux.
+  return if system("#{commande} 2>/dev/null") || system("#{commande} -legacy 2>/dev/null")
+
+  # Sans mot de passe du tout : si ça passe, le secret est de trop.
+  if system("openssl pkcs12 -in #{p12.shellescape} -nokeys -passin pass: -out /dev/null 2>/dev/null")
+    UI.user_error!("Le fichier .p12 n'a AUCUN mot de passe, alors que le secret IOS_DIST_CERT_PASSWORD en fournit un. Réexportez le .p12 avec un mot de passe (docs/DEPLOIEMENT_IOS.md §2.C).")
+  end
+
+  UI.user_error!(
+    "Le mot de passe du secret IOS_DIST_CERT_PASSWORD n'ouvre pas le fichier .p12.\n" \
+    "Ce n'est pas un problème de certificat : le fichier est lu, c'est la clé qui ne correspond pas.\n" \
+    "Vérifiez-le sur votre poste, le mot de passe vous sera demandé (il ne reste pas dans l'historique) :\n" \
+    "    openssl pkcs12 -legacy -in distribution.p12 -nokeys -out /dev/null\n" \
+    "S'il est accepté là et refusé ici, c'est le secret GitHub qu'il faut refaire — un espace ou un retour " \
+    "à la ligne collé par mégarde suffit."
+  )
 end
 
 # Contenu d'un .mobileprovision : un plist signé (CMS), que `security` sait
