@@ -131,7 +131,10 @@ resume ""
 
 if [ "$ECHEC" -ne 0 ]; then
   echo "::error::L'app ne démarre pas sur simulateur — extrait du journal :"
-  echo "$PLANTAGE" | head -40
+  # `|| true` : sous `pipefail`, un `head` qui s'arrête tôt fait échouer ce
+  # qui l'alimente. Ici, cela couperait court au diagnostic — c'est-à-dire
+  # à la seule chose qui compte dans ce chemin.
+  echo "$PLANTAGE" | head -40 || true
   tail -60 "$SORTIE/journal.txt" || true
   exit 1
 fi

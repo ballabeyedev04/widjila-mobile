@@ -26,8 +26,24 @@ disponibles=""
 
 for app in /Applications/Xcode*.app; do
   [ -d "$app" ] || continue
-  version="$("$app/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')"
-  [ -n "$version" ] || continue
+
+  # Deux précautions pour une seule ligne, et chacune a coûté une exécution :
+  #
+  #  - pas de `| head -1` : sous `pipefail`, `head` ferme le tuyau après la
+  #    première ligne et tue `xcodebuild`, qui meurt sur SIGABRT ; le
+  #    pipeline échoue, et `set -e` emporte le script entier (code 134).
+  #    `awk` lit tout, il ne ferme rien tôt ;
+  #  - `|| true` : un Xcode incomplet, en version d'essai ou dont la licence
+  #    n'est pas acceptée répond en erreur. Ce n'est pas une raison
+  #    d'abandonner les autres. `|| true` garde malgré tout ce qui a été
+  #    affiché — `|| sortie=""` jetterait une version pourtant lisible.
+  sortie="$("$app/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null)" || true
+  version="$(printf '%s\n' "$sortie" | awk 'NR==1 {print $2}')"
+
+  if [ -z "$version" ]; then
+    echo "  (ignoré : $app ne répond pas)"
+    continue
+  fi
   disponibles="$disponibles  - Xcode $version ($app)"$'\n'
   if [ "$(printf '%s\n%s\n' "$version_max" "$version" | sort -V | tail -1)" = "$version" ]; then
     meilleur="$app"
