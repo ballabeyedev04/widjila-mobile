@@ -1,7 +1,4 @@
-- Numéro de chaque réserve affiché directement sur le plan
-- Nouveaux statuts de suivi : à surveiller, à échéance, traitée, levée
-- Tableau de bord : indicateurs, évolution et répartition par chantier
-- Abonnement Premium sur devis : demande, suivi et paiement sécurisé
-- Offre gratuite permanente à la fin de l'essai : vos données restent accessibles
-- Petit son de confirmation sur les actions réussies
-- Correction d'un plantage au démarrage sur les nouvelles installations
+- L'offre gratuite fonctionne vraiment : plus aucun blocage à la fin de l'essai, vos chantiers et vos réserves restent accessibles
+- Un chantier, deux utilisateurs et des réserves illimitées, sans limite de durée et sans rien à payer
+- Création de compte de nouveau possible depuis iPhone et iPad
+- Corrections de stabilité

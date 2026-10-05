@@ -17,20 +17,28 @@ import '../../helpers/l10n_test_helpers.dart';
 ///  2. l'inscription d'une entreprise, assimilée à un canal d'achat externe.
 ///
 /// Sur iOS, l'application est donc un CLIENT de l'abonnement : aucun tarif,
-/// aucun bouton d'achat, aucun lien vers la page de paiement, aucune création
-/// de compte. Android et le web ne changent pas.
+/// aucun bouton d'achat, aucun lien vers la page de paiement.
 ///
-/// Ces tests sont la garde : un bouton de vente qui reviendrait sur iOS les
-/// ferait échouer avant d'atteindre l'App Store.
+/// L'INSCRIPTION, en revanche, reste ouverte partout. Le grief d'Apple portait
+/// sur ce qu'elle menait — un essai de deux jours puis un mur réclamant de
+/// payer ailleurs. Elle mène désormais à l'offre gratuite permanente : un
+/// chantier, deux utilisateurs, des réserves illimitées, sans date de fin.
+/// La retirer rendrait l'application inutilisable pour qui la découvre sur
+/// l'App Store sans avoir de compte.
+///
+/// Ces tests sont la garde : un bouton de VENTE qui reviendrait sur iOS les
+/// ferait échouer avant d'atteindre l'App Store, et une inscription qui
+/// disparaîtrait de nouveau aussi.
 void main() {
   tearDown(() => debugDefaultTargetPlatformOverride = null);
 
   group('la règle elle-même', () {
-    test('iOS : ni commerce ni inscription', () {
+    test('iOS : pas de commerce, mais l’inscription reste', () {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
 
       expect(ReglesStore.commerceAutorise, isFalse);
-      expect(ReglesStore.inscriptionAutorisee, isFalse);
+      expect(ReglesStore.inscriptionAutorisee, isTrue,
+          reason: 'sans inscription, une entreprise qui découvre l’app ne peut rien en faire');
     });
 
     test('Android : rien ne change — la vente y reste ouverte', () {

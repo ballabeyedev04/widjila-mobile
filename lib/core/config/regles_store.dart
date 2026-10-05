@@ -22,12 +22,16 @@ import 'package:flutter/foundation.dart';
 ///
 /// Sur iOS, l'application devient un CLIENT de l'abonnement, jamais un point
 /// de vente : ni tarif, ni bouton « Choisir cette formule », ni lien vers la
-/// page de paiement, ni création de compte. L'organisation souscrit par
-/// contrat avec nous (ou depuis le portail web, hors de l'application), et
-/// l'application sert à travailler — relever des réserves, annoter des plans,
-/// produire des rapports. C'est le fonctionnement prévu par Apple pour les
-/// services vendus aux entreprises (« Enterprise Services », directive
-/// 3.1.3), et c'est aussi ce que la réponse d'Apple demande explicitement.
+/// page de paiement. L'organisation souscrit par contrat avec nous (ou depuis
+/// le portail web, hors de l'application), et l'application sert à travailler
+/// — relever des réserves, annoter des plans, produire des rapports. C'est le
+/// fonctionnement prévu par Apple pour les services vendus aux entreprises
+/// (« Enterprise Services », directive 3.1.3).
+///
+/// L'INSCRIPTION, elle, reste ouverte sur iOS. Voir `inscriptionAutorisee` :
+/// elle ne mène plus à un achat mais à l'offre gratuite permanente, et la
+/// retirer rendrait l'application inutilisable pour qui la découvre sur
+/// l'App Store.
 ///
 /// Android et le web ne changent PAS : la vente y reste ouverte, sans
 /// commission, et c'est là que les organisations souscrivent.
@@ -49,8 +53,23 @@ class ReglesStore {
 
   /// Vrai si l'application peut proposer de CRÉER une organisation.
   ///
-  /// Apple assimile cette inscription à un canal d'achat externe (grief n° 2).
-  /// Sur iOS, on ne garde que la connexion : le compte est créé par
-  /// l'entreprise, hors de l'application.
-  static bool get inscriptionAutorisee => commerceAutorise;
+  /// Vrai PARTOUT, iOS compris, et c'est un choix mûri.
+  ///
+  /// Apple reprochait à l'inscription d'être un canal d'achat externe : on
+  /// créait un compte, l'essai courait deux jours, puis un mur réclamait de
+  /// payer — ailleurs que par un achat intégré. Le grief portait sur ce
+  /// qu'elle MENAIT, pas sur elle-même.
+  ///
+  /// Ce qu'elle mène a changé. L'inscription donne maintenant accès à l'offre
+  /// gratuite permanente : un chantier, deux utilisateurs, des réserves
+  /// illimitées, sans date de fin et sans rien à payer. Rien n'est vendu dans
+  /// l'application iOS — `commerceAutorise` y reste faux, aucun tarif, aucun
+  /// bouton, aucun lien de paiement. L'inscription ne mène donc plus à un
+  /// achat : elle mène à un produit utilisable.
+  ///
+  /// La retirer coûterait bien plus qu'elle ne rapporte : une entreprise qui
+  /// découvre Widjila sur l'App Store n'a aucun compte, et sans inscription
+  /// elle n'a aucun moyen d'en obtenir un. L'application serait installable
+  /// mais inutilisable.
+  static bool get inscriptionAutorisee => true;
 }
