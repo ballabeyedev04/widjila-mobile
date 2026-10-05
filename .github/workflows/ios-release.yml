@@ -351,6 +351,12 @@ jobs:
             exit 1
           }
 
+          # Relues ICI : `choisir_xcode.sh` les pose bien dans GITHUB_ENV,
+          # mais une variable qu'on y écrit n'existe qu'à l'étape SUIVANTE.
+          # Dans celle-ci elle est vide — et `**$VIDE**` s'affichait « **** ».
+          XCODE_VERSION="$(xcodebuild -version | awk 'NR==1 {print $2}')"
+          IOS_SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+
           {
             echo "### 🍏 Machine de compilation"
             echo ""
