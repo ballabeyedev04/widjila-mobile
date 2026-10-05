@@ -55,7 +55,9 @@ permissions:
 env:
   FLUTTER_VERSION: "3.44.8"
   RUBY_VERSION: "3.3"
-  XCODE_MAJEUR_MINIMUM: "16" # Apple refuse les envois construits avec un SDK plus ancien
+  # Apple releve ce minimum chaque annee, quelques mois apres la sortie
+  # d'une version d'iOS, et refuse l'ENVOI — pas la compilation.
+  IOS_SDK_MINIMUM: "26"
   BUNDLE_ID: com.widjila.suivichantier
   NOTES_MAX: "500" # le fichier de notes est partagé avec Google Play, dont la limite est la plus basse
 
@@ -338,13 +340,7 @@ jobs:
         env:
           BUNDLE_GEMFILE: ${{ github.workspace }}/Gemfile
         run: |
-          sudo xcode-select -switch /Applications/Xcode.app
-          VERSION="$(xcodebuild -version | head -1 | awk '{print $2}')"
-          MAJEUR="${VERSION%%.*}"
-          if [ "$MAJEUR" -lt "$XCODE_MAJEUR_MINIMUM" ]; then
-            echo "::error::Xcode $VERSION sur cette machine : Apple refuse les envois construits avec un SDK antérieur à Xcode $XCODE_MAJEUR_MINIMUM."
-            exit 1
-          fi
+          bash tool/ci/choisir_xcode.sh "$IOS_SDK_MINIMUM"
 
           # `flutter build ipa` appelle `pod`. Il doit venir du MÊME paquet
           # Ruby que fastlane : celui de la machine est lié au Ruby du
@@ -360,8 +356,8 @@ jobs:
             echo ""
             echo "| Outil | Version |"
             echo "|---|---|"
-            echo "| Xcode | **$VERSION** |"
-            echo "| SDK iOS | $(xcrun --sdk iphoneos --show-sdk-version) |"
+            echo "| Xcode | **$XCODE_VERSION** |"
+            echo "| SDK iOS | $IOS_SDK_VERSION |"
             echo "| Flutter | ${FLUTTER_VERSION} |"
             echo "| CocoaPods | $PODS |"
             echo ""
@@ -554,8 +550,10 @@ jobs:
           # macOS n'a pas `sha256sum` : c'est `shasum -a 256`.
           (cd livrables && shasum -a 256 -c SHA256SUMS.txt)
 
+      # altool vient du Xcode selectionne : le meme que pour la compilation,
+      # choisi de la meme facon.
       - name: Xcode
-        run: sudo xcode-select -switch /Applications/Xcode.app
+        run: bash tool/ci/choisir_xcode.sh "$IOS_SDK_MINIMUM"
 
       - name: Clé App Store Connect
         env:

@@ -47,7 +47,7 @@ publié**. À faire au moindre doute — c'est gratuit en conséquences.
 | 2a | Analyse & traductions | Linux | erreur ou avertissement d'analyse, traduction manquante |
 | 2b | Tests & couverture | Linux | un test en échec |
 | 2c | Sécurité | Linux | un secret oublié dans le code |
-| 3-4 | Compilation, contrôle de l'IPA & démarrage | **macOS** | Xcode trop ancien, profil de développement au lieu d'App Store, profil expiré, mauvais bundle, app non signée, autorisation nouvelle non déclarée, app qui ne démarre pas |
+| 3-4 | Compilation, contrôle de l'IPA & démarrage | **macOS** | SDK iOS trop ancien pour Apple, profil de développement au lieu d'App Store, profil expiré, mauvais bundle, app non signée, autorisation nouvelle non déclarée, app qui ne démarre pas |
 | 5-6 | ✋ Approbation & publication | **macOS** | numéro de build pris entre-temps, IPA refusé par Apple, build absent de TestFlight après l'envoi |
 | 7 | Bilan | Linux | — |
 
@@ -215,7 +215,8 @@ Deux leviers si cela devient gênant :
 | `Le profil « … » a expiré` | plus d'un an | régénérer sur developer.apple.com |
 | `Le build N n'est plus libre` | un envoi est parti d'ailleurs entre la compilation et l'approbation | relancer le déploiement |
 | `pubspec.yaml annonce X, plus ancienne que …` | version en recul | corriger `pubspec.yaml` |
-| `Xcode … Apple refuse les envois construits avec un SDK antérieur` | image macOS trop ancienne | changer `runs-on` pour une image plus récente |
+| `Le Xcode le plus récent de cette machine fournit le SDK iOS X` | Apple a relevé son minimum, l'image macOS ne suit plus | changer `runs-on` pour une image plus récente, et `IOS_SDK_MINIMUM` dans le workflow |
+| `SDK version issue … must be built with the iOS N SDK` (à l'envoi) | la chaîne a compilé avec un Xcode trop ancien | normalement impossible : le contrôle d'entrée du job 3-4 l'attrape avant |
 | `Les notes n'ont pas changé depuis ios-v…` | notes identiques au dernier déploiement iOS | écrire les nouveautés |
 | `l'app ne démarre pas sur simulateur` | plantage au démarrage sur installation neuve | lire `test-demarrage-ios` (capture + journal) |
 
@@ -244,6 +245,7 @@ jour corrective en demandant un **examen accéléré**.
 | `.github/workflows/ios-release.yml` | la chaîne |
 | `ios/fastlane/Fastfile` | les trois étapes : préparer, compiler, publier |
 | `ios/fastlane/Appfile` | bundle et équipe |
+| `tool/ci/choisir_xcode.sh` | choisit le Xcode le plus récent et refuse un SDK trop ancien |
 | `tool/ci/controle_ipa.py` | contrôle de l'IPA avant envoi |
 | `tool/ci/ios_reference.json` | ce que l'IPA doit contenir (bundle, équipe, autorisations acceptées) |
 | `tool/ci/test_demarrage_ios.sh` | test de démarrage sur simulateur |
