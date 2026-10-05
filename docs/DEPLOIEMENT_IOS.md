@@ -158,12 +158,22 @@ Sur Windows (PowerShell) :
 
 ### 4️⃣ Environnement d'approbation `app-store`
 
-*Settings* → *Environments* → **New environment** → nom exact :
-`app-store`.
+> ⚠️ **Indispensable.** Sans cette étape, GitHub crée l'environnement tout
+> seul, **sans approbation** : la publication partirait sans votre clic.
 
-- **Required reviewers** : vous (sans cela, la publication part sans
-  approbation) ;
-- **Deployment branches** : *Selected branches* → `release-ios`.
+1. *Settings* → *Environments* → **New environment** → nom exact :
+   **`app-store`**.
+2. Cocher **Required reviewers** → ajouter **votre compte**.
+3. Laisser **Prevent self-review** décoché (vous êtes seul à approuver).
+4. **Deployment branches and tags** → **Selected branches and tags** →
+   ajouter `release-ios` **et** `main` (l'essai à blanc se lance depuis
+   `main` : sans cette seconde branche, il s'arrête sur « Branch "main" is
+   not allowed to deploy to app-store »).
+5. **Save protection rules**.
+
+> Autoriser `main` n'ouvre aucune porte : un déploiement réel depuis `main`
+> reste impossible sans décocher l'essai à blanc **et** sans votre
+> approbation. Et il n'irait de toute façon que jusqu'à TestFlight.
 
 ### 5️⃣ Protection de la branche `release-ios`
 
