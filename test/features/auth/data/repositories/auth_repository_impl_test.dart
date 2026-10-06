@@ -7,6 +7,7 @@ import 'package:suivie_chantier_mobile/core/errors/failure.dart';
 import 'package:suivie_chantier_mobile/core/offline/session_locale.dart';
 import 'package:suivie_chantier_mobile/core/services/token_service.dart';
 import 'package:suivie_chantier_mobile/core/services/user_cache.dart';
+import 'package:suivie_chantier_mobile/core/services/verificateur_hors_ligne.dart';
 import 'package:suivie_chantier_mobile/features/auth/data/datasources/auth_remote_datasource.dart';
 import 'package:suivie_chantier_mobile/features/auth/data/models/user_model.dart';
 import 'package:suivie_chantier_mobile/core/network/cache_reponses_get.dart';
@@ -19,6 +20,8 @@ class MockTokenService extends Mock implements TokenService {}
 class MockUserCache extends Mock implements UserCache {}
 
 class MockSessionLocale extends Mock implements SessionLocale {}
+
+class MockVerificateur extends Mock implements VerificateurHorsLigne {}
 
 final tUserModel = UserModel(
   id: 'u1',
@@ -34,6 +37,7 @@ void main() {
   late MockTokenService tokenService;
   late MockUserCache userCache;
   late MockSessionLocale sessionLocale;
+  late MockVerificateur verificateur;
   late AuthRepositoryImpl repository;
 
   setUp(() {
@@ -41,6 +45,7 @@ void main() {
     tokenService = MockTokenService();
     userCache = MockUserCache();
     sessionLocale = MockSessionLocale();
+    verificateur = MockVerificateur();
     repository = AuthRepositoryImpl(
       remoteDataSource: remoteDataSource,
       tokenService: tokenService,
@@ -49,6 +54,7 @@ void main() {
       // Instance reelle plutot qu'un mock : le cache n'a pas d'effet de bord
       // hors de lui-meme, et `vider()` sur un cache vide est sans risque.
       cacheHttp: CacheReponsesGet(),
+      verificateur: verificateur,
     );
 
     when(() => tokenService.setToken(any())).thenAnswer((_) async {});
@@ -56,6 +62,13 @@ void main() {
     when(() => userCache.saveJson(any())).thenAnswer((_) async {});
     when(() => sessionLocale.adopterUtilisateur(any())).thenAnswer((_) async {});
     when(() => sessionLocale.purger()).thenAnswer((_) async {});
+    when(() => verificateur.enregistrer(
+          utilisateurId: any(named: 'utilisateurId'),
+          identifiants: any(named: 'identifiants'),
+          motDePasse: any(named: 'motDePasse'),
+        )).thenAnswer((_) async {});
+    when(() => verificateur.effacer()).thenAnswer((_) async {});
+    when(() => verificateur.marquerValide(any())).thenAnswer((_) async {});
   });
 
   group('login', () {

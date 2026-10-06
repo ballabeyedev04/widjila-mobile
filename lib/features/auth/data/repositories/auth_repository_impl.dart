@@ -10,6 +10,7 @@ import '../../../../core/offline/session_locale.dart';
 import '../../../../core/network/cache_reponses_get.dart';
 import '../../../../core/services/token_service.dart';
 import '../../../../core/services/user_cache.dart';
+import '../../../../core/services/verificateur_hors_ligne.dart';
 import '../../domain/entities/login_result.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -33,13 +34,29 @@ class AuthRepositoryImpl implements AuthRepository {
   /// purges juste a cote ; ce cache-ci manquait a la liste.
   final CacheReponsesGet cacheHttp;
 
+  /// Preuve locale d'un compte déjà authentifié par le serveur — seule porte
+  /// d'une connexion sans réseau. Voir `VerificateurHorsLigne`.
+  final VerificateurHorsLigne verificateur;
+
+  /// `true` quand la détection de connexion sait DÉJÀ le serveur injoignable.
+  ///
+  /// Évite d'attendre l'épuisement des délais et des relances du client HTTP
+  /// (plus de 40 s sur un signal inexploitable) avant de proposer l'accès
+  /// local. Ce n'est qu'un raccourci : si la vérification locale échoue, la
+  /// requête réseau est quand même tentée, une sonde pouvant se tromper.
+  final bool Function() serveurInjoignable;
+
   AuthRepositoryImpl({
     required this.remoteDataSource,
     required this.tokenService,
     required this.userCache,
     required this.sessionLocale,
     required this.cacheHttp,
+    required this.verificateur,
+    this.serveurInjoignable = _jamais,
   });
+
+  static bool _jamais() => false;
 
   Future<void> _persisterSession(String? token, String? refreshToken, UserModel utilisateur) async {
     if (token != null) await tokenService.setToken(token);
@@ -75,15 +92,129 @@ class AuthRepositoryImpl implements AuthRepository {
     required String identifiant,
     required String motDePasse,
   }) async {
+    // Serveur déjà connu pour injoignable : tenter l'accès local d'abord.
+    Failure? refusLocal;
+    if (serveurInjoignable()) {
+      final local = await _connexionHorsLigne(identifiant, motDePasse);
+      final reussite = local.fold((_) => null, (r) => r);
+      if (reussite != null) return Right(reussite);
+      refusLocal = local.fold((f) => f, (_) => null);
+    }
+
     try {
       final response = await remoteDataSource.login(identifiant: identifiant, motDePasse: motDePasse);
-      if (!response.mfaRequise) {
+      if (response.mfaRequise) {
+        // Un second facteur ne se vérifie que sur le serveur : un compte qui
+        // en exige un n'ouvre JAMAIS de session sans réseau (sinon le mot de
+        // passe seul suffirait hors ligne). Tout enregistrement précédent est
+        // effacé, il ne doit pas survivre à ce constat.
+        await _effacerVerificateur();
+      } else {
         await _persisterSession(response.token, response.refreshToken, response.utilisateur);
+        await _enregistrerVerificateur(identifiant, motDePasse, response.utilisateur);
       }
       return Right(LoginResult(mfaRequise: response.mfaRequise, utilisateur: response.utilisateur));
+    } on NetworkException {
+      // SEUL le réseau absent ouvre l'accès local. Un refus du serveur
+      // (mauvais mot de passe, compte désactivé…) est définitif : le serveur
+      // a répondu, il fait foi, aucun repli.
+      //
+      // Déjà tenté plus haut (sonde « hors ligne ») : ne pas rejouer, et ne
+      // pas masquer un refus précis derrière le message générique.
+      if (refusLocal != null) return Left(refusLocal);
+      return _connexionHorsLigne(identifiant, motDePasse);
     } catch (e) {
+      // Compte suspendu / désactivé : l'accès local de ce compte est retiré.
+      if (e is ServerException && e.statusCode == 403) await _effacerVerificateur();
       return Left(exceptionToFailure(e));
     }
+  }
+
+  static const _reseauRequis = 'Connexion Internet requise pour vous connecter sur cet appareil.';
+
+  Future<void> _enregistrerVerificateur(String identifiant, String motDePasse, User utilisateur) async {
+    // Best-effort : ne jamais empêcher une connexion en ligne réussie parce
+    // que le stockage sécurisé a un souci. Sans enregistrement, la seule
+    // conséquence est qu'une prochaine connexion sans réseau sera refusée.
+    try {
+      await verificateur.enregistrer(
+        utilisateurId: utilisateur.id,
+        identifiants: [identifiant, utilisateur.email],
+        motDePasse: motDePasse,
+      );
+    } catch (e) {
+      debugPrint('[session] Vérificateur hors ligne non enregistré ($e).');
+      await _effacerVerificateur();
+    }
+  }
+
+  Future<void> _effacerVerificateur() async {
+    try {
+      await verificateur.effacer();
+    } catch (_) {}
+  }
+
+  /// Ouvre une session SANS serveur, uniquement si CE compte a déjà été
+  /// authentifié par le serveur sur CET appareil (voir [VerificateurHorsLigne]).
+  ///
+  /// La session obtenue ne porte aucun jeton : elle donne accès au cache et à
+  /// la saisie hors ligne, rien de plus. Aucune requête ne part tant que
+  /// l'utilisateur ne s'est pas réauthentifié en ligne.
+  Future<Either<Failure, LoginResult>> _connexionHorsLigne(String identifiant, String motDePasse) async {
+    final ResultatVerification verdict;
+    try {
+      verdict = await verificateur.verifier(identifiant: identifiant, motDePasse: motDePasse);
+    } catch (e) {
+      debugPrint('[session] Vérification hors ligne indisponible ($e).');
+      return const Left(NetworkFailure(errorMessage: _reseauRequis));
+    }
+
+    if (!verdict.accepte) {
+      return Left(switch (verdict.refus!) {
+        RefusHorsLigne.aucunCompte => const NetworkFailure(errorMessage: _reseauRequis),
+        RefusHorsLigne.identifiantsInvalides =>
+          const HorsLigneFailure(errorMessage: 'Identifiant ou mot de passe incorrect.'),
+        RefusHorsLigne.verrouille => HorsLigneFailure(
+            errorMessage: 'Trop de tentatives. Réessayez dans ${_formaterAttente(verdict.attente!)}, '
+                'ou connectez-vous avec Internet.'),
+        RefusHorsLigne.expire => const HorsLigneFailure(
+            errorMessage: 'Votre accès hors ligne a expiré. Connectez-vous avec Internet pour le renouveler.'),
+        RefusHorsLigne.horlogeIncoherente => const HorsLigneFailure(
+            errorMessage: "L'heure de l'appareil est incohérente. Corrigez-la ou connectez-vous avec Internet."),
+      });
+    }
+
+    final id = verdict.utilisateurId!;
+    // Le profil vient du cache chiffré écrit lors de la dernière connexion
+    // serveur ; il doit appartenir au compte vérifié.
+    final Map<String, dynamic>? profil;
+    try {
+      profil = await userCache.readJson();
+    } catch (_) {
+      return const Left(NetworkFailure(errorMessage: _reseauRequis));
+    }
+    if (profil == null || profil['id'] != id) return const Left(NetworkFailure(errorMessage: _reseauRequis));
+    final utilisateur = UserModel.fromJson(profil);
+    if (utilisateur.statut != 'actif') return const Left(NetworkFailure(errorMessage: _reseauRequis));
+
+    // Jamais de purge sans réseau : si les données locales sont à un AUTRE
+    // compte, leur travail non synchronisé serait détruit sans recours.
+    try {
+      if (!await sessionLocale.estCompatible(id)) {
+        return const Left(NetworkFailure(errorMessage: _reseauRequis));
+      }
+      await sessionLocale.adopterUtilisateur(id).timeout(const Duration(seconds: 5));
+    } catch (e) {
+      debugPrint('[session] Données locales indisponibles pour la connexion hors ligne ($e).');
+      return const Left(NetworkFailure(errorMessage: _reseauRequis));
+    }
+
+    return Right(LoginResult(mfaRequise: false, utilisateur: utilisateur, horsLigne: true));
+  }
+
+  static String _formaterAttente(Duration d) {
+    if (d.inMinutes >= 1) return '${d.inMinutes + (d.inSeconds % 60 > 0 ? 1 : 0)} min';
+    return '${d.inSeconds + 1} s';
   }
 
   @override
@@ -171,6 +302,8 @@ class AuthRepositoryImpl implements AuthRepository {
   }) async {
     try {
       final message = await remoteDataSource.resetPassword(email: email, otp: otp, nouveauMotDePasse: nouveauMotDePasse);
+      // L'ancien mot de passe ne doit plus rien ouvrir, même sans réseau.
+      await _effacerVerificateur();
       return Right(message);
     } catch (e) {
       return Left(exceptionToFailure(e));
@@ -187,6 +320,10 @@ class AuthRepositoryImpl implements AuthRepository {
       // Best-effort — la révocation côté serveur ne doit jamais empêcher la
       // déconnexion locale (cohérent avec l'admin web, voir api.js).
     }
+    // Déconnexion VOLONTAIRE : l'accès hors ligne de ce compte est retiré (les
+    // données locales sont purgées juste après — il n'y aurait rien à ouvrir).
+    // Une session expirée, elle, le conserve : voir `restaurerSession`.
+    await _effacerVerificateur();
     // Purge ATTENDUE, et AVANT l'effacement du jeton : tant qu'elle n'a pas
     // rendu la main, la session reste techniquement ouverte. Si le process
     // est tué ici, les jetons sont encore là — l'utilisateur reste donc
@@ -221,6 +358,11 @@ class AuthRepositoryImpl implements AuthRepository {
       // changé par un ChefProjet pendant que l'app était fermée).
       final utilisateur = await remoteDataSource.getMe();
       await userCache.saveJson(utilisateur.toJson());
+      // Le serveur vient de reconfirmer ce compte : la fenêtre d'accès hors
+      // ligne repart de zéro.
+      try {
+        await verificateur.marquerValide(utilisateur.id);
+      } catch (_) {}
       // Même filet de sécurité que `_persisterSession` : une base locale qui
       // ne répond pas ne doit jamais empêcher la restauration de session au
       // démarrage — et surtout pas être interceptée par le `catch` ci-dessous

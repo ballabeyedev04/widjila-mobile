@@ -24,6 +24,7 @@ import 'core/services/verrou_biometrique.dart';
 import 'core/services/token_service.dart';
 import 'core/services/user_cache.dart';
 import 'core/services/user_cache_impl.dart';
+import 'core/services/verificateur_hors_ligne.dart';
 
 // Auth
 import 'features/auth/data/datasources/auth_remote_datasource.dart';
@@ -205,6 +206,9 @@ Future<void> init() async {
   // applicatif, seul porteur du jeton exigé par /uploads/*.
   sl.registerLazySingleton(() => OuvertureFichier(dio: sl()));
   sl.registerLazySingleton<UserCache>(() => UserCacheImpl(secureStorage: sl()));
+  // Preuve locale d'un compte déjà authentifié par le serveur — seule porte
+  // d'une connexion sans réseau.
+  sl.registerLazySingleton(() => VerificateurHorsLigne(secureStorage: sl()));
 
   // Un SEUL cache pour toute l'application : il est aussi visé directement
   // par `forcerReseau` (rafraîchissement manuel) et par la déconnexion.
@@ -294,6 +298,8 @@ Future<void> init() async {
         userCache: sl(),
         sessionLocale: sl(),
         cacheHttp: sl(),
+        verificateur: sl(),
+        serveurInjoignable: () => sl<DetecteurConnexion>().etat == EtatReseau.horsLigne,
       ));
   sl.registerLazySingleton(() => LoginUser(sl()));
   sl.registerLazySingleton(() => VerifierMfa(sl()));
@@ -314,6 +320,7 @@ Future<void> init() async {
         forgotPassword: sl(),
         resetPassword: sl(),
         localeController: sl(),
+        reseauRetabli: sl<DetecteurConnexion>().flux.where((e) => e == EtatReseau.enLigne),
       ));
 
   //================================================
@@ -629,6 +636,6 @@ Future<void> init() async {
   // FEATURE — ACCOUNT (Paramètres)
   //================================================
   sl.registerLazySingleton<AccountRemoteDataSource>(() => AccountRemoteDataSourceImpl(dio: sl(), tokenService: sl()));
-  sl.registerLazySingleton<AccountRepository>(() => AccountRepositoryImpl(sl()));
+  sl.registerLazySingleton<AccountRepository>(() => AccountRepositoryImpl(sl(), verificateurHorsLigne: sl()));
   sl.registerFactory(() => SettingsCubit(repository: sl()));
 }

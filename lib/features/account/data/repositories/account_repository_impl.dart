@@ -5,13 +5,20 @@ import '../../../../core/errors/failure.dart';
 import '../../domain/entities/connexion_log_entry.dart';
 import '../../domain/entities/mfa_provisionnement.dart';
 import '../../domain/entities/session_active.dart';
+import '../../../../core/services/verificateur_hors_ligne.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../domain/repositories/account_repository.dart';
 import '../datasources/account_remote_datasource.dart';
 
 class AccountRepositoryImpl implements AccountRepository {
   final AccountRemoteDataSource remoteDataSource;
-  AccountRepositoryImpl(this.remoteDataSource);
+
+  /// Efface l'accès hors ligne quand le mot de passe change : l'ancien ne doit
+  /// plus rien ouvrir sans réseau. Facultatif pour ne pas imposer le stockage
+  /// sécurisé aux tests qui n'ont rien à voir avec l'authentification.
+  final VerificateurHorsLigne? verificateurHorsLigne;
+
+  AccountRepositoryImpl(this.remoteDataSource, {this.verificateurHorsLigne});
 
   @override
   Future<Either<Failure, bool>> getStatutMfa() async {
@@ -126,10 +133,14 @@ class AccountRepositoryImpl implements AccountRepository {
     required String nouveauMotDePasse,
   }) async {
     try {
-      return Right(await remoteDataSource.changerMotDePasse(
+      final resultat = await remoteDataSource.changerMotDePasse(
         ancienMotDePasse: ancienMotDePasse,
         nouveauMotDePasse: nouveauMotDePasse,
-      ));
+      );
+      try {
+        await verificateurHorsLigne?.effacer();
+      } catch (_) {}
+      return Right(resultat);
     } catch (e) {
       return Left(exceptionToFailure(e));
     }

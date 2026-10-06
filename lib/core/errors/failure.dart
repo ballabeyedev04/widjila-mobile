@@ -35,6 +35,14 @@ class NetworkFailure extends Failure {
   const NetworkFailure({super.errorMessage = 'Erreur réseau, vérifiez votre connexion.'});
 }
 
+/// Connexion impossible SANS réseau : aucun compte authentifié par le serveur
+/// n'est connu de l'appareil, identifiants incorrects, accès verrouillé ou
+/// expiré. Distincte de [NetworkFailure] : le réseau manque, mais le message
+/// dit pourquoi l'accès local est refusé.
+class HorsLigneFailure extends Failure {
+  const HorsLigneFailure({required super.errorMessage});
+}
+
 /// Erreur de lecture/écriture locale (cache, stockage sécurisé).
 class CacheFailure extends Failure {
   const CacheFailure({required super.errorMessage});

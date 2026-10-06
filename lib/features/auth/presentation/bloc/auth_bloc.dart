@@ -31,6 +31,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final LocaleController localeController;
 
   StreamSubscription<void>? _forcedLogoutSub;
+  StreamSubscription<void>? _reseauRetabliSub;
+
+  /// Message affiché quand le retour du réseau met fin à une session ouverte
+  /// hors ligne. Il dit CE QUI SE PASSE et rassure sur les saisies : sans lui,
+  /// l'utilisateur lirait « session expirée » et croirait son travail perdu.
+  static const messageReconnexionRequise =
+      'Connexion rétablie. Reconnectez-vous pour envoyer vos saisies en attente — elles sont conservées.';
 
   AuthBloc({
     required this.loginUser,
@@ -41,6 +48,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     required this.forgotPassword,
     required this.resetPassword,
     required this.localeController,
+    Stream<void>? reseauRetabli,
   }) : super(const AuthState.inconnu()) {
     on<AuthCheckRequested>(_onCheckRequested);
     on<AuthLoginRequested>(_onLoginRequested);
@@ -52,6 +60,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthRegisterRequested>(_onRegisterRequested);
     on<AuthForgotPasswordRequested>(_onForgotPasswordRequested);
     on<AuthResetPasswordRequested>(_onResetPasswordRequested);
+    on<AuthReseauRetabli>(_onReseauRetabli);
+
+    // Le flux ne compte que pour une session ouverte hors ligne ; dans tous
+    // les autres états, le retour du réseau n'a rien à changer ici.
+    _reseauRetabliSub = reseauRetabli?.listen((_) {
+      if (state.sessionHorsLigne) add(const AuthReseauRetabli());
+    });
 
     // Déconnexion forcée déclenchée depuis l'intercepteur Dio (401 après
     // échec du refresh) — hors du cycle normal request/handler du bloc.
@@ -104,7 +119,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         if (loginResult.mfaRequise) {
           emit(state.copyWith(status: AuthStatus.mfaRequis, enCours: false, utilisateur: loginResult.utilisateur));
         } else {
-          emit(state.copyWith(status: AuthStatus.authentifie, enCours: false, utilisateur: loginResult.utilisateur));
+          emit(state.copyWith(
+            status: AuthStatus.authentifie,
+            enCours: false,
+            utilisateur: loginResult.utilisateur,
+            sessionHorsLigne: loginResult.horsLigne,
+          ));
           unawaited(localeController.synchroniserDepuisCompte(loginResult.utilisateur.langue));
         }
       },
@@ -138,7 +158,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(state.copyWith(status: AuthStatus.nonAuthentifie, effacerUtilisateur: true, effacerErreur: true));
   }
 
+  void _onReseauRetabli(AuthReseauRetabli event, Emitter<AuthState> emit) {
+    if (!state.sessionHorsLigne) return;
+    _onSessionExpired(const AuthSessionExpired(), emit);
+  }
+
   void _onSessionExpired(AuthSessionExpired event, Emitter<AuthState> emit) {
+    // Session ouverte hors ligne : le premier 401 du retour réseau et le
+    // signal de reconnexion arrivent ensemble — même message pour les deux.
+    final horsLigne = state.sessionHorsLigne;
     // Même nettoyage qu'une déconnexion volontaire — voir le commentaire de
     // `_onLogoutRequested`. Une session expirée précède tout aussi souvent un
     // changement de compte sur l'appareil.
@@ -146,7 +174,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(state.copyWith(
       status: AuthStatus.nonAuthentifie,
       effacerUtilisateur: true,
-      erreur: 'Votre session a expiré, veuillez vous reconnecter.',
+      erreur: horsLigne ? messageReconnexionRequise : 'Votre session a expiré, veuillez vous reconnecter.',
     ));
   }
 
@@ -218,6 +246,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   @override
   Future<void> close() {
     _forcedLogoutSub?.cancel();
+    _reseauRetabliSub?.cancel();
     return super.close();
   }
 }

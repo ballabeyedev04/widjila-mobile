@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -243,6 +245,64 @@ void main() {
         expect(bloc.state.status, AuthStatus.inconnu); // inchangé
         expect(bloc.state.messageSucces, isNotNull);
       },
+    );
+  });
+  group('session ouverte hors ligne', () {
+    const horsLigne = AuthState(status: AuthStatus.authentifie, utilisateur: tUser, sessionHorsLigne: true);
+
+    blocTest<AuthBloc, AuthState>(
+      'une connexion hors ligne marque la session',
+      build: () {
+        when(() => loginUser(identifiant: any(named: 'identifiant'), motDePasse: any(named: 'motDePasse')))
+            .thenAnswer((_) async => const Right(LoginResult(mfaRequise: false, utilisateur: tUser, horsLigne: true)));
+        return buildBloc();
+      },
+      act: (bloc) => bloc.add(const AuthLoginRequested(identifiant: 'a', motDePasse: 'b')),
+      skip: 1,
+      expect: () => [horsLigne],
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'le retour du réseau exige une reconnexion et rassure sur les saisies',
+      build: () {
+        when(() => loginUser(identifiant: any(named: 'identifiant'), motDePasse: any(named: 'motDePasse')))
+            .thenAnswer((_) async => const Right(LoginResult(mfaRequise: false, utilisateur: tUser, horsLigne: true)));
+        return buildBloc();
+      },
+      act: (bloc) async {
+        bloc.add(const AuthLoginRequested(identifiant: 'a', motDePasse: 'b'));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        bloc.add(const AuthReseauRetabli());
+      },
+      skip: 2,
+      expect: () => [
+        const AuthState(status: AuthStatus.nonAuthentifie, erreur: AuthBloc.messageReconnexionRequise),
+      ],
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'le flux réseau est sans effet sur une session normale',
+      build: () {
+        when(() => restaurerSession()).thenAnswer((_) async => tUser);
+        final flux = StreamController<void>();
+        addTearDown(flux.close);
+        final bloc = AuthBloc(
+          loginUser: loginUser,
+          verifierMfa: verifierMfa,
+          logoutUser: logoutUser,
+          restaurerSession: restaurerSession,
+          registerUser: registerUser,
+          forgotPassword: forgotPassword,
+          resetPassword: resetPassword,
+          localeController: localeController,
+          reseauRetabli: flux.stream,
+        );
+        Future<void>.delayed(const Duration(milliseconds: 1400), () => flux.add(null));
+        return bloc;
+      },
+      act: (bloc) => bloc.add(const AuthCheckRequested()),
+      wait: const Duration(milliseconds: 1700),
+      expect: () => [const AuthState(status: AuthStatus.authentifie, utilisateur: tUser)],
     );
   });
 }

@@ -67,6 +67,18 @@ class SessionLocale {
     await _base.definirProprietaire(utilisateurId);
   }
 
+  /// Les données locales sont-elles compatibles avec [utilisateurId] — base
+  /// vierge, ou déjà à lui ?
+  ///
+  /// Sert à la connexion HORS LIGNE : [adopterUtilisateur] purgerait les
+  /// données d'un autre compte, ce qu'on ne doit surtout pas déclencher sans
+  /// réseau (le travail non synchronisé de l'autre compte serait perdu sans
+  /// recours). On refuse alors l'accès local plutôt que de détruire.
+  Future<bool> estCompatible(String utilisateurId) async {
+    final precedent = await _base.proprietaire();
+    return precedent == null || precedent == utilisateurId;
+  }
+
   /// Efface toutes les données locales — tables ET photos hors ligne.
   ///
   /// Appelée à la déconnexion VOLONTAIRE (l'utilisateur ne s'attend pas à

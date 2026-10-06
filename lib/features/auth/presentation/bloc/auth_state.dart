@@ -29,12 +29,19 @@ class AuthState extends Equatable {
   /// change pas le statut de session, voir [AuthRegisterRequested]).
   final String? messageSucces;
 
+  /// Session ouverte SANS serveur (connexion hors ligne par vérificateur
+  /// local) : l'utilisateur est reconnu, mais ne détient aucun jeton. Il
+  /// travaille sur le cache ; au retour du réseau, une réauthentification en
+  /// ligne est exigée avant tout envoi.
+  final bool sessionHorsLigne;
+
   const AuthState({
     this.status = AuthStatus.inconnu,
     this.utilisateur,
     this.enCours = false,
     this.erreur,
     this.messageSucces,
+    this.sessionHorsLigne = false,
   });
 
   const AuthState.inconnu() : this(status: AuthStatus.inconnu);
@@ -45,6 +52,7 @@ class AuthState extends Equatable {
     bool? enCours,
     String? erreur,
     String? messageSucces,
+    bool? sessionHorsLigne,
     bool effacerErreur = false,
     bool effacerUtilisateur = false,
     bool effacerMessageSucces = false,
@@ -55,11 +63,15 @@ class AuthState extends Equatable {
       enCours: enCours ?? false,
       erreur: effacerErreur ? null : (erreur ?? this.erreur),
       messageSucces: effacerMessageSucces ? null : (messageSucces ?? this.messageSucces),
+      // Ne survit jamais à la sortie de l'état authentifié.
+      sessionHorsLigne: (status ?? this.status) != AuthStatus.authentifie
+          ? false
+          : (sessionHorsLigne ?? this.sessionHorsLigne),
     );
   }
 
   bool get estAuthentifie => status == AuthStatus.authentifie && utilisateur != null;
 
   @override
-  List<Object?> get props => [status, utilisateur, enCours, erreur, messageSucces];
+  List<Object?> get props => [status, utilisateur, enCours, erreur, messageSucces, sessionHorsLigne];
 }

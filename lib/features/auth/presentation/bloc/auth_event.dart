@@ -91,6 +91,13 @@ class AuthSessionExpired extends AuthEvent {
   const AuthSessionExpired();
 }
 
+/// Le réseau est revenu alors que la session a été ouverte hors ligne, donc
+/// sans jeton : la réauthentification en ligne est exigée avant d'envoyer
+/// quoi que ce soit. Les saisies en attente sont conservées.
+class AuthReseauRetabli extends AuthEvent {
+  const AuthReseauRetabli();
+}
+
 class AuthForgotPasswordRequested extends AuthEvent {
   final String email;
   const AuthForgotPasswordRequested({required this.email});

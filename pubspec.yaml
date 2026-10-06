@@ -39,7 +39,7 @@ description: |
   Moins d'allers-retours entre le chantier et le bureau, plus de photos perdues dans une galerie, plus de réserves oubliées dans un carnet : tout est daté, localisé, assigné et suivi.
 publish_to: 'none'
 
-version: 1.0.7+18
+version: 1.0.7+19
 
 environment:
   sdk: ^3.12.2
@@ -81,6 +81,10 @@ dependencies:
   shared_preferences: ^2.5.5
   flutter_secure_storage: ^9.2.4
   jwt_decode: ^0.3.1
+  # Condensat PBKDF2 du vérificateur de connexion hors ligne
+  # (`core/services/verificateur_hors_ligne.dart`). Déjà résolu en 3.0.7 comme
+  # dépendance transitive : le déclarer ne change rien au build.
+  crypto: ^3.0.6
 
   # UI
   intl: ^0.20.2

@@ -8,6 +8,7 @@ import 'package:suivie_chantier_mobile/core/network/cache_reponses_get.dart';
 import 'package:suivie_chantier_mobile/core/offline/session_locale.dart';
 import 'package:suivie_chantier_mobile/core/services/token_service.dart';
 import 'package:suivie_chantier_mobile/core/services/user_cache.dart';
+import 'package:suivie_chantier_mobile/core/services/verificateur_hors_ligne.dart';
 import 'package:suivie_chantier_mobile/features/auth/data/datasources/auth_remote_datasource.dart';
 import 'package:suivie_chantier_mobile/features/auth/data/repositories/auth_repository_impl.dart';
 
@@ -18,6 +19,8 @@ class _MockTokens extends Mock implements TokenService {}
 class _MockUserCache extends Mock implements UserCache {}
 
 class _MockSession extends Mock implements SessionLocale {}
+
+class _MockVerificateur extends Mock implements VerificateurHorsLigne {}
 
 class _AdaptateurMuet implements HttpClientAdapter {
   @override
@@ -51,6 +54,7 @@ void main() {
   late _MockTokens tokens;
   late _MockUserCache userCache;
   late _MockSession session;
+  late _MockVerificateur verificateur;
   late CacheReponsesGet cache;
   late Dio dio;
 
@@ -64,6 +68,8 @@ void main() {
     when(() => tokens.clearToken()).thenAnswer((_) async {});
     when(() => userCache.clear()).thenAnswer((_) async {});
     when(() => session.purger()).thenAnswer((_) async {});
+    verificateur = _MockVerificateur();
+    when(() => verificateur.effacer()).thenAnswer((_) async {});
 
     dio = Dio(BaseOptions(baseUrl: 'https://exemple.test'))
       ..httpClientAdapter = _AdaptateurMuet()
@@ -76,6 +82,7 @@ void main() {
         userCache: userCache,
         sessionLocale: session,
         cacheHttp: cache,
+        verificateur: verificateur,
       );
 
   test('logout() vide le cache des reponses GET', () async {
