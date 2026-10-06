@@ -1,4 +1,4 @@
-- Connexion sans réseau : si vous vous êtes déjà connecté sur cet appareil, vous pouvez rouvrir l'application hors ligne avec votre mot de passe et continuer à saisir vos relevés
+- Reconnexion sans réseau, même après une déconnexion : rouvrez l'application hors ligne avec votre mot de passe et continuez à saisir vos relevés
 - Vos saisies sont envoyées dès le retour du réseau, après une reconnexion
-- L'offre gratuite fonctionne vraiment : un chantier, deux utilisateurs et des réserves illimitées, sans rien à payer
+- Sécurité renforcée : les données d'un compte ne sont jamais visibles par un autre compte sur le même téléphone
 - Corrections de stabilité
