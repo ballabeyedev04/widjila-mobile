@@ -305,4 +305,45 @@ void main() {
       expect: () => [const AuthState(status: AuthStatus.authentifie, utilisateur: tUser)],
     );
   });
+  group('déconnexion et notifications', () {
+    test('l’appareil est retiré des notifications AVANT l’effacement des jetons', () async {
+      final ordre = <String>[];
+      when(() => logoutUser()).thenAnswer((_) async => ordre.add('deconnexion'));
+      final bloc = AuthBloc(
+        loginUser: loginUser,
+        verifierMfa: verifierMfa,
+        logoutUser: logoutUser,
+        restaurerSession: restaurerSession,
+        registerUser: registerUser,
+        forgotPassword: forgotPassword,
+        resetPassword: resetPassword,
+        localeController: localeController,
+        avantDeconnexion: () async => ordre.add('oublier-appareil'),
+      );
+      bloc.add(const AuthLogoutRequested());
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(ordre, ['oublier-appareil', 'deconnexion']);
+      await bloc.close();
+    });
+
+    test('un échec du retrait (hors ligne) ne bloque jamais la déconnexion', () async {
+      var deconnecte = false;
+      when(() => logoutUser()).thenAnswer((_) async => deconnecte = true);
+      final bloc = AuthBloc(
+        loginUser: loginUser,
+        verifierMfa: verifierMfa,
+        logoutUser: logoutUser,
+        restaurerSession: restaurerSession,
+        registerUser: registerUser,
+        forgotPassword: forgotPassword,
+        resetPassword: resetPassword,
+        localeController: localeController,
+        avantDeconnexion: () async => throw Exception('hors ligne'),
+      );
+      bloc.add(const AuthLogoutRequested());
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(deconnecte, isTrue);
+      await bloc.close();
+    });
+  });
 }

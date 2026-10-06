@@ -131,12 +131,13 @@ class _PushBootstrapState extends State<PushBootstrap> {
     unawaited(_gererAppareil.enregistrer(_jeton!));
   }
 
-  /// Retire l'appareil des destinataires à la déconnexion.
+  /// Réarme l'enregistrement pour la prochaine session.
+  ///
+  /// Le retrait côté serveur n'est PAS fait ici : à ce stade le jeton de
+  /// session est déjà effacé et la requête serait refusée (401). Il est fait
+  /// juste avant la déconnexion, par `AuthBloc.avantDeconnexion`.
   void _oublier() {
-    final jeton = _jeton;
     _enregistre = false;
-    if (jeton == null) return;
-    unawaited(_gererAppareil.oublier(jeton));
   }
 
   @override

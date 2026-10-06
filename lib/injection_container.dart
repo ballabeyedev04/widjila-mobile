@@ -21,6 +21,7 @@ import 'core/services/locale_controller.dart';
 import 'core/services/ouverture_fichier.dart';
 import 'core/services/preferences_notification.dart';
 import 'core/services/verrou_biometrique.dart';
+import 'core/services/push_service.dart';
 import 'core/services/token_service.dart';
 import 'core/services/user_cache.dart';
 import 'core/services/user_cache_impl.dart';
@@ -321,6 +322,10 @@ Future<void> init() async {
         resetPassword: sl(),
         localeController: sl(),
         reseauRetabli: sl<DetecteurConnexion>().flux.where((e) => e == EtatReseau.enLigne),
+        avantDeconnexion: () async {
+          final jeton = PushService.instance.jeton;
+          if (jeton != null) await sl<GererAppareilPush>().oublier(jeton);
+        },
       ));
 
   //================================================

@@ -33,6 +33,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   StreamSubscription<void>? _forcedLogoutSub;
   StreamSubscription<void>? _reseauRetabliSub;
 
+  /// Appelé AVANT la déconnexion, tant que le jeton existe encore.
+  ///
+  /// Sert à retirer l'appareil des destinataires des notifications : la
+  /// requête exige le jeton, que la déconnexion efface. Exécutée après, elle
+  /// était toujours refusée et le téléphone continuait de recevoir — et
+  /// d'afficher — les alertes du compte déconnecté.
+  final Future<void> Function()? avantDeconnexion;
+
   /// Message affiché quand le retour du réseau met fin à une session ouverte
   /// hors ligne. Il dit CE QUI SE PASSE et rassure sur les saisies : sans lui,
   /// l'utilisateur lirait « session expirée » et croirait son travail perdu.
@@ -49,6 +57,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     required this.resetPassword,
     required this.localeController,
     Stream<void>? reseauRetabli,
+    this.avantDeconnexion,
   }) : super(const AuthState.inconnu()) {
     on<AuthCheckRequested>(_onCheckRequested);
     on<AuthLoginRequested>(_onLoginRequested);
@@ -149,6 +158,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   Future<void> _onLogoutRequested(AuthLogoutRequested event, Emitter<AuthState> emit) async {
+    try {
+      // Borné : sans réseau, la déconnexion ne doit jamais attendre.
+      await avantDeconnexion?.call().timeout(const Duration(seconds: 4));
+    } catch (_) {}
     await logoutUser();
     // Un téléphone de chantier est souvent partagé entre plusieurs membres
     // d'une équipe : sans ce nettoyage, les photos du compte qui se
