@@ -1,4 +1,4 @@
-- L'offre gratuite fonctionne vraiment : plus aucun blocage à la fin de l'essai, vos chantiers et vos réserves restent accessibles
-- Un chantier, deux utilisateurs et des réserves illimitées, sans limite de durée et sans rien à payer
-- Création de compte de nouveau possible depuis iPhone et iPad
+- Connexion sans réseau : si vous vous êtes déjà connecté sur cet appareil, vous pouvez rouvrir l'application hors ligne avec votre mot de passe et continuer à saisir vos relevés
+- Vos saisies sont envoyées dès le retour du réseau, après une reconnexion
+- L'offre gratuite fonctionne vraiment : un chantier, deux utilisateurs et des réserves illimitées, sans rien à payer
 - Corrections de stabilité
