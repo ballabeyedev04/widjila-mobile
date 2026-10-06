@@ -136,7 +136,7 @@ void main() {
       ]);
     });
 
-    test('vide le stockage local MÊME si la révocation réseau échoue', () async {
+    test('efface les jetons MÊME si la révocation réseau échoue', () async {
       when(() => tokenService.getRefreshToken()).thenAnswer((_) async => 'refresh-123');
       when(() => remoteDataSource.logout(refreshToken: any(named: 'refreshToken')))
           .thenThrow(Exception('réseau down'));
@@ -146,26 +146,22 @@ void main() {
       await repository.logout();
 
       verify(() => tokenService.clearToken()).called(1);
-      verify(() => userCache.clear()).called(1);
     });
 
-    // Non-régression [C2] — la purge des données hors ligne doit précéder
-    // l'effacement du jeton. Ordre inverse : un process tué entre les deux
-    // laissait chantiers, réserves ET file d'attente du compte précédent
-    // lisibles et synchronisables par le compte suivant.
-    test('purge les données hors ligne AVANT d\'effacer le jeton', () async {
+    // Décision produit : la déconnexion garde l'accès hors ligne, le profil et
+    // les données locales. L'isolation entre comptes est assurée à la
+    // CONNEXION du compte suivant (`SessionLocale.adopterUtilisateur`).
+    test("ne purge NI les données locales NI l'accès hors ligne", () async {
       when(() => tokenService.getRefreshToken()).thenAnswer((_) async => null);
       when(() => remoteDataSource.logout(refreshToken: any(named: 'refreshToken')))
           .thenAnswer((_) async {});
       when(() => tokenService.clearToken()).thenAnswer((_) async {});
-      when(() => userCache.clear()).thenAnswer((_) async {});
 
       await repository.logout();
 
-      verifyInOrder([
-        () => sessionLocale.purger(),
-        () => tokenService.clearToken(),
-      ]);
+      verifyNever(() => sessionLocale.purger());
+      verifyNever(() => userCache.clear());
+      verifyNever(() => verificateur.effacer());
     });
   });
 

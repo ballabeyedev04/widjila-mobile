@@ -320,29 +320,19 @@ class AuthRepositoryImpl implements AuthRepository {
       // Best-effort — la révocation côté serveur ne doit jamais empêcher la
       // déconnexion locale (cohérent avec l'admin web, voir api.js).
     }
-    // Déconnexion VOLONTAIRE : l'accès hors ligne de ce compte est retiré (les
-    // données locales sont purgées juste après — il n'y aurait rien à ouvrir).
-    // Une session expirée, elle, le conserve : voir `restaurerSession`.
-    await _effacerVerificateur();
-    // Purge ATTENDUE, et AVANT l'effacement du jeton : tant qu'elle n'a pas
-    // rendu la main, la session reste techniquement ouverte. Si le process
-    // est tué ici, les jetons sont encore là — l'utilisateur reste donc
-    // connecté plutôt que de laisser ses données orphelines et lisibles par
-    // le compte suivant.
+    // La déconnexion retire les JETONS et les copies mémoire, rien d'autre :
+    // l'accès hors ligne (empreinte du mot de passe), le profil chiffré et les
+    // données locales — saisies en attente comprises — sont CONSERVÉS, pour
+    // pouvoir rouvrir l'application sans réseau avec son mot de passe.
     //
-    // `.timeout(...)` : une base locale qui ne répond pas ne doit jamais
-    // empêcher l'utilisateur de se DÉCONNECTER — le bloquer connecté serait
-    // pire que le risque résiduel qu'elle protège. Si la purge n'aboutit pas
-    // à temps ici, `SessionLocale.adopterUtilisateur` la rattrape à la
-    // prochaine connexion (même compte : rien à purger ; compte différent :
-    // purge exécutée avant de servir la moindre donnée).
-    try {
-      await sessionLocale.purger().timeout(const Duration(seconds: 5));
-    } catch (e) {
-      debugPrint('[session] Purge des données locales indisponible ($e) — déconnexion poursuivie.');
-    }
+    // Le compte suivant ne peut pourtant rien en lire : `adopterUtilisateur`
+    // purge les données de l'ancien propriétaire à la connexion d'un AUTRE
+    // compte, avant que le moindre écran ne soit servi, et l'accès hors ligne
+    // est de toute façon remplacé par le sien (un seul compte par appareil).
+    // L'accès local de ce compte disparaît avec : un changement ou une
+    // réinitialisation de mot de passe, une suppression de compte, un refus
+    // 403 du serveur, 10 essais ratés, ou 14 jours sans confirmation.
     await tokenService.clearToken();
-    await userCache.clear();
     cacheHttp.vider();
   }
 

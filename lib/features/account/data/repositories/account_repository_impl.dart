@@ -159,6 +159,11 @@ class AccountRepositoryImpl implements AccountRepository {
   Future<Either<Failure, void>> supprimerCompte() async {
     try {
       await remoteDataSource.supprimerCompte();
+      // Compte supprimé : plus aucun accès hors ligne, même avec le bon mot
+      // de passe.
+      try {
+        await verificateurHorsLigne?.effacer();
+      } catch (_) {}
       return const Right(null);
     } catch (e) {
       return Left(exceptionToFailure(e));

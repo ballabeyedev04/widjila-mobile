@@ -96,12 +96,13 @@ void main() {
         reason: 'aucune reponse du compte precedent ne doit survivre a la deconnexion');
   });
 
-  test('logout() purge AUSSI le reste — la correction n’a rien retire', () async {
+  test('logout() efface les jetons mais CONSERVE l’acces hors ligne et les donnees', () async {
     await construire().logout();
 
-    verify(() => session.purger()).called(1);
     verify(() => tokens.clearToken()).called(1);
-    verify(() => userCache.clear()).called(1);
+    verifyNever(() => session.purger());
+    verifyNever(() => userCache.clear());
+    verifyNever(() => verificateur.effacer());
   });
 
   test('une session non restaurable purge le cache elle aussi', () async {
