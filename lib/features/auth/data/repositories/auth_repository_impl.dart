@@ -59,32 +59,34 @@ class AuthRepositoryImpl implements AuthRepository {
   static bool _jamais() => false;
 
   Future<void> _persisterSession(String? token, String? refreshToken, UserModel utilisateur) async {
+    // ISOLATION ENTRE COMPTES — d'abord, et en échec FERMÉ.
+    //
+    // La déconnexion ne purge plus : les données du compte précédent (chantiers,
+    // réserves, saisies en attente) survivent jusqu'ici, et c'est CETTE étape
+    // qui les retire si le compte qui arrive est un AUTRE. Deux conséquences :
+    //
+    //  1. Elle passe AVANT l'enregistrement des jetons. Sinon, entre le jeton
+    //     du nouveau compte et la purge, un retour du réseau suffirait à ce que
+    //     la synchronisation automatique rejoue la file de l'ancien compte
+    //     sous l'identité du nouveau (constats attribués à qui ne les a pas
+    //     faits).
+    //  2. Une purge qui échoue ou dépasse le délai INTERROMPT la connexion.
+    //     Autrefois l'échec était ignoré parce que la déconnexion avait déjà
+    //     purgé ; ce n'est plus vrai, poursuivre exposerait les données de
+    //     l'ancien compte au nouveau. Aucun jeton n'est enregistré : réessayer
+    //     est sans risque, et rien n'est perdu (le propriétaire n'est mis à
+    //     jour qu'après une purge réussie).
+    try {
+      await sessionLocale.adopterUtilisateur(utilisateur.id).timeout(const Duration(seconds: 15));
+    } catch (e) {
+      debugPrint('[session] Isolation des données locales impossible ($e) — connexion interrompue.');
+      throw const CacheException(
+        message: "Impossible de préparer les données de ce compte sur l'appareil. Réessayez.",
+      );
+    }
     if (token != null) await tokenService.setToken(token);
     if (refreshToken != null) await tokenService.setRefreshToken(refreshToken);
     await userCache.saveJson(utilisateur.toJson());
-    // AVANT que le moindre écran ne lise le cache : si les données locales
-    // appartiennent à un AUTRE compte (appareil de chantier partagé, ou
-    // déconnexion précédente interrompue par un kill), elles sont purgées
-    // ici. Voir `SessionLocale` pour le raisonnement complet.
-    //
-    // Le `.timeout(...)` est un filet de sécurité DÉLIBÉRÉ : une base
-    // locale qui met du temps à s'ouvrir (verrou SQLite, plateforme mal
-    // supportée — c'est arrivé en pratique sur web, où `openDatabase` peut
-    // rester indéfiniment en attente sans web/index.html configuré pour
-    // charger sqlite3.wasm) ne doit JAMAIS pouvoir bloquer la CONNEXION
-    // elle-même. Le cloisonnement du cache est une protection secondaire ;
-    // se connecter est la fonctionnalité principale, elle ne doit jamais
-    // dépendre de la première pour aboutir. Un dépassement est silencieux
-    // ici : la purge n'a simplement pas pu être confirmée à temps, mais elle
-    // sera rattrapée à la prochaine authentification réussie (voir
-    // `SessionLocale.adopterUtilisateur`, qui revérifie le propriétaire à
-    // chaque appel).
-    try {
-      await sessionLocale.adopterUtilisateur(utilisateur.id).timeout(const Duration(seconds: 5));
-    } catch (e) {
-      debugPrint('[session] Contrôle du propriétaire des données locales indisponible ($e) — '
-          'connexion poursuivie, sera retenté à la prochaine authentification.');
-    }
   }
 
   @override

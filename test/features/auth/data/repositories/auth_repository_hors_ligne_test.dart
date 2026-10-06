@@ -191,4 +191,44 @@ void main() {
           motDePasse: any(named: 'motDePasse'),
         ));
   });
+  group('isolation entre comptes à la connexion', () {
+    void serveurAccepte() {
+      when(() => remote.login(identifiant: any(named: 'identifiant'), motDePasse: any(named: 'motDePasse')))
+          .thenAnswer((_) async => AuthResponseModel(token: 't', refreshToken: 'r', mfaRequise: false, utilisateur: _user));
+      when(() => tokens.setToken(any())).thenAnswer((_) async {});
+      when(() => tokens.setRefreshToken(any())).thenAnswer((_) async {});
+      when(() => cache.saveJson(any())).thenAnswer((_) async {});
+      when(() => verif.enregistrer(
+            utilisateurId: any(named: 'utilisateurId'),
+            identifiants: any(named: 'identifiants'),
+            motDePasse: any(named: 'motDePasse'),
+          )).thenAnswer((_) async {});
+    }
+
+    test('les données de l’ancien compte sont purgées AVANT que le jeton du nouveau n’existe', () async {
+      serveurAccepte();
+      await construire().login(identifiant: 'x', motDePasse: 'y');
+      verifyInOrder([
+        () => session.adopterUtilisateur('u1'),
+        () => tokens.setToken('t'),
+      ]);
+    });
+
+    test('une purge qui échoue INTERROMPT la connexion : aucun jeton, aucun accès', () async {
+      serveurAccepte();
+      when(() => session.adopterUtilisateur(any())).thenThrow(Exception('base verrouillée'));
+
+      final r = await construire().login(identifiant: 'x', motDePasse: 'y');
+
+      expect(r.isLeft(), isTrue);
+      verifyNever(() => tokens.setToken(any()));
+      verifyNever(() => tokens.setRefreshToken(any()));
+      verifyNever(() => cache.saveJson(any()));
+      verifyNever(() => verif.enregistrer(
+            utilisateurId: any(named: 'utilisateurId'),
+            identifiants: any(named: 'identifiants'),
+            motDePasse: any(named: 'motDePasse'),
+          ));
+    });
+  });
 }
