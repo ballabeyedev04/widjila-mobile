@@ -397,6 +397,34 @@ class Plan extends Equatable {
   /// endroit où cette distinction se décide.
   bool get aDesSousPlans => nombreSousPlans > 0;
 
+  /// Copie du plan avec une autre liste de réserves posées — sert à y ajouter
+  /// celles créées sur cet appareil, que le serveur ne connaît pas encore.
+  Plan avecReserves(List<PlanReserve> nouvelles) => Plan(
+        id: id,
+        chantierId: chantierId,
+        nom: nom,
+        version: version,
+        fichierUrl: fichierUrl,
+        format: format,
+        nombrePages: nombrePages,
+        fichierNom: fichierNom,
+        createdAt: createdAt,
+        chantierNom: chantierNom,
+        reserves: nouvelles,
+        batiment: batiment,
+        etage: etage,
+        zone: zone,
+        hotspots: hotspots,
+        parentId: parentId,
+        statut: statut,
+        nombreSousPlans: nombreSousPlans,
+        nombreReserves: nombreReserves,
+        nombreReservesATraiter: nombreReservesATraiter,
+        typePlan: typePlan,
+        datePlan: datePlan,
+        estVersionCourante: estVersionCourante,
+      );
+
   /// Vrai tant que le plan attend la validation de sa demande de chantier :
   /// le serveur y refuse toute réserve.
   bool get enAttenteValidation => statut == 'en_attente_validation';

@@ -91,6 +91,21 @@ class ActionEnAttente {
 
   bool get estDefinitivementEnEchec => statut == statutEchecDefinitif;
 
+  /// Marqueur posé au début de [derniereErreur] quand le serveur a refusé
+  /// l'action pour CONFLIT : quelqu'un d'autre a modifié le même champ
+  /// pendant le travail hors ligne. Un conflit ne se résout pas en
+  /// réessayant — il se montre à l'utilisateur (guide hors connexion, §9 :
+  /// « ne jamais écraser silencieusement l'une des versions »).
+  static const marqueurConflit = '[CONFLIT] ';
+
+  bool get enConflit => derniereErreur?.startsWith(marqueurConflit) ?? false;
+
+  /// Message d'erreur SANS le marqueur technique, prêt à afficher.
+  String? get erreurAffichable {
+    final e = derniereErreur;
+    return e != null && e.startsWith(marqueurConflit) ? e.substring(marqueurConflit.length) : e;
+  }
+
   /// L'entité métier que cette action touche — voir [cleEntitePour].
   ///
   /// Sert à respecter les DÉPENDANCES pendant la synchronisation : la photo, le

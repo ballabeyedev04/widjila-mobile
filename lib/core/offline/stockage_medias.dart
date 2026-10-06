@@ -25,6 +25,10 @@ import 'package:sqflite/sqflite.dart';
 class StockageMedias {
   static const String _sousDossier = 'photos_hors_ligne';
 
+  /// Fichiers de plans et photos serveur mis en cache pour le hors ligne
+  /// (voir `ReponsesLocales`). Vidés avec le reste au changement de compte.
+  static const String sousDossierReponses = 'reponses_hors_ligne';
+
   Future<Directory> _dossier() async {
     final racine = await getDatabasesPath();
     final dossier = Directory(p.join(p.dirname(racine), _sousDossier));
@@ -72,5 +76,10 @@ class StockageMedias {
     } catch (_) {
       // Best-effort : voir la note ci-dessus.
     }
+    try {
+      final racine = await getDatabasesPath();
+      final reponses = Directory(p.join(p.dirname(racine), sousDossierReponses));
+      if (await reponses.exists()) await reponses.delete(recursive: true);
+    } catch (_) {}
   }
 }

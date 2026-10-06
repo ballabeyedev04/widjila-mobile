@@ -3,11 +3,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:suivie_chantier_mobile/core/errors/exceptions.dart';
 import 'package:suivie_chantier_mobile/core/errors/failure.dart';
+import 'package:suivie_chantier_mobile/core/offline/cache_reserves.dart';
+import 'package:suivie_chantier_mobile/features/reserve/domain/entities/reserve.dart';
 import 'package:suivie_chantier_mobile/features/plan/data/datasources/plan_remote_datasource.dart';
 import 'package:suivie_chantier_mobile/features/plan/data/repositories/plan_repository_impl.dart';
 import 'package:suivie_chantier_mobile/features/plan/domain/entities/plan.dart';
 
 class MockPlanRemoteDataSource extends Mock implements PlanRemoteDataSource {}
+
+class MockCacheReserves extends Mock implements CacheReserves {}
 
 Plan _plan({String id = 'p1', String chantierId = 'chantier-1'}) => Plan(
       id: id,
@@ -136,6 +140,52 @@ void main() {
 
       expect(resultat.isLeft(), isTrue);
       resultat.fold((failure) => expect(failure, isA<AuthFailure>()), (_) => fail('doit échouer'));
+    });
+  });
+  group('getPlanDetail — réserves créées sans réseau', () {
+    Reserve locale({String id = 'r-local', String planId = 'p1', bool avecPosition = true}) => Reserve.fromJson({
+          'id': id,
+          'numero': 'R-?',
+          'chantierId': 'chantier-1',
+          'titre': 'Fissure',
+          'statut': 'creee',
+          'severite': 'haute',
+          'plan': {'id': planId, 'nom': 'Plan RDC'},
+          if (avecPosition) 'position': {'x': 40.0, 'y': 60.0, 'page': 2},
+        });
+
+    test('une réserve locale posée sur le plan y apparaît tout de suite, à son point', () async {
+      final cache = MockCacheReserves();
+      when(() => cache.listerParChantier('chantier-1')).thenAnswer((_) async => [locale()]);
+      when(() => remote.getPlanDetail('p1')).thenAnswer((_) async => _plan());
+      final repo = PlanRepositoryImpl(remote, reservesLocales: cache);
+
+      final plan = (await repo.getPlanDetail('p1')).getOrElse(() => throw 'attendu Right');
+
+      expect(plan.reserves.map((r) => r.id), ['r-local']);
+      expect(plan.reserves.single.position!.x, 40.0);
+      expect(plan.reserves.single.position!.page, 2);
+    });
+
+    test('une réserve d’un AUTRE plan, ou sans point, n’est pas ajoutée', () async {
+      final cache = MockCacheReserves();
+      when(() => cache.listerParChantier('chantier-1')).thenAnswer(
+          (_) async => [locale(id: 'a', planId: 'autre'), locale(id: 'b', avecPosition: false)]);
+      when(() => remote.getPlanDetail('p1')).thenAnswer((_) async => _plan());
+      final repo = PlanRepositoryImpl(remote, reservesLocales: cache);
+
+      final plan = (await repo.getPlanDetail('p1')).getOrElse(() => throw 'attendu Right');
+
+      expect(plan.reserves, isEmpty);
+    });
+
+    test('une base locale illisible laisse le plan tel que le serveur l’a donné', () async {
+      final cache = MockCacheReserves();
+      when(() => cache.listerParChantier(any())).thenThrow(Exception('base verrouillée'));
+      when(() => remote.getPlanDetail('p1')).thenAnswer((_) async => _plan());
+      final repo = PlanRepositoryImpl(remote, reservesLocales: cache);
+
+      expect((await repo.getPlanDetail('p1')).isRight(), isTrue);
     });
   });
 }

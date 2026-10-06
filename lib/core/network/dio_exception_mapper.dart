@@ -13,6 +13,14 @@ import '../errors/exceptions.dart';
 /// toute erreur répond `{ success: false, message, code?, details?,
 /// error: { code, message, details? }, requestId }`.
 Exception mapDioException(DioException e) {
+  // Lecture refusée parce que le serveur est injoignable ET qu'aucune copie
+  // locale n'existe : dire quoi faire plutôt qu'« erreur réseau ».
+  if (e.requestOptions.extra['nonTelecharge'] == true) {
+    return const NetworkException(
+      message: "Ce contenu n'est pas disponible hors connexion. Ouvrez-le une première fois avec Internet, "
+          "ou utilisez « Disponible hors connexion » sur le chantier avant de partir.",
+    );
+  }
   if (e.type == DioExceptionType.connectionTimeout ||
       e.type == DioExceptionType.receiveTimeout ||
       e.type == DioExceptionType.sendTimeout ||

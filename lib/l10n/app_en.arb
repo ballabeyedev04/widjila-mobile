@@ -1863,5 +1863,17 @@
   "@planExplorerNBatiments": { "placeholders": { "count": { "type": "int" } } },
   "planCtxNATraiter": "{count, plural, one{{count} open} other{{count} open}}",
   "@planCtxNATraiter": { "placeholders": { "count": { "type": "int" } } },
-  "planCtxToutesLevees": "all resolved"
+  "planCtxToutesLevees": "all resolved",
+  "horsLigneTitre": "Available offline",
+  "horsLigneDescription": "Download this site (structure, plans, snags) before heading out: you will be able to work without a network.",
+  "horsLigneBouton": "Download for the field",
+  "horsLigneMettreAJour": "Update",
+  "horsLigneReessayer": "Retry",
+  "horsLigneDisponible": "Site available offline",
+  "horsLigneDerniereSynchro": "Last synchronization: {date}",
+  "@horsLigneDerniereSynchro": { "placeholders": { "date": { "type": "String" } } },
+  "horsLigneEnCours": "Downloading… {fait}/{total}",
+  "@horsLigneEnCours": { "placeholders": { "fait": { "type": "int" }, "total": { "type": "int" } } },
+  "horsLigneIncomplet": "Download incomplete",
+  "syncStatutConflit": "Conflict: action required"
 }

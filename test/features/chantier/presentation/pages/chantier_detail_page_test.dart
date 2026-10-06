@@ -10,12 +10,15 @@ import 'package:suivie_chantier_mobile/features/chantier/domain/entities/chantie
 import 'package:suivie_chantier_mobile/features/chantier/domain/usecases/get_chantier_detail.dart';
 import 'package:suivie_chantier_mobile/features/chantier/presentation/cubit/chantier_detail_cubit.dart';
 import 'package:suivie_chantier_mobile/features/chantier/presentation/pages/chantier_detail_page.dart';
+import 'package:suivie_chantier_mobile/features/synchronisation/data/telechargement_chantier.dart';
 import 'package:suivie_chantier_mobile/injection_container.dart';
 
 import '../../../../helpers/balayage_responsive.dart';
 import '../../../../helpers/pompe_page.dart';
 
 class _MockDetail extends Mock implements GetChantierDetail {}
+
+class _MockTelechargement extends Mock implements TelechargementChantier {}
 
 /// La fiche d'un chantier.
 ///
@@ -32,11 +35,16 @@ void main() {
 
   void desinscrire() {
     if (sl.isRegistered<ChantierDetailCubit>()) sl.unregister<ChantierDetailCubit>();
+    if (sl.isRegistered<TelechargementChantier>()) sl.unregister<TelechargementChantier>();
   }
 
   setUp(() {
     getDetail = _MockDetail();
     desinscrire();
+    // Carte « Disponible hors connexion » de la fiche : jamais téléchargé.
+    final telechargement = _MockTelechargement();
+    when(() => telechargement.derniereSynchro(any())).thenAnswer((_) async => null);
+    sl.registerSingleton<TelechargementChantier>(telechargement);
     sl.registerFactoryParam<ChantierDetailCubit, String, void>(
       (chantierId, _) =>
           ChantierDetailCubit(getChantierDetail: getDetail, chantierId: chantierId),

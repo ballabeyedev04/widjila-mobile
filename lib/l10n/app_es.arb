@@ -1863,5 +1863,17 @@
   "@planExplorerNBatiments": { "placeholders": { "count": { "type": "int" } } },
   "planCtxNATraiter": "{count, plural, one{{count} pendiente} other{{count} pendientes}}",
   "@planCtxNATraiter": { "placeholders": { "count": { "type": "int" } } },
-  "planCtxToutesLevees": "todas resueltas"
+  "planCtxToutesLevees": "todas resueltas",
+  "horsLigneTitre": "Disponible sin conexión",
+  "horsLigneDescription": "Descargue esta obra (estructura, planos, reservas) antes de ir al terreno: podrá trabajar sin red.",
+  "horsLigneBouton": "Descargar para el terreno",
+  "horsLigneMettreAJour": "Actualizar",
+  "horsLigneReessayer": "Reintentar",
+  "horsLigneDisponible": "Obra disponible sin conexión",
+  "horsLigneDerniereSynchro": "Última sincronización: {date}",
+  "@horsLigneDerniereSynchro": { "placeholders": { "date": { "type": "String" } } },
+  "horsLigneEnCours": "Descargando… {fait}/{total}",
+  "@horsLigneEnCours": { "placeholders": { "fait": { "type": "int" }, "total": { "type": "int" } } },
+  "horsLigneIncomplet": "Descarga incompleta",
+  "syncStatutConflit": "Conflicto: acción requerida"
 }

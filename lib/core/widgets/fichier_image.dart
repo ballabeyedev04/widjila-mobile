@@ -1,3 +1,4 @@
+import 'dart:io' show File;
 import 'dart:collection';
 import 'dart:typed_data';
 
@@ -157,6 +158,18 @@ class _FichierImageState extends State<FichierImage> {
 
   static Future<Uint8List?> _telecharger(String url) async {
     try {
+      // Photo prise hors ligne, pas encore envoyée : c'est un CHEMIN de fichier
+      // de l'appareil, pas une adresse du serveur. Elle doit rester visible
+      // tant qu'elle n'est pas synchronisée (guide hors connexion, §16).
+      if (url.contains('photos_hors_ligne')) {
+        final fichier = File(url);
+        if (await fichier.exists()) {
+          final octets = await fichier.readAsBytes();
+          _CacheOctets.memoriser(url, octets);
+          return octets;
+        }
+        return null;
+      }
       final response = await sl<Dio>().get<List<int>>(
         url,
         options: Options(responseType: ResponseType.bytes),

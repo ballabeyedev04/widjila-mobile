@@ -11,6 +11,7 @@ import '../errors/error_codes.dart';
 import '../services/auth_event_bus.dart';
 import '../services/token_service.dart';
 import 'cache_reponses_get.dart';
+import 'cache_reponses_locales.dart';
 import 'identifiant_requete.dart';
 
 /// Construit le client Dio central de l'app : base URL, timeouts, pinning de
@@ -44,6 +45,7 @@ class DioClientFactory {
     required TokenService tokenService,
     required CacheReponsesGet cache,
     Duration delaiJeton = delaiPreparationJeton,
+    CacheReponsesLocales? copieLocale,
   }) async {
     final dio = Dio(
       BaseOptions(
@@ -62,6 +64,9 @@ class DioClientFactory {
     // sans même aller chercher le jeton. L'ordre compte — placé après, il
     // aurait quand même payé la lecture du jeton pour une requête qui ne part
     // jamais.
+    // La copie locale en PREMIER : servie avant même le cache mémoire ou la
+    // préparation du jeton, elle répond sans réseau ni authentification.
+    if (copieLocale != null) dio.interceptors.add(copieLocale);
     dio.interceptors.add(cache);
     dio.interceptors.add(_buildAuthInterceptor(dio, tokenService, cache, delaiJeton));
 

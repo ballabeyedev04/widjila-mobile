@@ -1863,5 +1863,17 @@
   "@planExplorerNBatiments": { "placeholders": { "count": { "type": "int" } } },
   "planCtxNATraiter": "{count, plural, one{{count} offen} other{{count} offen}}",
   "@planCtxNATraiter": { "placeholders": { "count": { "type": "int" } } },
-  "planCtxToutesLevees": "alle behoben"
+  "planCtxToutesLevees": "alle behoben",
+  "horsLigneTitre": "Offline verfügbar",
+  "horsLigneDescription": "Laden Sie diese Baustelle (Struktur, Pläne, Mängel) herunter, bevor Sie losgehen: Sie können ohne Netz arbeiten.",
+  "horsLigneBouton": "Für die Baustelle herunterladen",
+  "horsLigneMettreAJour": "Aktualisieren",
+  "horsLigneReessayer": "Erneut versuchen",
+  "horsLigneDisponible": "Baustelle offline verfügbar",
+  "horsLigneDerniereSynchro": "Letzte Synchronisierung: {date}",
+  "@horsLigneDerniereSynchro": { "placeholders": { "date": { "type": "String" } } },
+  "horsLigneEnCours": "Wird heruntergeladen… {fait}/{total}",
+  "@horsLigneEnCours": { "placeholders": { "fait": { "type": "int" }, "total": { "type": "int" } } },
+  "horsLigneIncomplet": "Download unvollständig",
+  "syncStatutConflit": "Konflikt: Aktion erforderlich"
 }

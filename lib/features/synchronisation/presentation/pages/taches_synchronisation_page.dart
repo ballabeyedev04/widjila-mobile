@@ -234,6 +234,9 @@ class _TacheCard extends StatelessWidget {
   /// disparaît donc de cette liste au rafraîchissement qui suit son envoi.
   (BadgeTone, String) _statut(AppLocalizations l10n) {
     if (enCours) return (BadgeTone.info, l10n.syncStatutEnCours);
+    // Conflit : état distinct de l'échec — l'utilisateur doit agir (voir la
+    // version serveur, refaire sa modification), réessayer ne sert à rien.
+    if (tache.enConflit) return (BadgeTone.warning, l10n.syncStatutConflit);
     if (tache.estDefinitivementEnEchec) return (BadgeTone.danger, l10n.syncStatutEchec);
     return (BadgeTone.warning, l10n.syncStatutEnAttente);
   }
@@ -275,7 +278,7 @@ class _TacheCard extends StatelessWidget {
           if (tache.derniereErreur != null) ...[
             const SizedBox(height: 8),
             Text(
-              tache.derniereErreur!,
+              tache.erreurAffichable!,
               style: const TextStyle(fontSize: 12.5, color: AppColors.danger, height: 1.4),
             ),
           ],

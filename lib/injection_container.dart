@@ -10,7 +10,10 @@ import 'core/network/network_info.dart';
 import 'core/offline/base_locale.dart';
 import 'core/offline/cache_chantiers.dart';
 import 'core/offline/cache_reserves.dart';
+import 'core/network/cache_reponses_locales.dart';
+import 'features/synchronisation/data/telechargement_chantier.dart';
 import 'core/offline/detecteur_connexion.dart';
+import 'core/offline/reponses_locales.dart';
 import 'core/offline/executeur_actions.dart';
 import 'core/offline/file_attente.dart';
 import 'core/offline/session_locale.dart';
@@ -215,7 +218,17 @@ Future<void> init() async {
   // par `forcerReseau` (rafraîchissement manuel) et par la déconnexion.
   sl.registerLazySingleton(() => CacheReponsesGet());
   sl.registerLazySingletonAsync<Dio>(
-    () => DioClientFactory.create(tokenService: sl(), cache: sl()),
+    () => DioClientFactory.create(
+      tokenService: sl(),
+      cache: sl(),
+      // Copie durable des lectures (structure, plans, référentiels, fichiers),
+      // servie quand le serveur est injoignable. `sl` est évalué à l'appel :
+      // le détecteur et la base sont enregistrés plus bas.
+      copieLocale: CacheReponsesLocales(
+        stock: ReponsesLocales(BaseLocale.instance),
+        serveurInjoignable: () => sl<DetecteurConnexion>().etat == EtatReseau.horsLigne,
+      ),
+    ),
   );
   await sl.isReady<Dio>();
 
@@ -273,6 +286,20 @@ Future<void> init() async {
         base: sl(),
         cache: sl(),
         lireLot: (curseur) => sl<ReserveRemoteDataSource>().syncReserves(curseur: curseur),
+      ));
+
+  // « Disponible hors connexion » : télécharge d'un coup tout ce qu'il faut
+  // pour travailler sur un chantier sans réseau (guide hors connexion, §3).
+  sl.registerLazySingleton(() => TelechargementChantier(
+        base: sl(),
+        chantiers: sl(),
+        reserves: sl(),
+        plans: sl(),
+        corpsEtat: sl(),
+        phases: sl(),
+        dio: sl(),
+        enLigne: () => sl<DetecteurConnexion>().estEnLigne,
+        tirerReserves: () => sl<TirageReserves>().tirer(),
       ));
 
   sl.registerLazySingleton(() => SynchronisationService(
@@ -470,7 +497,7 @@ Future<void> init() async {
   sl.registerFactory(() => NotificationsCubit(getNotifications: sl(), marquerLues: sl()));
 
   sl.registerLazySingleton<PlanRemoteDataSource>(() => PlanRemoteDataSourceImpl(dio: sl()));
-  sl.registerLazySingleton<PlanRepository>(() => PlanRepositoryImpl(sl()));
+  sl.registerLazySingleton<PlanRepository>(() => PlanRepositoryImpl(sl(), reservesLocales: sl()));
   sl.registerLazySingleton(() => GetTousPlans(sl()));
   sl.registerLazySingleton(() => GetPlansChantier(sl()));
   // Navigation par niveau : les plans globaux, puis les enfants directs.

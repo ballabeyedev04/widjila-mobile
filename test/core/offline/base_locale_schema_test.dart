@@ -58,7 +58,9 @@ void main() {
     expect(await colonnes(db, BaseLocale.tableFileAttente), contains('cle_entite'));
     expect(await index(db, BaseLocale.tableFileAttente), containsAll(['idx_file_entite', 'idx_file_ordre']));
     expect(await index(db, BaseLocale.tableReserves), containsAll(['idx_reserves_attente', 'idx_reserves_chantier']));
-    expect(await db.getVersion(), 2);
+    expect(await db.getVersion(), 3);
+    // v3 : copie durable des réponses serveur (plans, structure, référentiels).
+    expect(await colonnes(db, BaseLocale.tableReponsesLocales), containsAll(['cle', 'type', 'corps', 'chemin']));
   });
 
   test('installation NEUVE : la file d’attente accepte une action avec sa clé d’entité', () async {
@@ -94,7 +96,7 @@ void main() {
 
     final db = await BaseLocale.instance.base;
 
-    expect(await db.getVersion(), 2);
+    expect(await db.getVersion(), 3);
     expect(await colonnes(db, BaseLocale.tableFileAttente), contains('cle_entite'));
     expect(await index(db, BaseLocale.tableFileAttente), contains('idx_file_entite'));
     final ligne = (await db.query(BaseLocale.tableFileAttente, where: 'id = ?', whereArgs: ['ancienne'])).single;
@@ -106,7 +108,7 @@ void main() {
     await BaseLocale.instance.fermer();
 
     final db = await BaseLocale.instance.base;
-    expect(await db.getVersion(), 2);
+    expect(await db.getVersion(), 3);
     expect(await colonnes(db, BaseLocale.tableFileAttente), contains('cle_entite'));
   });
 }

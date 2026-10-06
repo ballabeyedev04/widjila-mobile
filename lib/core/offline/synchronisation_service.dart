@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import '../errors/exceptions.dart';
 import 'base_locale.dart';
+import 'reponses_locales.dart';
 import 'classification_erreur.dart';
 import 'detecteur_connexion.dart';
 import 'file_attente.dart';
@@ -488,7 +489,12 @@ class SynchronisationService {
       }
       final donnees = e.response?.data;
       final code = donnees is Map && donnees['code'] is String ? donnees['code'] as String : null;
-      return _appliquer(action, _classerRefus(e.response?.statusCode, code), _messageErreur(e));
+      final message = _messageErreur(e);
+      return _appliquer(
+        action,
+        _classerRefus(e.response?.statusCode, code),
+        code == 'CONFLIT_MODIFICATION' ? '${ActionEnAttente.marqueurConflit}$message' : message,
+      );
     } on FileSystemException catch (e) {
       // Le fichier local (photo) a disparu : aucun rejeu ne le fera revenir.
       return _appliquer(action, _ResultatAction.echecDefinitif, 'Fichier local introuvable : ${e.path ?? e.message}');
@@ -648,7 +654,10 @@ class SynchronisationService {
   }
 
   /// Purge le cache ancien — appelé au démarrage, hors du chemin critique.
-  Future<void> entretien() => _base.purgerCacheAncien();
+  Future<void> entretien() async {
+    await _base.purgerCacheAncien();
+    await ReponsesLocales(_base).purger();
+  }
 
   Future<void> arreter() async {
     _arrete = true;

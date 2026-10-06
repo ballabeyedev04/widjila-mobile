@@ -53,9 +53,19 @@ class BaseLocale {
   ///
   /// v2 (deuxième audit synchronisation) : colonne `cle_entite` indexée sur la
   /// file, index sur `reserves.en_attente`.
-  static const int _version = 2;
+  ///
+  /// v3 (guide hors connexion) : table `reponses_locales`, copie durable des
+  /// réponses serveur (listes JSON, fichiers de plans et photos) servies
+  /// quand le serveur est injoignable.
+  static const int _version = 3;
 
   Database? _db;
+
+  /// Compteur incrémenté à CHAQUE purge complète. Une requête réseau en vol
+  /// le note au départ ; si la valeur a changé à l'arrivée de la réponse, un
+  /// autre compte a pris la main entre-temps et la réponse ne doit PAS être
+  /// écrite dans la base toute neuve (voir `CacheReponsesLocales`).
+  static int generationPurge = 0;
 
   Future<Database> get base async => _db ??= await _ouvrir();
 
@@ -85,6 +95,7 @@ class BaseLocale {
   static const String tableReserves = 'reserves';
   static const String tableFileAttente = 'file_attente';
   static const String tableSyncMeta = 'sync_meta';
+  static const String tableReponsesLocales = 'reponses_locales';
 
   Future<void> _creerSchema(Database db) async {
     // Les entités sont stockées en JSON brut plutôt qu'en colonnes détaillées :
@@ -148,6 +159,25 @@ class BaseLocale {
     ''');
 
     await _ajouterIndexV2(db);
+    await _creerReponsesLocales(db);
+  }
+
+  /// Schéma v3 — copie durable des réponses serveur (voir `ReponsesLocales`).
+  static Future<void> _creerReponsesLocales(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableReponsesLocales (
+        cle TEXT PRIMARY KEY,
+        -- 'json' : corps dans `corps` ; 'fichier' : octets dans `chemin`.
+        type TEXT NOT NULL,
+        corps TEXT,
+        chemin TEXT,
+        taille INTEGER NOT NULL DEFAULT 0,
+        maj_le INTEGER NOT NULL,
+        acces_le INTEGER NOT NULL
+      )
+    ''');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_reponses_acces ON $tableReponsesLocales (acces_le)');
   }
 
   /// Schéma v2 — ajouts du deuxième audit synchronisation.
@@ -192,6 +222,9 @@ class BaseLocale {
         );
       }
       await _ajouterIndexV2(db);
+    }
+    if (ancienne < 3) {
+      await _creerReponsesLocales(db);
     }
   }
 
@@ -263,11 +296,30 @@ class BaseLocale {
   /// détruirait les seuls chemins référençant ces fichiers, qui resteraient
   /// alors orphelins sur le disque pour toujours.
   Future<void> viderTout() async {
+    generationPurge++;
     final db = await base;
     await db.delete(tableChantiers);
     await db.delete(tableReserves);
     await db.delete(tableFileAttente);
     await db.delete(tableSyncMeta);
+    await db.delete(tableReponsesLocales);
+  }
+
+  // ─────────────────────── Métadonnées de synchronisation ───────────────────────
+
+  Future<String?> lireMeta(String cle) async {
+    final db = await base;
+    final lignes = await db.query(tableSyncMeta, where: 'cle = ?', whereArgs: [cle], limit: 1);
+    return lignes.isEmpty ? null : lignes.first['valeur'] as String?;
+  }
+
+  Future<void> ecrireMeta(String cle, String valeur) async {
+    final db = await base;
+    await db.insert(
+      tableSyncMeta,
+      {'cle': cle, 'valeur': valeur},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<void> fermer() async {

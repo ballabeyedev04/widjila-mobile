@@ -1991,5 +1991,17 @@
   "@planExplorerNBatiments": { "placeholders": { "count": { "type": "int" } } },
   "planCtxNATraiter": "{count, plural, one{{count} à traiter} other{{count} à traiter}}",
   "@planCtxNATraiter": { "placeholders": { "count": { "type": "int" } } },
-  "planCtxToutesLevees": "toutes levées"
+  "planCtxToutesLevees": "toutes levées",
+  "horsLigneTitre": "Disponible hors connexion",
+  "horsLigneDescription": "Téléchargez ce chantier (structure, plans, réserves) avant de partir sur le terrain : vous pourrez travailler sans réseau.",
+  "horsLigneBouton": "Télécharger pour le terrain",
+  "horsLigneMettreAJour": "Mettre à jour",
+  "horsLigneReessayer": "Réessayer",
+  "horsLigneDisponible": "Chantier disponible hors connexion",
+  "horsLigneDerniereSynchro": "Dernière synchronisation : {date}",
+  "@horsLigneDerniereSynchro": { "placeholders": { "date": { "type": "String" } } },
+  "horsLigneEnCours": "Téléchargement… {fait}/{total}",
+  "@horsLigneEnCours": { "placeholders": { "fait": { "type": "int" }, "total": { "type": "int" } } },
+  "horsLigneIncomplet": "Téléchargement incomplet",
+  "syncStatutConflit": "Conflit : action requise"
 }

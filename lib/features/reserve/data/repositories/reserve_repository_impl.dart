@@ -576,6 +576,12 @@ class ReserveRepositoryImpl implements ReserveRepository {
       etage: etageId != null ? ReserveLocalisationRef(id: etageId, nom: '') : null,
       zone: zoneId != null ? ReserveLocalisationRef(id: zoneId, nom: '') : null,
       lot: lotId != null ? ReserveLocalisationRef(id: lotId, nom: '') : null,
+      // Plan et point : sans eux, la réserve créée hors ligne n'apparaissait
+      // pas sur le plan avant sa synchronisation.
+      plan: planId != null ? ReservePlanRef(id: planId, nom: '') : null,
+      position: positionX != null && positionY != null
+          ? ReservePositionRef(x: positionX, y: positionY, page: positionPage)
+          : null,
     );
 
     await _fileAttente.deposer(

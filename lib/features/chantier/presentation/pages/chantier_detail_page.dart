@@ -9,6 +9,7 @@ import '../../../../core/widgets/fiche_chrome.dart';
 import '../../../../core/widgets/liste_chrome.dart';
 import '../../../../injection_container.dart';
 import '../../../../l10n/l10n_extension.dart';
+import '../../../synchronisation/presentation/widgets/carte_hors_ligne.dart';
 import '../cubit/chantier_detail_cubit.dart';
 import '../cubit/chantier_detail_state.dart';
 import '../widgets/chantier_statut_badge.dart';
@@ -80,6 +81,10 @@ class _ChantierDetailView extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(l10n.chantierDetailCode(c.code!), style: const TextStyle(color: AppColors.textSecondary)),
                   ],
+                  const SizedBox(height: 14),
+                  // Paquet « Disponible hors connexion » : à faire AVANT de
+                  // partir sur le terrain (guide hors connexion, §3).
+                  CarteHorsLigne(chantierId: c.id),
                   const SizedBox(height: 20),
                   TitreSectionFiche(l10n.chantierDetailInformations, icone: Icons.info_outline_rounded),
                   CarteFiche(
