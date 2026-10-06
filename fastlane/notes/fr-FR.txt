@@ -1,4 +1,4 @@
-- Reconnexion sans réseau, même après une déconnexion : rouvrez l'application hors ligne avec votre mot de passe et continuez à saisir vos relevés
-- Vos saisies sont envoyées dès le retour du réseau, après une reconnexion
-- Sécurité renforcée : les données d'un compte ne sont jamais visibles par un autre compte sur le même téléphone
-- Corrections de stabilité
+- Nouveau bouton « Disponible hors connexion » sur chaque chantier : téléchargez plans, structure, réserves, photos et documents avant de partir sur le terrain
+- Travaillez sans réseau : ouvrez les plans, créez des réserves avec photos, retrouvez-les sur le plan, tout est envoyé au retour du réseau
+- Date de dernière synchronisation visible, conflits de modification signalés
+- Messages plus clairs quand une action demande Internet
