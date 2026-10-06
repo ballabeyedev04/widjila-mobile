@@ -11,6 +11,7 @@ import 'core/offline/base_locale.dart';
 import 'core/offline/cache_chantiers.dart';
 import 'core/offline/cache_reserves.dart';
 import 'core/network/cache_reponses_locales.dart';
+import 'features/synchronisation/data/complements_hors_ligne.dart';
 import 'features/synchronisation/data/telechargement_chantier.dart';
 import 'core/offline/detecteur_connexion.dart';
 import 'core/offline/reponses_locales.dart';
@@ -300,6 +301,20 @@ Future<void> init() async {
         dio: sl(),
         enLigne: () => sl<DetecteurConnexion>().estEnLigne,
         tirerReserves: () => sl<TirageReserves>().tirer(),
+        // Le reste du chantier (documents, rapports, photos des réserves…) :
+        // aucun écran ne doit tomber en « erreur réseau » sur le terrain.
+        complements: ComplementsHorsLigne(
+          chantiers: sl(),
+          documents: sl(),
+          rapports: sl(),
+          inspections: sl(),
+          reserves: sl(),
+          dashboard: sl(),
+          organisation: sl(),
+          notifications: sl(),
+          reservesLocales: sl(),
+          dio: sl(),
+        ).etapes,
       ));
 
   sl.registerLazySingleton(() => SynchronisationService(

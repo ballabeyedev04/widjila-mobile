@@ -29,8 +29,12 @@ class ResultatTelechargement extends Equatable {
   /// l'appareil.
   final bool complet;
 
-  /// Éléments qui n'ont pas pu être téléchargés (plan, fichier…).
+  /// Éléments INDISPENSABLES qui n'ont pas pu être téléchargés (plan, fichier…).
   final int echecs;
+
+  /// Compléments (documents, rapports, photos des réserves…) incomplets. Ils
+  /// n'empêchent pas le chantier d'être disponible, mais sont signalés.
+  final int complementsIncomplets;
 
   /// Date de la dernière synchronisation complète, `null` si le téléchargement
   /// n'est pas complet.
@@ -39,10 +43,16 @@ class ResultatTelechargement extends Equatable {
   /// Raison, quand [complet] est faux.
   final String? message;
 
-  const ResultatTelechargement({required this.complet, this.echecs = 0, this.date, this.message});
+  const ResultatTelechargement({
+    required this.complet,
+    this.echecs = 0,
+    this.complementsIncomplets = 0,
+    this.date,
+    this.message,
+  });
 
   @override
-  List<Object?> get props => [complet, echecs, date, message];
+  List<Object?> get props => [complet, echecs, complementsIncomplets, date, message];
 }
 
 /// Rend un chantier « disponible hors connexion » : télécharge d'un coup tout
@@ -81,6 +91,9 @@ class TelechargementChantier {
   final Future<void> Function() _tirerReserves;
   final DateTime Function() _maintenant;
 
+  /// Étapes « au mieux » après le socle — voir `ComplementsHorsLigne`.
+  final List<Future<bool> Function(String chantierId)> _complements;
+
   TelechargementChantier({
     required BaseLocale base,
     required ChantierRepository chantiers,
@@ -91,6 +104,7 @@ class TelechargementChantier {
     required Dio dio,
     required bool Function() enLigne,
     required Future<void> Function() tirerReserves,
+    List<Future<bool> Function(String chantierId)> complements = const [],
     DateTime Function()? maintenant,
   })  : _base = base,
         _chantiers = chantiers,
@@ -101,6 +115,7 @@ class TelechargementChantier {
         _dio = dio,
         _enLigne = enLigne,
         _tirerReserves = tirerReserves,
+        _complements = complements,
         _maintenant = maintenant ?? DateTime.now;
 
   static String cleMeta(String chantierId) => 'hors_ligne:$chantierId';
@@ -190,6 +205,21 @@ class TelechargementChantier {
     }
     avancer();
 
+    // Compléments : documents, rapports, inspections, équipe, tableau de bord,
+    // annuaire, photos et historique des réserves. Jamais bloquants.
+    var incomplets = 0;
+    total += _complements.length;
+    surProgression?.call(ProgressionTelechargement(fait, total));
+    for (final etape in _complements) {
+      try {
+        if (!await etape(chantierId)) incomplets++;
+      } catch (e) {
+        debugPrint('[hors-ligne] Complément échoué : $e');
+        incomplets++;
+      }
+      avancer();
+    }
+
     if (echecs > 0) {
       return ResultatTelechargement(
         complet: false,
@@ -200,7 +230,7 @@ class TelechargementChantier {
 
     final maintenant = _maintenant();
     await _base.ecrireMeta(cleMeta(chantierId), maintenant.toIso8601String());
-    return ResultatTelechargement(complet: true, date: maintenant);
+    return ResultatTelechargement(complet: true, date: maintenant, complementsIncomplets: incomplets);
   }
 
   /// Détail, sous-plans et FICHIER d'un plan. `true` si tout est sur l'appareil.

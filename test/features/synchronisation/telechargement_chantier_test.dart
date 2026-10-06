@@ -181,4 +181,34 @@ void main() {
     expect(r.complet, isFalse);
     expect(await s2.derniereSynchro('c1'), isNull);
   });
+  test('un complément en échec ne bloque pas le chantier, mais il est signalé', () async {
+    final ids = <String>[];
+    final s2 = TelechargementChantier(
+      base: BaseLocale.instance,
+      chantiers: chantiers,
+      reserves: reserves,
+      plans: plans,
+      corpsEtat: corps,
+      phases: phases,
+      dio: Dio()..httpClientAdapter = fichiers,
+      enLigne: () => true,
+      tirerReserves: () async {},
+      maintenant: () => instant,
+      complements: [
+        (id) async {
+          ids.add(id);
+          return true;
+        },
+        (id) async => false,
+        (id) async => throw Exception('boum'),
+      ],
+    );
+
+    final r = await s2.telecharger('c1');
+
+    expect(r.complet, isTrue);
+    expect(r.complementsIncomplets, 2);
+    expect(ids, ['c1']);
+    expect(await s2.derniereSynchro('c1'), instant);
+  });
 }

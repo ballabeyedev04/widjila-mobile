@@ -25,6 +25,15 @@ Exception mapDioException(DioException e) {
       e.type == DioExceptionType.receiveTimeout ||
       e.type == DioExceptionType.sendTimeout ||
       e.type == DioExceptionType.connectionError) {
+    // Une ÉCRITURE sans réseau : « vérifiez votre connexion » laisse croire à
+    // un incident. Ce n'en est pas un — cette action-là demande Internet (les
+    // réserves, photos et rapports, eux, partent en file d'attente avant
+    // d'arriver ici).
+    if (e.requestOptions.method.toUpperCase() != 'GET') {
+      return const NetworkException(
+        message: 'Cette action nécessite une connexion Internet. Elle sera possible dès le retour du réseau.',
+      );
+    }
     return const NetworkException();
   }
 
