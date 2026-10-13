@@ -28,10 +28,7 @@ import 'package:flutter/foundation.dart';
 /// fonctionnement prévu par Apple pour les services vendus aux entreprises
 /// (« Enterprise Services », directive 3.1.3).
 ///
-/// L'INSCRIPTION, elle, reste ouverte sur iOS. Voir `inscriptionAutorisee` :
-/// elle ne mène plus à un achat mais à l'offre gratuite permanente, et la
-/// retirer rendrait l'application inutilisable pour qui la découvre sur
-/// l'App Store.
+/// L'INSCRIPTION est elle aussi retirée sur iOS. Voir `inscriptionAutorisee`.
 ///
 /// Android et le web ne changent PAS : la vente y reste ouverte, sans
 /// commission, et c'est là que les organisations souscrivent.
@@ -53,23 +50,14 @@ class ReglesStore {
 
   /// Vrai si l'application peut proposer de CRÉER une organisation.
   ///
-  /// Vrai PARTOUT, iOS compris, et c'est un choix mûri.
+  /// Faux sur iOS. Deuxième refus d'Apple (13/10/2026, version 1.0 (20)) :
+  /// malgré l'offre gratuite permanente, l'inscription d'une entreprise
+  /// reste considérée comme un accès à un achat externe (directive 3.1.1),
+  /// et Apple demande explicitement de la retirer.
   ///
-  /// Apple reprochait à l'inscription d'être un canal d'achat externe : on
-  /// créait un compte, l'essai courait deux jours, puis un mur réclamait de
-  /// payer — ailleurs que par un achat intégré. Le grief portait sur ce
-  /// qu'elle MENAIT, pas sur elle-même.
-  ///
-  /// Ce qu'elle mène a changé. L'inscription donne maintenant accès à l'offre
-  /// gratuite permanente : un chantier, deux utilisateurs, des réserves
-  /// illimitées, sans date de fin et sans rien à payer. Rien n'est vendu dans
-  /// l'application iOS — `commerceAutorise` y reste faux, aucun tarif, aucun
-  /// bouton, aucun lien de paiement. L'inscription ne mène donc plus à un
-  /// achat : elle mène à un produit utilisable.
-  ///
-  /// La retirer coûterait bien plus qu'elle ne rapporte : une entreprise qui
-  /// découvre Widjila sur l'App Store n'a aucun compte, et sans inscription
-  /// elle n'a aucun moyen d'en obtenir un. L'application serait installable
-  /// mais inutilisable.
-  static bool get inscriptionAutorisee => true;
+  /// Sur iOS, l'application ne fait donc que la CONNEXION : les entreprises
+  /// s'inscrivent sur Android ou le web, puis se connectent sur iPhone.
+  /// Le code de l'inscription reste en place — Android et le web s'en
+  /// servent toujours.
+  static bool get inscriptionAutorisee => defaultTargetPlatform != TargetPlatform.iOS;
 }
