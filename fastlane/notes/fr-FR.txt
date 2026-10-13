@@ -1,4 +1,3 @@
-- Nouveau bouton « Disponible hors connexion » sur chaque chantier : téléchargez plans, structure, réserves, photos et documents avant de partir sur le terrain
-- Travaillez sans réseau : ouvrez les plans, créez des réserves avec photos, retrouvez-les sur le plan, tout est envoyé au retour du réseau
-- Date de dernière synchronisation visible, conflits de modification signalés
-- Messages plus clairs quand une action demande Internet
+- Écran de connexion simplifié
+- Mode hors connexion plus fiable : chantiers, plans et réserves disponibles sans réseau
+- Corrections de stabilité
