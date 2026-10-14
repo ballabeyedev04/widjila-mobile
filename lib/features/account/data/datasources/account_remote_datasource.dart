@@ -124,7 +124,23 @@ class AccountRemoteDataSourceImpl implements AccountRemoteDataSource {
   @override
   Future<void> activerMfa({required String secret, required String code}) async {
     try {
-      await dio.post('/account/mfa/enable', data: {'secret': secret, 'code': code});
+      // Activer le MFA ferme les AUTRES sessions et périme le jeton d'accès
+      // (`token_version`) — même mécanique que le changement de mot de passe
+      // ci-dessous. Le refresh token joint désigne notre session, épargnée ;
+      // le jeton d'accès neuf renvoyé remplace celui qui vient de mourir.
+      final refreshToken = await tokenService.getRefreshToken();
+      final response = await dio.post('/account/mfa/enable', data: {
+        'secret': secret,
+        'code': code,
+        if (refreshToken != null && refreshToken.isNotEmpty) 'refresh_token': refreshToken,
+      });
+      // Lecture tolérante : un serveur antérieur ne renvoie pas de `data`.
+      final corps = response.data;
+      final data = corps is Map ? corps['data'] : null;
+      final accessToken = data is Map ? data['accessToken'] as String? : null;
+      if (accessToken != null && accessToken.isNotEmpty) {
+        await tokenService.setToken(accessToken);
+      }
     } on DioException catch (e) {
       throw mapDioException(e);
     }
