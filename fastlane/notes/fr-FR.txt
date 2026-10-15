@@ -1,3 +1,3 @@
-- Écran de connexion simplifié
+- Sécurité renforcée : activer la double authentification ferme les sessions ouvertes sur vos autres appareils, sans vous déconnecter de celui-ci
 - Mode hors connexion plus fiable : chantiers, plans et réserves disponibles sans réseau
 - Corrections de stabilité
